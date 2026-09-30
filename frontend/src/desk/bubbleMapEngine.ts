@@ -29,6 +29,7 @@ export type BubbleMapHooks = {
 export type BubbleMapEngine = {
   setData: (payload: CircleSharePayload | null, images: BubbleImages | null) => void;
   setHighlight: (handle: string | null) => void;
+  positions: () => Array<{ x: number; y: number; r: number }>;
   destroy: () => void;
 };
 
@@ -428,10 +429,7 @@ export function createBubbleMap(
         body.y = clamp(y - drag.offsetY, body.r, box.height - body.r);
         body.vx = 0;
         body.vy = 0;
-        if (reduced()) {
-          stepBodies(bodies, box, { dragged: drag.index });
-          scheduleDraw();
-        } else wake();
+        wake();
       }
       return;
     }
@@ -447,6 +445,7 @@ export function createBubbleMap(
     if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
     if (finished.moved) {
       if (reduced()) {
+        halt();
         snapToHome(bodies);
         scheduleDraw();
       } else wake();
@@ -545,6 +544,9 @@ export function createBubbleMap(
       const expected = (ghost ? GHOST_SCORES.length : scores.length) + 1;
       const same = previousCount === expected && ghost === wasGhost;
       layout(same ? (changed ? previous : { ...box }) : null, !ghost);
+    },
+    positions() {
+      return bodies.map((b) => ({ x: b.x, y: b.y, r: b.r }));
     },
     setHighlight(handle) {
       const index = indexOfHandle(handle);

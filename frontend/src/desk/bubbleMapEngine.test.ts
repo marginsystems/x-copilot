@@ -53,7 +53,10 @@ function fakeElement() {
       listeners.delete(type);
     },
     setPointerCapture() {},
-    releasePointerCapture() {},
+    released: [] as number[],
+    releasePointerCapture(id: number) {
+      element.released.push(id);
+    },
     hasPointerCapture: () => true,
     getBoundingClientRect: () => ({ left: 0, top: 0 }),
     getContext: () => new Proxy({}, { get: () => () => undefined, set: () => true }),
@@ -61,11 +64,42 @@ function fakeElement() {
   return element;
 }
 
+function isCanvas(value: unknown): value is HTMLCanvasElement {
+  return typeof value === "object";
+}
+
+function isHost(value: unknown): value is HTMLElement {
+  return typeof value === "object";
+}
+
+function asCanvas(value: unknown): HTMLCanvasElement {
+  if (!isCanvas(value)) throw new Error("not a canvas");
+  return value;
+}
+
+function asHost(value: unknown): HTMLElement {
+  if (!isHost(value)) throw new Error("not a host");
+  return value;
+}
+
 const saved: Record<string, unknown> = {};
 let opened: unknown[][] = [];
+let frames: Array<(time: number) => void> = [];
+let clock = 0;
+
+function pump(count: number): void {
+  for (let i = 0; i < count; i++) {
+    const due = frames;
+    frames = [];
+    clock += 17;
+    for (const cb of due) cb(clock);
+  }
+}
 
 beforeEach(() => {
   opened = [];
+  frames = [];
+  clock = performance.now();
   const g = globalThis as Record<string, unknown>;
   for (const key of ["document", "window", "getComputedStyle", "requestAnimationFrame", "cancelAnimationFrame"]) {
     saved[key] = g[key];
@@ -85,7 +119,7 @@ beforeEach(() => {
     },
   };
   g.getComputedStyle = () => ({ getPropertyValue: () => "" });
-  g.requestAnimationFrame = () => 1;
+  g.requestAnimationFrame = (cb: (time: number) => void) => frames.push(cb);
   g.cancelAnimationFrame = () => undefined;
 });
 
@@ -101,7 +135,7 @@ function setup(count: number) {
   const canvas = fakeElement();
   const host = fakeElement();
   const hovers: Array<string | null> = [];
-  const engine = createBubbleMap(canvas as unknown as HTMLCanvasElement, host as unknown as HTMLElement, {
+  const engine = createBubbleMap(asCanvas(canvas), asHost(host), {
     onHover: (handle) => hovers.push(handle),
   });
   const data = payload(count);
@@ -110,7 +144,7 @@ function setup(count: number) {
   const bodies = packBubbles(scores, BOX);
   const fire = (type: string, x: number, y: number) =>
     canvas.listeners.get(type)?.({ pointerId: 1, pointerType: "mouse", button: 0, clientX: x, clientY: y });
-  return { engine, bodies, fire, hovers };
+  return { engine, bodies, fire, hovers, canvas };
 }
 
 await describe("bubbleMapEngine", () => {
@@ -131,18 +165,37 @@ await describe("bubbleMapEngine", () => {
     assert.deepEqual(opened, []);
   }).catch(assert.fail);
 
-  it("survives new data mid-drag with fewer bodies", () => {
-    const { engine, bodies, fire, hovers } = setup(40);
+  it("cancels a live drag when a smaller payload re-packs to fewer bodies", () => {
+    const { engine, bodies, fire, hovers, canvas } = setup(40);
     const target = bodies[30]!;
     fire("pointerdown", target.x, target.y);
     fire("pointermove", target.x + 20, target.y + 20);
-    engine.setData(null, null);
+    assert.equal(hovers.at(-1), "friend_29");
+    engine.setData(payload(8), new Map());
+    assert.deepEqual(canvas.released, [1]);
+    assert.equal(hovers.at(-1), null);
+    assert.equal(engine.positions().length, 9);
     assert.doesNotThrow(() => {
       fire("pointermove", target.x + 40, target.y + 40);
       fire("pointermove", target.x + 60, target.y + 60);
       fire("pointerup", target.x + 60, target.y + 60);
+      pump(5);
     });
     assert.deepEqual(opened, []);
-    assert.equal(hovers.at(-1), null);
+  }).catch(assert.fail);
+
+  it("schedules frames while dragging and pushes a neighbour away", () => {
+    const { engine, bodies, fire } = setup(12);
+    const grabbed = bodies[1]!;
+    const other = bodies[2]!;
+    const before = engine.positions();
+    frames = [];
+    fire("pointerdown", grabbed.x, grabbed.y);
+    fire("pointermove", grabbed.x + (other.x - grabbed.x) * 0.8, grabbed.y + (other.y - grabbed.y) * 0.8);
+    assert.ok(frames.length > 0);
+    pump(12);
+    const after = engine.positions();
+    assert.ok(Math.hypot(after[2]!.x - before[2]!.x, after[2]!.y - before[2]!.y) > 0.5);
+    assert.notDeepEqual(after[1], before[1]);
   }).catch(assert.fail);
 });
