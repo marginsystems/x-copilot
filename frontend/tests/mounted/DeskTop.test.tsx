@@ -94,3 +94,34 @@ test("a collapsed cockpit mounts nothing until it is first opened", async () => 
   expect(screen.getByRole("button", { name: "Show cockpit" }).getAttribute("aria-expanded")).toBe("false");
   expect(screen.getByRole("region", { name: "Circle", hidden: true })).toBeTruthy();
 });
+
+test("the toggle is one element with a fixed-width label across both states", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({}, { status: 503 })));
+  const user = userEvent.setup();
+  render(<Harness initialOpen />);
+  const toggle = screen.getByRole("button", { name: "Hide cockpit" });
+  const sizer = toggle.querySelector(".desk-top-toggle-sizer");
+  expect(sizer?.textContent).toBe("Show cockpit");
+  expect(sizer?.getAttribute("aria-hidden")).toBe("true");
+  await user.click(toggle);
+  expect(screen.getByRole("button", { name: "Show cockpit" })).toBe(toggle);
+  expect(toggle.querySelector(".desk-top-toggle-sizer")).toBe(sizer);
+  expect(screen.getByRole("heading", { name: "Cockpit", hidden: true })).toBeTruthy();
+});
+
+test("a collapsed cockpit body is inert and aria-hidden, and reopens live", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({}, { status: 503 })));
+  const user = userEvent.setup();
+  const { container } = render(<Harness initialOpen />);
+  const body = container.querySelector(".desk-top-body");
+  if (!body) throw new Error("missing cockpit body");
+  expect(body.hasAttribute("inert")).toBe(false);
+  expect(body.getAttribute("aria-hidden")).toBe("false");
+  await user.click(screen.getByRole("button", { name: "Hide cockpit" }));
+  expect(body.hasAttribute("inert")).toBe(true);
+  expect(body.getAttribute("aria-hidden")).toBe("true");
+  expect(container.querySelector(".desk-top")?.classList.contains("is-collapsed")).toBe(true);
+  await user.click(screen.getByRole("button", { name: "Show cockpit" }));
+  expect(body.hasAttribute("inert")).toBe(false);
+  expect(container.querySelector(".desk-top")?.classList.contains("is-collapsed")).toBe(false);
+});
