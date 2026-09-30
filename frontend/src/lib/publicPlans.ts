@@ -10,7 +10,6 @@ export type PublicPlan = {
   credits: number;
   sorties: number;
   watch: number;
-  suggests: number;
   blurb: string;
   image: string;
 };
@@ -24,7 +23,6 @@ export const PUBLIC_PLANS: readonly PublicPlan[] = [
     credits: 1_500,
     sorties: 1,
     watch: 15,
-    suggests: 10,
     blurb: "One Scout takeoff a day and a small watch. No credit card.",
     image: "/favicon.svg",
   },
@@ -36,7 +34,6 @@ export const PUBLIC_PLANS: readonly PublicPlan[] = [
     credits: 6_000,
     sorties: 5,
     watch: 50,
-    suggests: 20,
     blurb: "A few Scout sessions a week plus a 50-post/day watch for analytics.",
     image: "/images/plan-pulse.png",
   },
@@ -48,7 +45,6 @@ export const PUBLIC_PLANS: readonly PublicPlan[] = [
     credits: 18_000,
     sorties: 10,
     watch: 120,
-    suggests: 30,
     blurb: "Daily desk and a 120-post/day watch. Scout + analytics share the pool.",
     image: "/images/plan-radar.png",
   },
@@ -60,7 +56,6 @@ export const PUBLIC_PLANS: readonly PublicPlan[] = [
     credits: 40_000,
     sorties: 25,
     watch: 250,
-    suggests: 40,
     blurb: "Wide field. 25 takeoffs and a 250-post/day watch for heavy desks.",
     image: "/images/plan-horizon.png",
   },

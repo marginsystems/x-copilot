@@ -6,15 +6,15 @@ export type ForYouKind = (typeof FOR_YOU_KINDS)[number];
 export const APPROACH_TAB_LABEL = "Approach";
 export const APPROACH_MIN_TRACKED = 5;
 export const X_FOR_YOU_URL = "https://x.com/home";
+export const X_COMPOSE_URL = "https://x.com/intent/tweet";
 export const X_INSPIRATION_URL =
   "https://x.com/i/jf/creators/inspiration/top_posts";
 export const FYP_WAIT_COPY =
   "Open For You or Inspiration. Come back and tap Next.";
-export const FYP_ACTION_COPY =
-  "Reply, original, or quote something you actually read — For You or Inspiration. Likes do not count.";
 export const FYP_DETECTING_COPY = "Detection in progress.";
 export const FYP_DETECTED_COPY = "Post detected";
 export const FYP_OPEN_TIP = "Opens your real X For You page.";
+export const FYP_COMPOSE_TIP = "Opens a blank post on X. You write it.";
 export const FYP_INSPIRATION_TIP = "Opens X Inspiration top posts.";
 export const FYP_NEXT_TIP =
   "Leave this wait. Take the next Approach card.";
@@ -91,7 +91,6 @@ export type ForYouSuggestion = {
   id: string;
   kind: ForYouKind;
   why: string;
-  draft: string | null;
   targetId: string | null;
   targetUrl: string | null;
   targetAuthor: string | null;
@@ -111,7 +110,6 @@ export function parseForYouSuggestion(raw: unknown): ForYouSuggestion | null {
     id,
     kind,
     why,
-    draft: optional(row.draft),
     targetId: optional(row.targetId),
     targetUrl: optional(row.targetUrl),
     targetAuthor: optional(row.targetAuthor),
@@ -137,39 +135,15 @@ export function forYouKindClass(kind: ForYouKind): string {
   return `kind-${kind}`;
 }
 
-/**
- * Own-account originals/quotes may post from the desk. Quote cards need a
- * numeric targetId — the desk quotes that status id, and a quote without one
- * cannot be desk-posted or quoted via the compose intent. Scout replies may not.
- */
-export function forYouUsesDeskCompose(row: ForYouSuggestion): boolean {
-  if (row.kind === "post") return true;
-  if (row.kind === "quote") {
-    return row.targetId !== null && /^\d+$/.test(row.targetId);
-  }
-  return false;
-}
-
-/** Why + digest draft — seed for the Suggest compose stance/draft pass. */
-export function forYouComposeSeed(row: ForYouSuggestion): string {
-  return [row.why, row.draft].filter(Boolean).join("\n\n");
-}
-
 export function forYouOpenUrl(row: ForYouSuggestion): string | null {
-  if (row.kind === "post") return X_FOR_YOU_URL;
+  if (row.kind === "post") return X_COMPOSE_URL;
   if (row.targetUrl && /^https?:\/\//i.test(row.targetUrl)) {
     return row.targetUrl;
   }
-  if (row.kind === "reply" && row.targetId && /^\d+$/.test(row.targetId)) {
-    const params = new URLSearchParams({
-      in_reply_to: row.targetId,
-      text: row.draft ?? "",
-    });
-    return `https://x.com/intent/tweet?${params.toString()}`;
+  if (!row.targetId || !/^\d+$/.test(row.targetId)) return null;
+  if (row.kind === "reply") {
+    const params = new URLSearchParams({ in_reply_to: row.targetId });
+    return `${X_COMPOSE_URL}?${params.toString()}`;
   }
-  if (row.draft) {
-    const params = new URLSearchParams({ text: row.draft });
-    return `https://x.com/intent/tweet?${params.toString()}`;
-  }
-  return null;
+  return `https://x.com/i/status/${row.targetId}`;
 }

@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { DeskRow } from "./desk/DeskRow";
 import { LegalLinks } from "./routing/LegalLinks";
 import { Onboarding } from "./Onboarding";
@@ -23,9 +22,6 @@ type MockCard = {
   summary: string;
   author: string;
   ago: string;
-  text: string;
-  reason: string;
-  tags: string[];
   engage?: "priority";
 };
 
@@ -39,10 +35,6 @@ const MOCK_CARDS: MockCard[] = [
       "Question to engineers about what their job becomes when AI writes and reviews most of the code.",
     author: "@buildsinpublic",
     ago: "38m",
-    text: "Serious question for engineers: if AI writes the code and reviews the code, what exactly is the job in two years? Not doom-posting, genuinely asking what you're doubling down on.",
-    reason:
-      "Open question in your niche, low bait, no reply from a big account yet — a grounded answer can anchor the thread.",
-    tags: ["question", "ai-engineering"],
     engage: "priority",
   },
   {
@@ -53,10 +45,6 @@ const MOCK_CARDS: MockCard[] = [
       "Founder asks whether daily posting is actually worth it while running a startup.",
     author: "@solo_founder_km",
     ago: "1h",
-    text: "Everyone says post every day. I'm running a company. Is organic X actually the best channel for a technical product or are we all just cosplaying marketing?",
-    reason:
-      "Fits a promote-your-product agenda: you can answer from experience without pitching in the first line.",
-    tags: ["distribution", "founder"],
   },
   {
     id: "m3",
@@ -66,10 +54,6 @@ const MOCK_CARDS: MockCard[] = [
       "Take that bare-bones MVPs no longer work now that building with AI is fast.",
     author: "@shipthings",
     ago: "2h",
-    text: "Building with AI means doing more, not just faster. A bare-bones MVP isn't impressive anymore — the bar moved. Half-finished ideas used to be acceptable. Now they read as low effort.",
-    reason:
-      "Opinion post with real discussion under it. Pick a side before drafting — agree with a sharper example, or push back with a counter-case.",
-    tags: ["opinion", "mvp"],
   },
   {
     id: "m4",
@@ -79,30 +63,18 @@ const MOCK_CARDS: MockCard[] = [
       "Thread on pricing models for a developer-tools startup — pay-per-use vs subscriptions.",
     author: "@devtools_meg",
     ago: "3h",
-    text: "Talked to 30 devtools founders about pricing. Pay-per-use feels fair but subscriptions fund the roadmap. Where this landed surprised me — usage caps with a flat floor won almost every time.",
-    reason:
-      "Data-backed thread in-niche; a reply adding your own pricing experience earns follows from the right audience.",
-    tags: ["pricing", "devtools"],
   },
 ];
 
 function MockThreadRow({
   card,
-  open,
-  signedIn,
-  onToggle,
   onCta,
 }: {
   card: MockCard;
-  open: boolean;
-  signedIn: boolean;
-  onToggle: () => void;
   onCta: () => void;
 }) {
   return (
     <DeskRow
-      open={open}
-      expandable
       lead={card.bait}
       leadTitle="Engagement-bait risk — higher is worse"
       leadClassName={`bait ${card.baitClass}`}
@@ -116,27 +88,11 @@ function MockThreadRow({
           ) : null}
         </>
       }
-      onToggle={onToggle}
-      onPrimary={open ? onCta : undefined}
+      onPrimary={onCta}
       primaryLabel="Mark interacted"
-      onSkip={open ? onCta : undefined}
-      onDismiss={open ? onCta : undefined}
-    >
-      <p className="original">{card.text}</p>
-      <p className="reason">{card.reason}</p>
-      <div className="tags">
-        {card.tags.map((tag) => (
-          <span className="tag" key={tag}>
-            {tag}
-          </span>
-        ))}
-      </div>
-      <p className="landing-demo-hint">
-        {signedIn
-          ? "demo — open the desk to use this"
-          : "demo — sign in to use the desk"}
-      </p>
-    </DeskRow>
+      onSkip={onCta}
+      onDismiss={onCta}
+    />
   );
 }
 
@@ -146,8 +102,6 @@ export function Landing(props: {
   onSignIn: () => void;
   onOpenDesk: () => void;
 }) {
-  const [openId, setOpenId] = useState<string | null>(MOCK_CARDS[0]!.id);
-
   return (
     <div className="landing">
       <div className="landing-inner">
@@ -162,8 +116,9 @@ export function Landing(props: {
             For You is built to keep you scrolling — it optimizes for your
             attention, not your account. x-copilot is a curation desk: it
             searches public X for the threads worth <strong>your</strong> reply,
-            scored against your agenda and your style. You review. You post.
-            Always as yourself.
+            scored against your agenda, and picks your next move. It never
+            writes a word for you. You open X. You write. You post. Always as
+            yourself.
           </p>
           <div className="landing-cta">
             {props.signedIn ? (
@@ -243,20 +198,15 @@ export function Landing(props: {
         <section className="landing-section" aria-labelledby="landing-desk">
           <h2 id="landing-desk">This is the desk</h2>
           <p className="landing-section-sub">
-            Live demo with sample data — tap a card. Every card shows an
-            engagement-bait score, why it was picked, and what Scout thinks the
-            move is.
+            Live demo with sample data. Every card shows an engagement-bait
+            score and what the thread is about. The reply is yours to write on
+            X.
           </p>
           <div className="landing-mock" aria-label="Example curated threads">
             {MOCK_CARDS.map((card) => (
               <MockThreadRow
                 key={card.id}
                 card={card}
-                open={openId === card.id}
-                signedIn={Boolean(props.signedIn)}
-                onToggle={() =>
-                  setOpenId((id) => (id === card.id ? null : card.id))
-                }
                 onCta={props.signedIn ? props.onOpenDesk : props.onSignIn}
               />
             ))}
@@ -268,19 +218,19 @@ export function Landing(props: {
           <ul className="landing-list">
             <li>
               <strong>Nothing is ever auto-sent.</strong> No auto-replies, no
-              auto-likes, no scheduled blasts. You post from the desk or on X
-              — nothing fires without you.
+              auto-likes, no scheduled blasts. You post on X yourself — nothing
+              fires without you.
             </li>
             <li>
-              <strong>Suggested drafts require your edit.</strong> Voice
-              suggestions are drafted from your own past posts — and you must
-              rework a draft before the desk treats it as ready. Then you post
-              it on X yourself.
+              <strong>Every word is yours.</strong> x-copilot uses AI to find
+              threads worth your time and to pick your next move. It never
+              writes your replies or posts — you open X and write them
+              yourself.
             </li>
             <li>
               <strong>You stay inside normal X use.</strong> Follow the desk —
-              review, edit, post as yourself — and you're simply a person
-              replying to public posts. That's the whole point.
+              pick a thread, open X, write as yourself — and you're simply a
+              person replying to public posts. That's the whole point.
             </li>
           </ul>
           <p className="landing-fine">
@@ -295,8 +245,8 @@ export function Landing(props: {
             Tell Scout what this season is about: <em>find founders and
             engineers talking about AI tooling</em>, or <em>surface threads
             where my product genuinely answers the question</em>. Scout hunts
-            for that — and Voice keeps any suggested draft sounding like you,
-            because it learns only from your own public posts.
+            for that, and the desk picks your next move. What you say stays
+            yours.
           </p>
         </section>
 
@@ -318,9 +268,6 @@ export function Landing(props: {
             </li>
             <li>
               <strong>15</strong> watch posts / day
-            </li>
-            <li>
-              <strong>10</strong> voice suggests / day
             </li>
           </ul>
           <p className="gate-free">

@@ -128,7 +128,7 @@ test("late boot after invalidation cannot restore identity, desk, or cache", asy
       setBillingNotice: vi.fn(), setView: vi.fn(), setSignInOpen: vi.fn(),
       applyAuthUser: current.applyAuthUser, applyDesk,
       confirmCheckout: followup, hydrateCoaching: followup,
-      hydrateActivityStats: followup, loadBilling: followup, hydrateVoice: followup, loadUsage: followup, loadAdmin: followup,
+      hydrateActivityStats: followup, loadBilling: followup, loadUsage: followup, loadAdmin: followup,
     });
     return <span>{current.authUser?.id ?? "anonymous"}</span>;
   }
@@ -195,7 +195,7 @@ test.each(["boot", "legacy /api/auth/me"])("the verified hint is stored after %s
       setBillingNotice: vi.fn(), setView: vi.fn(), setSignInOpen: vi.fn(),
       applyAuthUser: current.applyAuthUser, applyDesk: vi.fn(),
       confirmCheckout: followup, hydrateCoaching: followup,
-      hydrateActivityStats: followup, loadBilling: followup, hydrateVoice: followup, loadUsage: followup, loadAdmin: followup,
+      hydrateActivityStats: followup, loadBilling: followup, loadUsage: followup, loadAdmin: followup,
     });
     return <span>{current.authUser?.id ?? "anonymous"}</span>;
   }

@@ -41,7 +41,7 @@ export function PricingPage(props: {
             <p className="plan-card-credits">
               {plan.credits.toLocaleString()} credits / month · {plan.sorties}{" "}
               takeoff{plan.sorties === 1 ? "" : "s"} / day · {plan.watch}{" "}
-              watched / day · {plan.suggests} suggests / day
+              watched / day
             </p>
             <p className="plan-card-blurb">{plan.blurb}</p>
           </article>

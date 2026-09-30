@@ -17,7 +17,7 @@ const user: AuthSessionUser = {
   xLinked: true, xCanPost: true, isAdmin: false,
 };
 const suggestion: ForYouSuggestion = {
-  id: "suggestion", kind: "reply", why: "Relevant conversation", draft: null,
+  id: "suggestion", kind: "reply", why: "Relevant conversation",
   targetId: "123", targetUrl: null, targetAuthor: "author",
 };
 const lock = { phase: "organic_reply", cardId: suggestion.id, surface: null } as const;
@@ -54,7 +54,7 @@ function setup() {
       curatedThreads: [], forYouSuggestions: history.forYouSuggestions,
       interactedIds: new Set(), interactedRetainedHistory: [{ threadId: "123", at: "2026-09-16" }],
       dismissedHistory: [], dismissThread: null, searching: false,
-      setExpandedId: vi.fn(), actForYou: history.actForYou,
+      actForYou: history.actForYou,
       onSkip: vi.fn(), onDismiss: vi.fn(), onRefreshCoaching, onHydrateInteracted: vi.fn(), onPollInteracted: vi.fn(),
     });
     return { approach, history, session };

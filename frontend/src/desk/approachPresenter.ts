@@ -5,7 +5,6 @@
 import type { CoachingState, OwnActivity } from "../lib/coaching";
 import type { ApproachGate, ApproachLock, DeskPhase } from "../lib/deskPhase";
 import {
-  FYP_ACTION_COPY,
   FYP_DETECTED_COPY,
   FYP_DETECTING_COPY,
   FYP_WAIT_COPY,
@@ -63,7 +62,6 @@ export type ApproachPresentation = {
   forYou: {
     detected: boolean;
     status: string;
-    actionCopy: string;
     activity: OwnActivity | null;
     /** Next armed the running reply minute: the open button waits it out. */
     holding: boolean;
@@ -99,7 +97,6 @@ function forYouPresentation(input: ApproachCardInput, holding: boolean): Approac
     forYou: {
       detected,
       status,
-      actionCopy: FYP_ACTION_COPY,
       activity,
       holding,
       showNext: true,

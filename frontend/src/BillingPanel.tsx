@@ -7,7 +7,6 @@ type PlanCard = {
   credits: number;
   daily_events?: number;
   daily_sorties?: number;
-  daily_suggests?: number;
   name: string;
   blurb: string;
   image: string;
@@ -20,7 +19,6 @@ const FREE_CARD: PlanCard = {
   credits: 1500,
   daily_events: 15,
   daily_sorties: 1,
-  daily_suggests: 10,
   name: "Free",
   blurb: "One Scout takeoff a day and a small watch. No credit card.",
   image: "/favicon.svg",
@@ -251,7 +249,6 @@ export function BillingPanel(props: {
               : billing?.plan_key === key &&
                 billing?.plan_state === "subscription_active";
           const takeoffs = plan?.daily_sorties ?? plan?.sorties;
-          const suggests = plan?.daily_suggests;
           return (
             <article
               key={key}
@@ -282,9 +279,6 @@ export function BillingPanel(props: {
                   : ""}
                 {takeoffs
                   ? ` · ${takeoffs} takeoff${takeoffs === 1 ? "" : "s"} / day`
-                  : ""}
-                {suggests
-                  ? ` · ${suggests} suggests / day`
                   : ""}
               </p>
               <p className="plan-card-blurb">{plan?.blurb ?? ""}</p>

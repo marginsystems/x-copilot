@@ -4,13 +4,7 @@
  * An empty Collecting card adopts the first Scout that arrives.
  * Collecting Next still fills a suggestion-only tank. Detection marks the same card.
  */
-import {
-  useEffect,
-  useRef,
-  useState,
-  type Dispatch,
-  type SetStateAction,
-} from "react";
+import { useEffect, useRef, useState } from "react";
 import type { AuthSessionUser } from "../auth/types";
 import { useSession } from "../auth/session";
 import type { ScoutStageId } from "../lib/scoutStages";
@@ -89,7 +83,6 @@ export type UseApproachTaskOpts = {
   searching: boolean;
   scoutStage?: ScoutStageId | null;
   scoutLine?: string | null;
-  setExpandedId: Dispatch<SetStateAction<string | null>>;
   actForYou: (
     id: string,
     action: "done" | "skip" | "dismiss",
@@ -125,7 +118,6 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     searching,
     scoutStage = null,
     scoutLine = null,
-    setExpandedId,
     actForYou,
     onSkip,
     onDismiss,
@@ -451,7 +443,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
             surface: "reply" as const,
             author: lockedSuggestion.targetAuthor,
             url: lockedSuggestion.targetUrl,
-            text: lockedSuggestion.draft ?? lockedSuggestion.why ?? null,
+            text: lockedSuggestion.why ?? null,
           }
         : null;
     const scoutLock = phase === "scout_reply" ? lockedScout : null;
@@ -509,14 +501,6 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     pendingDismissIdRef.current = null;
     advanceCardRef.current({ type: "dismiss" });
   }, [dismissedHistory]);
-  function exitRow(
-    id: string,
-    expandedKey: string,
-    then: () => void | Promise<void>,
-  ) {
-    setExpandedId((cur) => (cur === expandedKey ? null : cur));
-    beginExit(id, then);
-  }
 
   async function onSuggestionNext(id: string) {
     const generation = session.capture();
@@ -545,7 +529,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     clock: pace.clock,
     exitingIds,
     onScoutSkip(thread: ThreadCard) {
-      exitRow(thread.id, thread.id, async () => {
+      beginExit(thread.id, async () => {
         const skipped = await onSkip(thread);
         if (skipped) {
           pendingDismissIdRef.current = null;
@@ -570,7 +554,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
         onSuggestionNext(id).catch((err: unknown) => console.error(err));
         return;
       }
-      exitRow(id, `suggest:${id}`, async () => {
+      beginExit(id, async () => {
         if ((await actForYou(id, "done")) === true) {
           await onRefreshCoaching();
           advanceCard({ type: "posted" });
@@ -578,14 +562,14 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
       });
     },
     onSuggestionSkip(id: string) {
-      exitRow(id, `suggest:${id}`, async () => {
+      beginExit(id, async () => {
         if ((await actForYou(id, "skip")) === true) {
           advanceCard({ type: "skip" });
         }
       });
     },
     onSuggestionDismiss(id: string) {
-      exitRow(id, `suggest:${id}`, async () => {
+      beginExit(id, async () => {
         if ((await actForYou(id, "dismiss")) === true) {
           advanceCard({ type: "dismiss" });
         }

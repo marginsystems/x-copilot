@@ -1,75 +1,47 @@
 import {
-  FYP_OPEN_TIP,
-  forYouComposeSeed,
+  FYP_COMPOSE_TIP,
   forYouKindClass,
   forYouKindLabel,
   forYouKindShort,
   forYouOpenUrl,
-  forYouUsesDeskCompose,
   type ForYouSuggestion,
 } from "../lib/forYou";
-import type { VoiceState } from "../lib/voice";
-import { SuggestPane } from "../SuggestPane";
-import { SuggestLocked } from "../VoiceCard";
 import { ApproachDetectingMark } from "./ApproachFrame";
 import { DeskRow } from "./DeskRow";
 import type { OpenPace } from "./RowOpen";
 
 export function SuggestedRow({
   row,
-  open,
   busy,
-  voice,
-  agenda,
-  xLinked,
-  hasSession,
-  onToggle,
   onPosted,
   interacted,
   detecting,
   onNext,
   onSkip,
   onDismiss,
-  onOpenSettings,
-  onLinkX,
-  onUsage,
   index,
   exiting,
   openPace = null,
 }: {
   row: ForYouSuggestion;
-  open: boolean;
   busy: boolean;
-  voice: VoiceState | null;
-  agenda: string;
-  xLinked?: boolean;
-  hasSession: boolean;
-  onToggle: () => void;
   onPosted: () => void;
   interacted?: boolean;
   detecting?: boolean;
   onNext?: () => void;
   onSkip: () => void;
   onDismiss: () => void;
-  onOpenSettings: () => void;
-  onLinkX: () => void;
-  onUsage: (usage: VoiceState["suggests"]) => void;
   index?: number;
   exiting?: boolean;
   openPace?: OpenPace | null;
 }) {
   const openUrl = forYouOpenUrl(row);
-  const compose = forYouUsesDeskCompose(row);
-  const seed = forYouComposeSeed(row);
-  const handle = voice?.handle ? `@${voice.handle}` : "@you";
   const kindClass = forYouKindClass(row.kind);
   const detectsReply = row.kind === "reply" && Boolean(row.targetId);
 
   return (
     <DeskRow
       className={`for-you-row ${kindClass}`}
-      open={open}
-      expandable
       index={index}
       exiting={exiting}
       lead={forYouKindShort(row.kind)}
@@ -87,50 +59,18 @@ export function SuggestedRow({
           ) : null}
         </>
       }
-      onToggle={onToggle}
       openHref={openUrl}
       openPace={openPace}
       openLabel="Open on X"
-      openTip={row.kind === "post" ? FYP_OPEN_TIP : "Open the target on X."}
+      openTip={row.kind === "post" ? FYP_COMPOSE_TIP : "Open the target on X."}
       onNext={detectsReply ? onNext : undefined}
       nextTip="Continue to the next Approach card."
       nextDisabled={!interacted}
-      onPrimary={
-        open && !interacted && !detectsReply && !busy ? onPosted : undefined
-      }
+      onPrimary={!interacted && !detectsReply && !busy ? onPosted : undefined}
       primaryLabel="I posted on X"
       onSkip={!interacted ? onSkip : undefined}
       onDismiss={!interacted ? onDismiss : undefined}
       busy={busy}
-    >
-      {!compose && row.draft ? (
-        <p className="for-you-draft">{row.draft}</p>
-      ) : null}
-      {compose && voice?.status === "ready" && voice.unlocked && seed ? (
-        <SuggestPane
-          variant="compose"
-          composeKind={row.kind === "quote" ? "quote" : "post"}
-          suggestionId={row.id}
-          quoteTweetId={row.targetId}
-          threadId={row.id}
-          author={row.targetAuthor || handle}
-          text={seed}
-          agenda={agenda}
-          usage={voice.suggests}
-          onUsage={onUsage}
-          onDeskPosted={onPosted}
-          openPace={openPace}
-        />
-      ) : compose ? (
-        <SuggestLocked
-          voice={voice}
-          xLinked={xLinked}
-          hasSession={hasSession}
-          lockNoun="post"
-          onOpenSettings={onOpenSettings}
-          onLinkX={onLinkX}
-        />
-      ) : null}
-    </DeskRow>
+    />
   );
 }

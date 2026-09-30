@@ -2,7 +2,7 @@ import { StrictMode } from "react";
 import { act, renderHook } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
 import { useDeskRowExit } from "../../src/desk/useDeskRowExit";
-import { DESK_ROW_EXPAND_MS } from "../../src/lib/deskRow";
+import { DESK_ROW_EXIT_MS } from "../../src/lib/deskRow";
 import { deferred } from "./support/deferred";
 
 function stubReducedMotion(matches: boolean) {
@@ -12,7 +12,7 @@ function stubReducedMotion(matches: boolean) {
   );
 }
 
-test("delayed exit fires once after the expand delay and ignores a repeat click", () => {
+test("delayed exit fires once after the exit delay and ignores a repeat click", () => {
   vi.useFakeTimers();
   const then = vi.fn();
   const { result } = renderHook(() => useDeskRowExit(), { wrapper: StrictMode });
@@ -25,7 +25,7 @@ test("delayed exit fires once after the expand delay and ignores a repeat click"
   expect(vi.getTimerCount()).toBe(1);
 
   act(() => {
-    vi.advanceTimersByTime(DESK_ROW_EXPAND_MS - 1);
+    vi.advanceTimersByTime(DESK_ROW_EXIT_MS - 1);
   });
   expect(then).not.toHaveBeenCalled();
   act(() => {
@@ -38,7 +38,7 @@ test("delayed exit fires once after the expand delay and ignores a repeat click"
   // The guard is released once the action settles, so the id can exit again.
   act(() => {
     result.current.beginExit("row-1", then);
-    vi.advanceTimersByTime(DESK_ROW_EXPAND_MS);
+    vi.advanceTimersByTime(DESK_ROW_EXIT_MS);
   });
   expect(then).toHaveBeenCalledTimes(2);
 });
@@ -51,14 +51,14 @@ test("an id stays a no-op while its async action is still pending", async () => 
 
   act(() => {
     result.current.beginExit("row-1", then);
-    vi.advanceTimersByTime(DESK_ROW_EXPAND_MS);
+    vi.advanceTimersByTime(DESK_ROW_EXIT_MS);
   });
   expect(then).toHaveBeenCalledTimes(1);
   expect(result.current.exitingIds).toEqual(new Set(["row-1"]));
 
   act(() => {
     result.current.beginExit("row-1", then);
-    vi.advanceTimersByTime(DESK_ROW_EXPAND_MS);
+    vi.advanceTimersByTime(DESK_ROW_EXIT_MS);
   });
   expect(then).toHaveBeenCalledTimes(1);
   expect(vi.getTimerCount()).toBe(0);
@@ -81,7 +81,7 @@ test("unmount cancels scheduled actions and ignores in-flight settlement", async
 
   act(() => {
     result.current.beginExit("in-flight", started);
-    vi.advanceTimersByTime(DESK_ROW_EXPAND_MS);
+    vi.advanceTimersByTime(DESK_ROW_EXIT_MS);
     result.current.beginExit("scheduled-a", scheduled);
     result.current.beginExit("scheduled-b", scheduled);
   });
@@ -91,7 +91,7 @@ test("unmount cancels scheduled actions and ignores in-flight settlement", async
   unmount();
   expect(vi.getTimerCount()).toBe(0);
   act(() => {
-    vi.advanceTimersByTime(DESK_ROW_EXPAND_MS * 2);
+    vi.advanceTimersByTime(DESK_ROW_EXIT_MS * 2);
   });
   expect(scheduled).not.toHaveBeenCalled();
 
@@ -109,7 +109,7 @@ test("a rejected action releases the per-id guard", async () => {
 
   act(() => {
     result.current.beginExit("row-1", then);
-    vi.advanceTimersByTime(DESK_ROW_EXPAND_MS);
+    vi.advanceTimersByTime(DESK_ROW_EXIT_MS);
   });
   expect(then).toHaveBeenCalledTimes(1);
   expect(result.current.exitingIds).toEqual(new Set(["row-1"]));
@@ -122,7 +122,7 @@ test("a rejected action releases the per-id guard", async () => {
 
   act(() => {
     result.current.beginExit("row-1", then);
-    vi.advanceTimersByTime(DESK_ROW_EXPAND_MS);
+    vi.advanceTimersByTime(DESK_ROW_EXIT_MS);
   });
   expect(then).toHaveBeenCalledTimes(2);
   await act(async () => {
@@ -176,7 +176,7 @@ test("a sync throw on the delayed path releases the guard too", () => {
   expect(result.current.exitingIds).toEqual(new Set(["row-1"]));
   expect(() =>
     act(() => {
-      vi.advanceTimersByTime(DESK_ROW_EXPAND_MS);
+      vi.advanceTimersByTime(DESK_ROW_EXIT_MS);
     }),
   ).toThrow("boom");
   // act() rethrows before flushing the update queued by revert(); flush it.
@@ -186,7 +186,7 @@ test("a sync throw on the delayed path releases the guard too", () => {
 
   act(() => {
     result.current.beginExit("row-1", recovered);
-    vi.advanceTimersByTime(DESK_ROW_EXPAND_MS);
+    vi.advanceTimersByTime(DESK_ROW_EXIT_MS);
   });
   expect(recovered).toHaveBeenCalledTimes(1);
 });

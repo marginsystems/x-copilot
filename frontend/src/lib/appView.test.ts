@@ -36,7 +36,7 @@ await describe("desk routes", () => {
     assert.equal(viewFromPath("/learn/follow"), "learnFollow");
     assert.equal(pathFromView("learnFollow"), "/learn/follow");
     assert.equal(viewFromPath("/analytics"), "analytics");
-    assert.equal(viewFromPath("/voice"), "voice");
+    assert.equal(viewFromPath("/voice"), "home");
     assert.equal(viewFromPath("/play"), "dashboard");
     assert.equal(viewFromPath("/play/"), "dashboard");
     assert.equal(viewFromPath("/"), "home");

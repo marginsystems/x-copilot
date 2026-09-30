@@ -102,6 +102,6 @@ export function parseBilling(v: unknown): BillingMe | null {
   }
   if (v.plans !== undefined && (!object(v.plans) || !Object.values(v.plans).every((p) =>
     object(p) && fields(p, "price_label name blurb image", string) && boolean(p.available) &&
-    number(p.credits) && optional(p, "daily_events daily_sorties daily_suggests sorties", number)))) return null;
+    number(p.credits) && optional(p, "daily_events daily_sorties sorties", number)))) return null;
   return v as BillingMe;
 }

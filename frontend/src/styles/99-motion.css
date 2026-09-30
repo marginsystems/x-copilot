@@ -37,21 +37,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .voice-loader-pulse span {
-    animation: none;
-    opacity: 0.8;
-  }
-
-  .voice-meter-fill {
-    transition: none;
-  }
-
-  .voice-step {
-    transition: none;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
   .analytics-skel,
   .approach-panel-loader-mark {
     animation: none;
@@ -71,8 +56,6 @@
   .desk-top-body,
   .desk-top-body-inner,
   .desk-meter-fill,
-  .row-detail-slot,
-  .row-detail-inner,
   .row-open-ring-fill {
     transition: none;
   }

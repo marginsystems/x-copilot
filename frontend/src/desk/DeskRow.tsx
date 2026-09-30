@@ -6,7 +6,6 @@ import {
 import { DeskRowActions } from "./DeskRowActions";
 import { HasTipButton, HasTipLink } from "./HasTip";
 import { PacedOpenButton, ReadyOpenLink, type OpenPace } from "./RowOpen";
-import { useDeskRowExpand } from "./useDeskRowExpand";
 
 function ActionButton({
   label,
@@ -44,8 +43,6 @@ function ActionButton({
 
 export function DeskRow({
   className,
-  open = false,
-  expandable = false,
   lead,
   leadTitle,
   leadClassName,
@@ -72,14 +69,10 @@ export function DeskRow({
   busy = false,
   ariaBusy,
   status = false,
-  onToggle,
   index,
   exiting = false,
-  children,
 }: {
   className?: string;
-  open?: boolean;
-  expandable?: boolean;
   lead: ReactNode;
   leadTitle?: string;
   leadClassName?: string;
@@ -106,45 +99,17 @@ export function DeskRow({
   busy?: boolean;
   ariaBusy?: boolean;
   status?: boolean;
-  onToggle?: () => void;
   index?: number;
   exiting?: boolean;
-  children?: ReactNode;
 }) {
-  // A row that cannot expand always shows its detail, so count it as open. A row
-  // that becomes expandable while open then keeps `open` instead of replaying the enter.
-  const presence = useDeskRowExpand(open || !expandable);
-  const expanded = !expandable || presence.expanded;
-  const detailVisible = !expandable || expanded;
   const classes = ["thread-row"];
   if (className) classes.push(className);
-  if (expanded) classes.push("open");
   if (exiting) classes.push("is-exiting");
 
   const style =
     index != null
       ? ({ ["--i" as string]: index } as CSSProperties)
       : undefined;
-  const head = (
-    <>
-      <div
-        className={["row-lead", leadClassName ?? "bait"].filter(Boolean).join(" ")}
-        title={leadTitle}
-      >
-        {lead}
-      </div>
-      <div className="row-main">
-        {summary != null ? <div className="row-summary">{summary}</div> : null}
-        {meta != null ? <div className="row-meta">{meta}</div> : null}
-      </div>
-      {expandable ? (
-        <div className="caret" aria-hidden="true">
-          {presence.expanded ? "–" : "+"}
-        </div>
-      ) : null}
-    </>
-  );
-
   return (
     <article
       className={classes.join(" ")}
@@ -152,18 +117,18 @@ export function DeskRow({
       aria-busy={ariaBusy || undefined}
       role={status ? "status" : undefined}
     >
-      {expandable && onToggle ? (
-        <button
-          type="button"
-          className="row-head"
-          aria-expanded={expanded}
-          onClick={onToggle}
+      <div className="row-head">
+        <div
+          className={["row-lead", leadClassName ?? "bait"].filter(Boolean).join(" ")}
+          title={leadTitle}
         >
-          {head}
-        </button>
-      ) : (
-        <div className="row-head">{head}</div>
-      )}
+          {lead}
+        </div>
+        <div className="row-main">
+          {summary != null ? <div className="row-summary">{summary}</div> : null}
+          {meta != null ? <div className="row-meta">{meta}</div> : null}
+        </div>
+      </div>
       <DeskRowActions
         actions={[
           {
@@ -280,19 +245,6 @@ export function DeskRow({
           },
         ]}
       />
-      {(expandable ? presence.mount : Boolean(children)) ? (
-        <div
-          className="row-detail-slot"
-          aria-hidden={!detailVisible}
-          {...(!detailVisible
-            ? { inert: "" }
-            : {})}
-        >
-          <div className="row-detail-inner">
-            <div className="row-detail">{children}</div>
-          </div>
-        </div>
-      ) : null}
     </article>
   );
 }

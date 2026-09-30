@@ -68,25 +68,18 @@ test("a card that never had actions renders no action row", () => {
   expect(container.querySelector(".thread-row > .row")).toBeNull();
 });
 
-test("a For You row that turns expandable on detection stays open in the same frame", () => {
+test("a For You row keeps one flat head from detecting to detected", () => {
   const { container, rerender } = render(
-    <DeskRow lead="FY" summary="Detection in progress." open>
-      <p>Reply to something you read.</p>
-    </DeskRow>,
+    <ForYouFeedRow status="Detecting" detected={false} onNext={vi.fn()} />,
   );
 
-  rerender(
-    <DeskRow lead="FY" summary="Post detected" open expandable onToggle={vi.fn()}>
-      <p>Posted.</p>
-    </DeskRow>,
-  );
+  rerender(<ForYouFeedRow detected activity={null} onNext={vi.fn()} />);
 
-  // No enter replay: `open` never drops, so the detail cannot start collapsing.
-  expect(container.querySelector("article")?.classList.contains("open")).toBe(true);
-  expect(container.querySelector(".caret")?.textContent).toBe("–");
-  expect(
-    container.querySelector(".row-detail-slot")?.getAttribute("aria-hidden"),
-  ).toBe("false");
+  expect(container.querySelector("article")?.className).toBe(
+    "thread-row for-you-row next-action-row kind-reply",
+  );
+  expect(container.querySelector("div.row-head")).not.toBeNull();
+  expect(container.querySelector(".caret, .row-detail-slot, [aria-expanded]")).toBeNull();
 });
 
 test("detection lifts the open buttons out of flow at their old spot and glides Next from there", () => {
@@ -247,10 +240,8 @@ function scoutRow(openPace: { remainingMs: number; clock: string } | null) {
   return (
     <ThreadRow
       thread={scoutThread}
-      open={false}
       busy={false}
       interacted={false}
-      onToggle={vi.fn()}
       onSkip={vi.fn()}
       onDismiss={vi.fn()}
       onNext={vi.fn()}

@@ -74,7 +74,7 @@ function setup(nowMs: number) {
       curatedThreads: [], forYouSuggestions: [], coaching,
       interactedIds: history.interactedIds, interactedRetainedHistory: history.interactedRetainedHistory,
       dismissedHistory: [], dismissThread: null, searching: false,
-      setExpandedId: vi.fn(), actForYou: vi.fn(), onSkip: vi.fn(), onDismiss: vi.fn(),
+      actForYou: vi.fn(), onSkip: vi.fn(), onDismiss: vi.fn(),
       onRefreshCoaching, onHydrateInteracted: vi.fn(), onPollInteracted: vi.fn(),
     });
   }, { wrapper });

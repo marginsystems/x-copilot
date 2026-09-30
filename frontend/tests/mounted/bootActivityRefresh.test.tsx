@@ -43,7 +43,7 @@ function mountDesk() {
       applyAuthUser: (next, required = true) => session.verify(next, required, generation),
       applyDesk: (desk) => strip.applyStripFromBoot(desk),
       confirmCheckout: noop, hydrateCoaching: noop,
-      hydrateActivityStats: strip.hydrateActivityStats, loadBilling: noop, hydrateVoice: noop,
+      hydrateActivityStats: strip.hydrateActivityStats, loadBilling: noop,
       loadUsage: noop, loadAdmin: noop, hydrateScoutFamiliarity: noop,
     });
     return { strip, ready: boot.deskBootReady };

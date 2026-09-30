@@ -74,7 +74,7 @@ export function phaseWhy(
     return opts?.detected ? SCOUT_DETECTED_COPY : FYP_DETECTING_COPY;
   }
   if (phase === "organic_reply" && suggestion?.kind === "post") {
-    return "Compose an original. Mark it here.";
+    return "Write an original on X. Mark it here.";
   }
   if (phase === "organic_reply" && suggestion?.kind === "quote") {
     return "Quote something you actually read. Mark it here.";
