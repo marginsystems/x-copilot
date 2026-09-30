@@ -73,7 +73,7 @@ test("the circle keeps one frame from skeleton to loaded card", async () => {
   await act(async () => {
     pending.resolve(Response.json(circle));
   });
-  expect(await screen.findByRole("img", { name: "X Circle card with 5 people" })).toBeTruthy();
+  expect(await screen.findByRole("img", { name: /Bubble map of your X Circle, 5 people/ })).toBeTruthy();
   const loaded = screen.getByRole("region", { name: "Circle" });
   expect(loaded).toBe(frame);
   expect(loaded.getAttribute("aria-busy")).toBe("false");

@@ -82,7 +82,7 @@
     transition: none;
   }
 
-  .desk-circle-thumb.is-skeleton,
+  .desk-circle-map.is-skeleton .desk-circle-canvas,
   .desk-circle-skeleton-row::before {
     animation: none;
   }
