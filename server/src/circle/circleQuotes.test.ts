@@ -11,6 +11,8 @@ import {
 } from "../platform/platformDb.testHelpers.ts";
 import { ensureUserTenant } from "../billing/billingStore.ts";
 import { upsertOwnPost } from "../desk/ownPostStore.ts";
+import { cardToOwnPostParsed } from "../desk/replyDiscover.ts";
+import type { ThreadCard } from "../scout/threadCard.ts";
 import type { ParsedPostCreate } from "../x-api/xActivity.ts";
 import type { xApiGet } from "../x-api/xApi.ts";
 import {
@@ -150,6 +152,69 @@ await describe("circleQuotes", async () => {
       [["q1", "bob", "quote"], ["q2", "alice", "reply"]],
     );
     assert.deepEqual(parsed.profiles.map((p) => p.handle), ["Bob", "Alice"]);
+  });
+
+  await it("falls back to the stored reply parent when X omits it", () => {
+    const parsed = parseQuoteTargets(
+      {
+        data: [{ id: "q1", author_id: "99", referenced_tweets: [{ type: "quoted", id: "t2" }] }],
+        includes: {
+          tweets: [{ id: "t2", author_id: "99" }],
+          users: [{ id: "77", username: "Alice" }, { id: "99", username: "me" }],
+        },
+      },
+      [pending({ inReplyToId: "p1", inReplyToUserId: "77" })],
+      "2026-09-30T00:00:00.000Z",
+    );
+    assert.deepEqual(parsed.links.map((l) => [l.postId, l.authorKey, l.kind]), [["q1", "alice", "reply"]]);
+  });
+
+  await it("resolves a search-card quote-reply stored without quoted or reply-parent ids", async () => {
+    const tenantId = ensureUserTenant(userId);
+    const searchCard: ThreadCard = {
+      id: "q1",
+      author: "@me",
+      text: "look",
+      url: "https://x.com/me/status/q1",
+      isQuote: true,
+      isReply: true,
+      inReplyToId: "p1",
+    };
+    upsertOwnPost({
+      parsed: cardToOwnPostParsed(
+        searchCard,
+        { xUserId: "99", screenName: "me", nowMs: Date.parse("2026-09-01T00:00:00.000Z") },
+      ),
+      userId,
+      tenantId,
+    });
+    assert.deepEqual(
+      listPendingQuotePosts(userId, 10).map((p) => [p.postId, p.quotedPostId, p.inReplyToId, p.inReplyToUserId]),
+      [["q1", null, "p1", null]],
+    );
+    const ids: string[] = [];
+    const fetchTweets: typeof xApiGet = (opts) => {
+      ids.push(String(opts.query?.ids));
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: {
+          data: [
+            {
+              id: "q1",
+              author_id: "99",
+              in_reply_to_user_id: "77",
+              referenced_tweets: [{ type: "replied_to", id: "p1" }, { type: "quoted", id: "t1" }],
+            },
+          ],
+          includes: { tweets: [{ id: "t1", author_id: "7" }], users: [bobUser, { id: "77", username: "Alice" }] },
+        },
+      });
+    };
+    const result = await resolveQuoteTargets({ userId, nowMs: 0, fetchTweets });
+    assert.deepEqual(ids, ["q1"]);
+    assert.deepEqual(result, { checked: 1, linked: 1, failed: false });
+    assert.deepEqual(listCircleLinks(userId).map((l) => [l.postId, l.authorKey, l.kind]), [["q1", "bob", "quote"]]);
   });
 
   await it("looks up a quote-reply by its own id so the reply parent comes back", () => {
