@@ -47,8 +47,20 @@ export function buildCircle(input: {
   const quotePostIds = new Set(
     input.links.filter((link) => link.kind === "quote").map((link) => link.postId),
   );
+  const replyLinkAuthors = new Map<string, string>();
+  for (const link of input.links) {
+    if (link.kind !== "reply") continue;
+    const key = normalizeAuthorKey(link.authorKey);
+    if (isCircleAuthorKey(key, selfKey)) replyLinkAuthors.set(link.postId, key);
+  }
   const historyReplyIds = new Set(
-    input.history.flatMap((row) => (row.replyId ? [row.replyId] : [])),
+    input.history.flatMap((row) => {
+      const key = normalizeAuthorKey(row.author || row.authorKey);
+      return row.replyId && isCircleAuthorKey(key, selfKey) &&
+          (!replyLinkAuthors.has(row.replyId) || replyLinkAuthors.get(row.replyId) === key)
+        ? [row.replyId]
+        : [];
+    }),
   );
 
   const tally = (rawAuthor: string, at: string): Tally | null => {
@@ -79,6 +91,14 @@ export function buildCircle(input: {
   for (const row of input.history) {
     const postId = row.replyId ?? `thread:${row.threadId}`;
     if (quotePostIds.has(postId)) continue;
+    const key = normalizeAuthorKey(row.author || row.authorKey);
+    if (
+      row.replyId &&
+      replyLinkAuthors.has(row.replyId) &&
+      replyLinkAuthors.get(row.replyId) !== key
+    ) {
+      continue;
+    }
     const entry = tally(row.author || row.authorKey, row.postedAt ?? row.at);
     entry?.replyPosts.add(postId);
   }
