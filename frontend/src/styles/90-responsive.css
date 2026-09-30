@@ -25,10 +25,6 @@
     overflow-y: visible;
   }
 
-  .desk-top-body-content {
-    grid-template-columns: 1fr;
-  }
-
   .desk-top-bar-copy .status {
     white-space: normal;
   }
@@ -36,10 +32,6 @@
   .control-pane {
     overflow: visible;
     max-height: none;
-  }
-
-  .threads-activity .threads-activity-sub {
-    display: none;
   }
 
   .threads-pane-head .section-label {
@@ -216,11 +208,5 @@
 
   .history-row {
     animation-duration: 180ms;
-  }
-
-  .threads-activity.is-collapsed {
-    height: 56px;
-    min-height: 56px;
-    max-height: 56px;
   }
 }

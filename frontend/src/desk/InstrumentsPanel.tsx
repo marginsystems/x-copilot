@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import type { CoachingState } from "../lib/coaching";
 import {
   dailyPostCap,
-  DESK_GAUGE_LABEL,
   formatPerHour,
   formatPctDelta,
   formatTankGauge,
@@ -17,12 +16,10 @@ import { readReplyPaceUntil } from "./replyPaceStore";
 import type { RetainedInteractionEntry } from "./types";
 
 type InstrumentsPanelProps = {
-  expanded: boolean;
   interactedHistory: RetainedInteractionEntry[];
   gamification: GamificationStats;
   coaching?: CoachingState | null;
   usableScoutCount: number;
-  onToggleExpand: () => void;
 };
 
 const TICK_MS = 15_000;
@@ -34,12 +31,10 @@ const INBOUND_WORD: Record<DeskGaugeBand, string> = {
 };
 
 export function InstrumentsPanel({
-  expanded,
   interactedHistory,
   gamification,
   coaching,
   usableScoutCount,
-  onToggleExpand,
 }: InstrumentsPanelProps) {
   const marks = useMemo(
     () => interactedHistory.map(markFromHistory),
@@ -69,35 +64,11 @@ export function InstrumentsPanel({
   });
 
   return (
-    <div
-      className={
-        expanded ? "desk-instruments" : "desk-instruments is-collapsed"
-      }
+    <section
+      className="desk-instruments"
       aria-label="Instruments"
+      title="Last 500 marks. Arrows are 24h and 7d."
     >
-      <div className="desk-instruments-head">
-        <button
-          type="button"
-          className="threads-activity-toggle-path"
-          aria-expanded={expanded}
-          aria-label={
-            expanded ? "Collapse instruments" : "Expand instruments"
-          }
-          onClick={onToggleExpand}
-        >
-          <span className="desk-instruments-kicker">
-            {DESK_GAUGE_LABEL}s
-          </span>
-          <span className="threads-activity-caret" aria-hidden="true">
-            {expanded ? "–" : "+"}
-          </span>
-        </button>
-        {expanded ? (
-          <span className="threads-activity-sub">
-            Last 500 marks. Arrows are 24h and 7d.
-          </span>
-        ) : null}
-      </div>
       <div className="desk-gauges">
         <Gauge
           label="Replies / hour"
@@ -134,16 +105,16 @@ export function InstrumentsPanel({
           note="Usable scouted replies on this desk."
           fillPercent={gauges.tankFillPercent}
         />
-        {gauges.inboundBand !== null ? (
-          <Gauge
-            label="Inbound quiet"
-            value={INBOUND_WORD[gauges.inboundBand]}
-            band={gauges.inboundBand}
-            note="Desk theory from sampled reply stats, not an official X signal."
-          />
-        ) : null}
+        <Gauge
+          label="Inbound quiet"
+          value={
+            gauges.inboundBand !== null ? INBOUND_WORD[gauges.inboundBand] : "–"
+          }
+          band={gauges.inboundBand}
+          note="Desk theory from sampled reply stats, not an official X signal."
+        />
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -169,21 +140,20 @@ function Gauge({
         ? "desk-gauge is-warm"
         : "desk-gauge";
   return (
-    <div className={className}>
+    <div className={className} title={note}>
       <span className="desk-gauge-label">{label}</span>
-      <span className="desk-gauge-value-row">
-        <span className="desk-gauge-value">{value}</span>
+      <span className="desk-gauge-value">{value}</span>
+      <span className="desk-gauge-deltas-slot">
         {delta ? <DeltaPair delta={delta} /> : null}
       </span>
-      {fillPercent !== undefined ? (
-        <span className="desk-gauge-track" aria-hidden="true">
+      <span className="desk-gauge-track" aria-hidden="true">
+        {fillPercent !== undefined ? (
           <span
             className="desk-gauge-fill"
             style={{ width: `${fillPercent}%` }}
           />
-        </span>
-      ) : null}
-      <span className="desk-gauge-note">{note}</span>
+        ) : null}
+      </span>
     </div>
   );
 }

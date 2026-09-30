@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   DESK_TOP_OPEN_KEY,
+  deskTopDefaultOpen,
   readDeskTopOpen,
   writeDeskTopOpen,
 } from "./deskLayout.ts";
@@ -19,9 +20,20 @@ function memoryStore(seed: Record<string, string> = {}) {
 }
 
 await describe("deskLayout", () => {
-  it("defaults collapsed when nothing is stored", () => {
-    assert.equal(readDeskTopOpen(memoryStore()), false);
-    assert.equal(readDeskTopOpen(null), false);
+  it("uses the viewport default when nothing is stored", () => {
+    assert.equal(readDeskTopOpen(memoryStore(), false), false);
+    assert.equal(readDeskTopOpen(memoryStore(), true), true);
+    assert.equal(readDeskTopOpen(null, true), true);
+    assert.equal(readDeskTopOpen(null, false), false);
+  }).catch(assert.fail);
+
+  it("a stored preference wins over the viewport default", () => {
+    assert.equal(readDeskTopOpen(memoryStore({ [DESK_TOP_OPEN_KEY]: "0" }), true), false);
+    assert.equal(readDeskTopOpen(memoryStore({ [DESK_TOP_OPEN_KEY]: "1" }), false), true);
+  }).catch(assert.fail);
+
+  it("defaults collapsed without a browser window", () => {
+    assert.equal(deskTopDefaultOpen(), false);
   }).catch(assert.fail);
 
   it("reads and writes the expand preference", () => {

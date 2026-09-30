@@ -146,14 +146,12 @@ function SessionApp() {
   const [threadsTab, setThreadsTab] = useState<ThreadsTab>("curated");
   const {
     activityBucket,
-    flightPathOpen,
     deskTopOpen,
     activityStats,
     gamification,
     applyStripFromBoot,
     hydrateActivityStats,
     onActivityBucket,
-    onToggleFlightPath,
     onToggleDeskTop,
   } = useActivityStrip(paintOwnerId);
   const { coaching, applyCoaching, hydrateCoaching } = useCoaching(paintOwnerId);
@@ -683,7 +681,6 @@ function SessionApp() {
           top={{
             open: deskTopOpen,
             onToggle: onToggleDeskTop,
-            flightPathOpen,
             activityBucket,
             activityStats,
             gamification,
@@ -694,7 +691,6 @@ function SessionApp() {
             ).length,
             coaching,
             status,
-            onToggleFlightPath,
             onActivityBucket,
           }}
           tabs={{

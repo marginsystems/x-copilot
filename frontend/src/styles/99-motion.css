@@ -91,3 +91,9 @@
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .desk-circle-preview.is-skeleton,
+  .desk-circle-skeleton-row {
+    animation: none;
+  }
+}
