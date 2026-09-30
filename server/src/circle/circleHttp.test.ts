@@ -23,6 +23,48 @@ import {
   tryHandleCircle,
 } from "./circleHttp.ts";
 import { getXProfiles, recordCircleLinks } from "./circleStore.ts";
+import { upsertOwnPost } from "../desk/ownPostStore.ts";
+
+function seedQuotePost(userId: string, tenantId: string): void {
+  upsertOwnPost({
+    userId,
+    tenantId,
+    parsed: {
+      eventUuid: "evt-q1",
+      xUserId: "99",
+      postId: "q1",
+      kind: "quote",
+      quotedPostId: "t1",
+      text: "look",
+      postedAt: "2026-09-01T00:00:00.000Z",
+      inReplyToId: null,
+      inReplyToUserId: null,
+      conversationId: "q1",
+      authorUsername: "me",
+      metrics: {},
+    },
+  });
+}
+
+function stubTweetLookup(): { lookups: URL[]; restore: () => void } {
+  const originalFetch = globalThis.fetch;
+  const lookups: URL[] = [];
+  globalThis.fetch = (async (input: Parameters<typeof fetch>[0]) => {
+    const url = new URL(String(input));
+    if (url.pathname.endsWith("/tweets")) {
+      lookups.push(url);
+      return new Response(
+        JSON.stringify({
+          data: [{ id: "t1", author_id: "7" }],
+          includes: { users: [{ id: "7", username: "bob", name: "Bob B" }] },
+        }),
+        { status: 200 },
+      );
+    }
+    return new Response(JSON.stringify({ data: [] }), { status: 200 });
+  }) as typeof fetch;
+  return { lookups, restore: () => { globalThis.fetch = originalFetch; } };
+}
 
 async function call(path: string, cookie?: string) {
   const req = testRequest();
@@ -236,6 +278,62 @@ await describe("circleHttp", async () => {
       assert.equal(usersBy, 1);
     } finally {
       globalThis.fetch = originalFetch;
+    }
+  });
+
+  await it("GET /api/circle backfills quote targets of existing quote posts once", async () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-circle-quotes",
+      email: "quotes@example.com",
+      emailVerified: true,
+    });
+    seedQuotePost(user.id, ensureUserTenant(user.id));
+    const { token } = createSession(user.id);
+    const cookie = `${SESSION_COOKIE}=${encodeURIComponent(token)}`;
+    process.env.X_API_BEARER_TOKEN = "test-bearer";
+    const stub = stubTweetLookup();
+    try {
+      const first = await call("/api/circle", cookie);
+      assert.equal(first.status, 200);
+      assert.deepEqual(first.json.totals, { replies: 0, quotes: 1, people: 1 });
+      assert.equal(stub.lookups.length, 1);
+      assert.equal(stub.lookups[0]?.searchParams.get("ids"), "t1");
+      resetCircleHydrationForTests();
+      await call("/api/circle", cookie);
+      assert.equal(stub.lookups.length, 1);
+    } finally {
+      stub.restore();
+    }
+  });
+
+  await it("GET /api/circle skips the quote backfill when credits are exhausted", async () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-circle-quotes-broke",
+      email: "quotes-broke@example.com",
+      emailVerified: true,
+    });
+    const tenantId = ensureUserTenant(user.id);
+    const agedAt = new Date(Date.now() - 8 * 24 * 60 * 60_000).toISOString();
+    getPlatformDb().prepare(`UPDATE users SET created_at = ? WHERE id = ?`).run(agedAt, user.id);
+    recordUsageEvent({ tenantId, path: "/2/tweets/search/recent", status: 200, postsRead: 1500 });
+    seedQuotePost(user.id, tenantId);
+    const { token } = createSession(user.id);
+    const cookie = `${SESSION_COOKIE}=${encodeURIComponent(token)}`;
+    process.env.X_API_BEARER_TOKEN = "test-bearer";
+    const stub = stubTweetLookup();
+    try {
+      const broke = await runWithRequestContext({ tenantId, userId: user.id }, () =>
+        call("/api/circle", cookie),
+      );
+      assert.equal(broke.status, 200);
+      assert.equal(stub.lookups.length, 0);
+      const funded = await call("/api/circle", cookie);
+      assert.deepEqual(funded.json.totals, { replies: 0, quotes: 1, people: 1 });
+      assert.equal(stub.lookups.length, 1);
+    } finally {
+      stub.restore();
     }
   });
 

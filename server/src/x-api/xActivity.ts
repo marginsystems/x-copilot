@@ -20,6 +20,7 @@ export type ParsedPostCreate = {
   postId: string;
   kind: OwnPostKind;
   repostTargetId?: string | null;
+  quotedPostId?: string | null;
   text: string;
   postedAt: string;
   postedAtFallback?: boolean;
@@ -116,12 +117,16 @@ function replyParentId(payload: Record<string, unknown>): string | null {
 
 /** Authoritative original post id carried by a repost reference. */
 function repostTargetId(payload: Record<string, unknown>): string | null {
+  return referencedPostId(payload, "retweeted");
+}
+
+function referencedPostId(payload: Record<string, unknown>, type: string): string | null {
   const refs = payload.referenced_tweets;
   if (!Array.isArray(refs)) return null;
   for (const ref of refs) {
     if (!ref || typeof ref !== "object") continue;
     const row = objectValue(ref);
-    if (String(row.type ?? "").trim() !== "retweeted") continue;
+    if (String(row.type ?? "").trim() !== type) continue;
     const id = String(row.id ?? "").trim();
     if (id) return id;
   }
@@ -200,6 +205,7 @@ export function parsePostCreateEvent(json: unknown): ParsedPostCreate | null {
     postId,
     kind: classifyPostKind(post),
     repostTargetId: repostTargetId(post),
+    quotedPostId: referencedPostId(post, "quoted"),
     text: typeof post.text === "string" ? post.text : "",
     postedAt,
     postedAtFallback: !Number.isFinite(createdMs),
