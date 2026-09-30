@@ -15,7 +15,7 @@ await describe("reduced motion", () => {
   }).catch(assert.fail);
 
   it("disables cockpit collapse and toggle icon transitions", () => {
-    assert.match(css, /\.desk-top-body,\s*\.desk-top-body-inner,\s*\.desk-top-toggle-icon,/);
+    assert.match(css, /\.desk-top-body,\s*\.desk-top-body-inner,\s*\.desk-top\.is-collapsed \.desk-top-body-inner,\s*\.desk-top-toggle-icon,/);
   }).catch(assert.fail);
 });
 
