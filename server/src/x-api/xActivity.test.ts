@@ -142,6 +142,25 @@ await describe("parsePostCreateEvent", async () => {
     assert.equal(parsed?.inReplyToId, null);
   });
 
+  await it("keeps the quoted post id of a quote", () => {
+    const parsed = parsePostCreateEvent({
+      data: {
+        event_uuid: "evt-quote",
+        event_type: "post.create",
+        filter: { user_id: "99" },
+        payload: {
+          id: "117",
+          author_id: "99",
+          text: "look",
+          referenced_tweets: [{ type: "quoted", id: "quoted-1" }],
+        },
+      },
+    });
+    assert.equal(parsed?.kind, "quote");
+    assert.equal(parsed?.quotedPostId, "quoted-1");
+    assert.equal(parsed?.repostTargetId, null);
+  });
+
   await it("does not invent a target for a malformed repost reference", () => {
     const parsed = parsePostCreateEvent({
       data: {

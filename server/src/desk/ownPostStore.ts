@@ -267,12 +267,13 @@ export function upsertOwnPost(input: {
        id, user_id, tenant_id, x_user_id, kind, text, posted_at,
        in_reply_to_id, in_reply_to_user_id, conversation_id, url,
        t0_views, t0_likes, t0_replies, t0_retweets, t0_bookmarks, t0_at,
-       created_at
-     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       created_at, quoted_post_id
+     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        text = excluded.text,
        kind = excluded.kind,
         in_reply_to_user_id = COALESCE(excluded.in_reply_to_user_id, own_posts.in_reply_to_user_id),
+       quoted_post_id = COALESCE(excluded.quoted_post_id, own_posts.quoted_post_id),
        url = excluded.url,
        posted_at = CASE
          WHEN own_posts.posted_at NOT GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T*'
@@ -300,6 +301,7 @@ export function upsertOwnPost(input: {
     m.bookmarks ?? null,
     now,
     now,
+    input.parsed.quotedPostId ?? null,
     postedAtFallback,
   );
   return !existing;
