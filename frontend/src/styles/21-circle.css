@@ -1,38 +1,23 @@
 .desk-circle {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 14px;
+  position: relative;
   min-width: 0;
-}
-
-.desk-circle-preview {
-  width: 100%;
-  max-width: 360px;
-  height: auto;
-  border-radius: var(--radius);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: hidden;
   border: 1px solid var(--border);
   background: var(--raised);
-}
-
-.desk-circle-side {
-  display: grid;
-  gap: 10px;
-  align-content: start;
-  min-width: 0;
+  padding: 10px 12px;
 }
 
 .desk-circle-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 8px;
-}
-
-.desk-circle-label {
-  font-size: 0.72rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
+  flex: 0 0 22px;
+  height: 22px;
 }
 
 .desk-circle-count,
@@ -40,21 +25,70 @@
   font-size: 0.78rem;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.desk-circle-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  gap: 12px;
+}
+
+.desk-circle-preview {
+  display: block;
+  height: 100%;
+  width: auto;
+  max-width: 100%;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.desk-circle-preview.is-skeleton {
+  animation: cockpit-pulse 1.4s ease-in-out infinite;
+}
+
+.desk-circle-side {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .desk-circle-list {
+  flex: 1 1 auto;
+  min-height: 0;
   margin: 0;
   padding: 0;
   list-style: none;
-  display: grid;
-  gap: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+  scrollbar-width: thin;
 }
 
 .desk-circle-list li {
-  display: flex;
-  justify-content: space-between;
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: 1.4em minmax(0, 1fr) auto;
+  align-items: baseline;
   gap: 8px;
   min-width: 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+}
+
+.desk-circle-rank {
+  font-size: 0.7rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .desk-circle-list a {
@@ -64,20 +98,120 @@
 }
 
 .desk-circle-actions {
+  flex: 0 0 auto;
   align-items: stretch;
+  flex-wrap: nowrap;
+  gap: 8px;
+}
+
+.desk-circle-actions > a,
+.desk-circle-actions > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  white-space: nowrap;
 }
 
 .desk-circle-empty,
 .desk-circle-note {
   margin: 0;
-  font-size: 0.78rem;
-  line-height: 1.4;
+  font-size: 0.72rem;
+  line-height: 1.35;
   color: var(--muted);
 }
 
-@media (min-width: 720px) {
-  .desk-circle {
-    grid-template-columns: minmax(0, 360px) minmax(200px, 1fr);
-    align-items: start;
+.desk-circle-note {
+  flex: 0 0 auto;
+}
+
+.desk-circle-message {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0 12px;
+  font-size: 0.78rem;
+}
+
+.desk-circle-status {
+  margin: 0;
+  flex: 0 0 auto;
+}
+
+.desk-circle-skeleton {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.desk-circle-skeleton-row {
+  flex: 0 0 12px;
+  border-radius: var(--radius);
+  background: var(--border);
+  animation: cockpit-pulse 1.4s ease-in-out infinite;
+}
+
+.desk-circle-skeleton-row:nth-child(odd) {
+  width: 78%;
+}
+
+@keyframes cockpit-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+@media (width < 560px) {
+  .desk-circle-body {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: 170px auto auto;
+    gap: 8px 12px;
+  }
+
+  .desk-circle-preview {
+    grid-row: 1;
+    height: 100%;
+  }
+
+  .desk-circle-side {
+    display: contents;
+  }
+
+  .desk-circle-list {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .desk-circle-list li {
+    grid-template-columns: 1.2em minmax(0, 1fr);
+  }
+
+  .desk-circle-score {
+    display: none;
+  }
+
+  .desk-circle-actions {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .desk-circle-note {
+    grid-column: 1 / -1;
+    grid-row: 3;
+  }
+
+  .desk-circle-body.is-loading .desk-circle-side {
+    display: flex;
+    grid-column: 2;
+    grid-row: 1 / -1;
   }
 }

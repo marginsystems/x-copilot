@@ -6,20 +6,16 @@ import { flightSharePayload } from "../lib/flightShare";
 import { FlightShareModal } from "./FlightShareModal";
 
 type ActivityStripProps = {
-  flightPathOpen: boolean;
   activityBucket: ActivityBucket;
   activityStats: ActivityStats;
   gamification: GamificationStats;
-  onToggleFlightPath: () => void;
   onActivityBucket: (bucket: ActivityBucket) => void;
 };
 
 export function ActivityStrip({
-  flightPathOpen,
   activityBucket,
   activityStats,
   gamification,
-  onToggleFlightPath,
   onActivityBucket,
 }: ActivityStripProps) {
   const sharePayload = useMemo(
@@ -29,32 +25,15 @@ export function ActivityStrip({
   const [shareOpen, setShareOpen] = useState(false);
 
   return (
-    <div
-      className={
-        flightPathOpen
-          ? "threads-activity"
-          : "threads-activity is-collapsed"
-      }
+    <section
+      className="threads-activity"
       aria-label="Flight path"
+      title="Bars stack originals, quotes, and replies. Altitude is 24h views, refreshed live while pending; posts without a count hold the last altitude."
     >
       <div className="threads-activity-head">
         <div className="threads-activity-copy">
           <div className="threads-activity-title-row">
-            <button
-              type="button"
-              className="threads-activity-toggle-path"
-              aria-expanded={flightPathOpen}
-              aria-label={
-                flightPathOpen
-                  ? "Collapse flight path"
-                  : "Expand flight path"
-              }
-              onClick={onToggleFlightPath}
-            >
-              <span className="threads-activity-caret" aria-hidden="true">
-                {flightPathOpen ? "–" : "+"}
-              </span>
-            </button>
+            <h3 className="cockpit-title">Flight path</h3>
             <span className="threads-activity-share-slot">
               {sharePayload ? (
                 <button
@@ -69,13 +48,6 @@ export function ActivityStrip({
               ) : null}
             </span>
           </div>
-          {flightPathOpen ? (
-            <span className="threads-activity-sub">
-              Bars stack originals, quotes, and replies. Altitude is
-              24h views, refreshed live while pending; posts without a
-              count hold the last altitude.
-            </span>
-          ) : null}
         </div>
         <div
           className="threads-activity-toggle"
@@ -165,7 +137,7 @@ export function ActivityStrip({
         className="threads-activity-next"
         aria-hidden={!gamification.nextGoal}
       >
-        {flightPathOpen && gamification.nextGoal
+        {gamification.nextGoal
           ? `Next: ${gamification.nextGoal.title} — ${gamification.nextGoal.detail}`
           : "\u00a0"}
       </p>
@@ -178,7 +150,6 @@ export function ActivityStrip({
           <ActivityChart
             series={activityStats.series}
             bucket={activityStats.bucket}
-            compact={!flightPathOpen}
           />
         )}
       </div>
@@ -188,7 +159,7 @@ export function ActivityStrip({
           onClose={() => setShareOpen(false)}
         />
       ) : null}
-    </div>
+    </section>
   );
 }
 

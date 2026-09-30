@@ -11,29 +11,23 @@ import { InstrumentsPanel } from "./InstrumentsPanel";
 import { ScoutFamiliarity } from "./ScoutFamiliarity";
 import type { RetainedInteractionEntry } from "./types";
 
-type DeskTab = "path" | "circle" | "instruments";
-
 type DeskTopProps = {
   open: boolean;
   onToggle: () => void;
-  flightPathOpen: boolean;
   activityBucket: ActivityBucket;
   activityStats: ActivityStats;
   gamification: GamificationStats;
-  /** Owned Scout familiarity; null renders no meter (kept apart from XP). */
   scoutFamiliarity?: ScoutFamiliarityData | null;
   interactedRetainedHistory: RetainedInteractionEntry[];
   usableScoutCount: number;
   coaching?: CoachingState | null;
   status?: string;
-  onToggleFlightPath: () => void;
   onActivityBucket: (bucket: ActivityBucket) => void;
 };
 
 export function DeskTop({
   open,
   onToggle,
-  flightPathOpen,
   activityBucket,
   activityStats,
   gamification,
@@ -42,56 +36,16 @@ export function DeskTop({
   usableScoutCount,
   coaching,
   status,
-  onToggleFlightPath,
   onActivityBucket,
 }: DeskTopProps) {
   const bodyId = useId();
-  const [tab, setTab] = useState<DeskTab>("path");
+  const [everOpened, setEverOpened] = useState(open);
   const barStatus = status || undefined;
 
   return (
     <div className={open ? "desk-top" : "desk-top is-collapsed"}>
       <div className="desk-top-bar">
-        {open ? (
-          <div
-            className="desk-top-tabs"
-            role="group"
-            aria-label="Desk panel"
-          >
-            <button
-              type="button"
-              className={
-                tab === "path" ? "threads-tab active" : "threads-tab"
-              }
-              aria-pressed={tab === "path"}
-              onClick={() => setTab("path")}
-            >
-              Flight path
-            </button>
-            <button
-              type="button"
-              className={
-                tab === "circle" ? "threads-tab active" : "threads-tab"
-              }
-              aria-pressed={tab === "circle"}
-              onClick={() => setTab("circle")}
-            >
-              Circle
-            </button>
-            <button
-              type="button"
-              className={
-                tab === "instruments"
-                  ? "threads-tab active"
-                  : "threads-tab"
-              }
-              aria-pressed={tab === "instruments"}
-              onClick={() => setTab("instruments")}
-            >
-              Instruments
-            </button>
-          </div>
-        ) : null}
+        {open ? <h2 className="desk-top-bar-title">Cockpit</h2> : null}
         {barStatus ? (
           <div className="desk-top-bar-copy">
             <p className="status" role="status">
@@ -105,7 +59,10 @@ export function DeskTop({
           aria-expanded={open}
           aria-controls={bodyId}
           aria-label={open ? "Minimize desk panel" : "Expand desk panel"}
-          onClick={onToggle}
+          onClick={() => {
+            setEverOpened(true);
+            onToggle();
+          }}
         >
           <span className="desk-top-caret" aria-hidden="true">
             {open ? "–" : "+"}
@@ -123,40 +80,34 @@ export function DeskTop({
         aria-hidden={!open}
       >
         <div className="desk-top-body-inner">
-          <div className="desk-top-body-content">
-            {tab === "path" ? (
-              <div
-                className={
-                  scoutFamiliarity
-                    ? "desk-top-path has-familiarity"
-                    : "desk-top-path"
-                }
-              >
+          {everOpened ? (
+            <div className="cockpit">
+              <div className="cockpit-gauges">
+                <InstrumentsPanel
+                  interactedHistory={interactedRetainedHistory}
+                  gamification={gamification}
+                  coaching={coaching}
+                  usableScoutCount={usableScoutCount}
+                />
+              </div>
+              <div className="cockpit-circle">
+                <CirclePanel
+                  refreshKey={circleRefreshKey(interactedRetainedHistory)}
+                />
+              </div>
+              <div className="cockpit-path">
                 <ActivityStrip
-                  flightPathOpen={flightPathOpen}
                   activityBucket={activityBucket}
                   activityStats={activityStats}
                   gamification={gamification}
-                  onToggleFlightPath={onToggleFlightPath}
                   onActivityBucket={onActivityBucket}
                 />
-                <ScoutFamiliarity familiarity={scoutFamiliarity} />
+                <div className="cockpit-familiarity">
+                  <ScoutFamiliarity familiarity={scoutFamiliarity} />
+                </div>
               </div>
-            ) : tab === "circle" ? (
-              <CirclePanel
-                refreshKey={circleRefreshKey(interactedRetainedHistory)}
-              />
-            ) : (
-              <InstrumentsPanel
-                expanded={flightPathOpen}
-                interactedHistory={interactedRetainedHistory}
-                gamification={gamification}
-                coaching={coaching}
-                usableScoutCount={usableScoutCount}
-                onToggleExpand={onToggleFlightPath}
-              />
-            )}
-          </div>
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

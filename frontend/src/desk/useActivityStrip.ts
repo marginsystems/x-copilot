@@ -29,9 +29,6 @@ export function useActivityStrip(
   const [activityBucket, setActivityBucket] = useState<ActivityBucket>(
     seedBucket,
   );
-  const [flightPathOpen, setFlightPathOpen] = useState(() =>
-    readSessionFlag("x-copilot-flight-path-open", 700),
-  );
   const [deskTopOpen, setDeskTopOpen] = useState(() => readDeskTopOpen());
   const [activityStats, setActivityStats] = useState<ActivityStats>(
     () => seed?.activityStats ?? emptyActivityStats("day"),
@@ -105,17 +102,12 @@ export function useActivityStrip(
     hydrateActivityStats(next).catch((err: unknown) => console.error(err));
   }
 
-  function onToggleFlightPath() {
-    setFlightPathOpen((prev) => writeSessionFlag("x-copilot-flight-path-open", !prev));
-  }
-
   function onToggleDeskTop() {
     setDeskTopOpen((prev) => writeDeskTopOpen(!prev));
   }
 
   return {
     activityBucket,
-    flightPathOpen,
     deskTopOpen,
     activityStats,
     gamification,
@@ -123,30 +115,6 @@ export function useActivityStrip(
     hydrateActivityStats,
     hydrateGamification,
     onActivityBucket,
-    onToggleFlightPath,
     onToggleDeskTop,
   };
-}
-
-function readSessionFlag(key: string, openFromPx: number): boolean {
-  try {
-    const stored = sessionStorage.getItem(key);
-    if (stored === "0") return false;
-    if (stored === "1") return true;
-  } catch {
-    /* private mode */
-  }
-  return (
-    typeof window !== "undefined" &&
-    window.matchMedia(`(min-width: ${openFromPx}px)`).matches
-  );
-}
-
-function writeSessionFlag(key: string, next: boolean): boolean {
-  try {
-    sessionStorage.setItem(key, next ? "1" : "0");
-  } catch {
-    /* private mode */
-  }
-  return next;
 }
