@@ -129,6 +129,14 @@ export async function fetchCircle(): Promise<CircleResponse | null> {
   }
 }
 
+export function circleRefreshKey(
+  history: readonly { threadId: string; at: string }[],
+): string {
+  let newest = "";
+  for (const entry of history) if (entry.at > newest) newest = entry.at;
+  return `${history.length}:${newest}`;
+}
+
 export function circleSharePayload(
   resp: CircleResponse | null,
 ): CircleSharePayload | null {

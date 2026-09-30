@@ -5,6 +5,7 @@ import {
   CIRCLE_SHARE_WIDTH,
   circleCountsLine,
   circleInitials,
+  circleRefreshKey,
   circleRings,
   circleShareCaption,
   circleShareIntentUrl,
@@ -274,4 +275,21 @@ await describe("drawCircleShareImage", () => {
     assert.ok(rec.texts.includes("MM"));
     assert.ok(rec.texts.includes("Me Myself"));
   }).catch(assert.fail);
+});
+
+await describe("circleRefreshKey", async () => {
+  await it("changes when a reply is marked and stays put otherwise", () => {
+    const history = [
+      { threadId: "a", at: "2026-09-29T10:00:00.000Z" },
+      { threadId: "b", at: "2026-09-30T08:00:00.000Z" },
+    ];
+    const key = circleRefreshKey(history);
+    assert.equal(key, "2:2026-09-30T08:00:00.000Z");
+    assert.equal(circleRefreshKey([...history].reverse()), key);
+    assert.notEqual(
+      circleRefreshKey([...history, { threadId: "c", at: "2026-09-30T09:00:00.000Z" }]),
+      key,
+    );
+    assert.equal(circleRefreshKey([]), "0:");
+  });
 });
