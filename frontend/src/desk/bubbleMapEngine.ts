@@ -455,7 +455,9 @@ export function createBubbleMap(
     }
     if (event.pointerType === "mouse") {
       const { x, y } = local(event);
-      setHover(hitBody(bodies, x, y));
+      const index = hitBody(bodies, x, y);
+      if (index >= 0 && index === hovered) showTip(index);
+      else setHover(index);
     } else setHover(-1);
     setCursor();
   }

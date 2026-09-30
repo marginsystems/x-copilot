@@ -84,6 +84,7 @@ function asHost(value: unknown): HTMLElement {
 
 const saved: Record<string, unknown> = {};
 let opened: unknown[][] = [];
+let created: Array<ReturnType<typeof fakeElement>> = [];
 let frames: Array<(time: number) => void> = [];
 let clock = 0;
 
@@ -98,6 +99,7 @@ function pump(count: number): void {
 
 beforeEach(() => {
   opened = [];
+  created = [];
   frames = [];
   clock = performance.now();
   const g = globalThis as Record<string, unknown>;
@@ -105,7 +107,11 @@ beforeEach(() => {
     saved[key] = g[key];
   }
   g.document = {
-    createElement: () => fakeElement(),
+    createElement: () => {
+      const element = fakeElement();
+      created.push(element);
+      return element;
+    },
     addEventListener() {},
     removeEventListener() {},
     visibilityState: "visible",
@@ -163,6 +169,19 @@ await describe("bubbleMapEngine", () => {
     fire("pointermove", target.x + 30, target.y + 30);
     fire("pointerup", target.x + 30, target.y + 30);
     assert.deepEqual(opened, []);
+  }).catch(assert.fail);
+
+  it("shows the tooltip again when a drag is released over the same bubble", () => {
+    const { bodies, fire } = setup(12);
+    const tip = created.find((element) => element.className === "desk-circle-tip")!;
+    const target = bodies[1]!;
+    fire("pointermove", target.x, target.y);
+    assert.equal(tip.hidden, false);
+    fire("pointerdown", target.x, target.y);
+    fire("pointermove", target.x + 10, target.y);
+    assert.equal(tip.hidden, true);
+    fire("pointerup", target.x + 10, target.y);
+    assert.equal(tip.hidden, false);
   }).catch(assert.fail);
 
   it("cancels a live drag when a smaller payload re-packs to fewer bodies", () => {
