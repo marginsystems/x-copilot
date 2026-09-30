@@ -255,9 +255,8 @@ export async function pullOwnReplies(opts: {
         max_results: maxResults,
         exclude: "retweets",
         "tweet.fields":
-          "conversation_id,created_at,in_reply_to_user_id,referenced_tweets",
-        expansions:
-          "in_reply_to_user_id,referenced_tweets.id,referenced_tweets.id.author_id",
+          "author_id,conversation_id,created_at,in_reply_to_user_id,referenced_tweets",
+        expansions: "in_reply_to_user_id,referenced_tweets.id",
         "user.fields": "username,name,profile_image_url",
         since_id: opts.sinceId ?? undefined,
         pagination_token: paginationToken,

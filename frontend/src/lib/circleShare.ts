@@ -120,13 +120,19 @@ export function parseCircleResponse(json: unknown): CircleResponse | null {
 }
 
 export async function fetchCircle(): Promise<CircleResponse | null> {
-  try {
-    const res = await apiFetch("/api/circle");
-    if (!res.ok) return null;
-    return parseCircleResponse(await res.json());
-  } catch {
-    return null;
-  }
+  const res = await apiFetch("/api/circle");
+  if (!res.ok) throw new Error("Circle request failed");
+  const parsed = parseCircleResponse(await res.json());
+  if (!parsed) throw new Error("Invalid circle response");
+  return parsed;
+}
+
+export function circleRefreshKey(
+  history: readonly { threadId: string; at: string }[],
+): string {
+  let newest = "";
+  for (const entry of history) if (entry.at > newest) newest = entry.at;
+  return `${history.length}:${newest}`;
 }
 
 export function circleSharePayload(

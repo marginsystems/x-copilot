@@ -1,15 +1,17 @@
 import { useId, useState } from "react";
 import type { ActivityBucket, ActivityStats } from "../lib/activityStats";
+import { circleRefreshKey } from "../lib/circleShare";
 import type { CoachingState } from "../lib/coaching";
 import type { GamificationStats } from "../lib/gamification";
 import type { ScoutFamiliarity as ScoutFamiliarityData } from "../lib/scoutFamiliarity";
 import { ActivityStrip } from "./ActivityStrip";
+import { CirclePanel } from "./CirclePanel";
 import { FadeSwap } from "./FadeSwap";
 import { InstrumentsPanel } from "./InstrumentsPanel";
 import { ScoutFamiliarity } from "./ScoutFamiliarity";
 import type { RetainedInteractionEntry } from "./types";
 
-type DeskTab = "path" | "instruments";
+type DeskTab = "path" | "circle" | "instruments";
 
 type DeskTopProps = {
   open: boolean;
@@ -65,6 +67,16 @@ export function DeskTop({
               onClick={() => setTab("path")}
             >
               Flight path
+            </button>
+            <button
+              type="button"
+              className={
+                tab === "circle" ? "threads-tab active" : "threads-tab"
+              }
+              aria-pressed={tab === "circle"}
+              onClick={() => setTab("circle")}
+            >
+              Circle
             </button>
             <button
               type="button"
@@ -130,6 +142,10 @@ export function DeskTop({
                 />
                 <ScoutFamiliarity familiarity={scoutFamiliarity} />
               </div>
+            ) : tab === "circle" ? (
+              <CirclePanel
+                refreshKey={circleRefreshKey(interactedRetainedHistory)}
+              />
             ) : (
               <InstrumentsPanel
                 expanded={flightPathOpen}
