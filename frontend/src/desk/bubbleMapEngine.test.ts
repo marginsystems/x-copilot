@@ -85,6 +85,7 @@ function asHost(value: unknown): HTMLElement {
 const saved: Record<string, unknown> = {};
 let opened: unknown[][] = [];
 let created: Array<ReturnType<typeof fakeElement>> = [];
+let resizeCallbacks: Array<() => void> = [];
 let frames: Array<(time: number) => void> = [];
 let clock = 0;
 
@@ -100,10 +101,18 @@ function pump(count: number): void {
 beforeEach(() => {
   opened = [];
   created = [];
+  resizeCallbacks = [];
   frames = [];
   clock = performance.now();
   const g = globalThis as Record<string, unknown>;
-  for (const key of ["document", "window", "getComputedStyle", "requestAnimationFrame", "cancelAnimationFrame"]) {
+  for (const key of [
+    "document",
+    "window",
+    "getComputedStyle",
+    "requestAnimationFrame",
+    "cancelAnimationFrame",
+    "ResizeObserver",
+  ]) {
     saved[key] = g[key];
   }
   g.document = {
@@ -127,6 +136,13 @@ beforeEach(() => {
   g.getComputedStyle = () => ({ getPropertyValue: () => "" });
   g.requestAnimationFrame = (cb: (time: number) => void) => frames.push(cb);
   g.cancelAnimationFrame = () => undefined;
+  g.ResizeObserver = class {
+    constructor(callback: () => void) {
+      resizeCallbacks.push(callback);
+    }
+    observe() {}
+    disconnect() {}
+  };
 });
 
 afterEach(() => {
@@ -148,9 +164,9 @@ function setup(count: number) {
   engine.setData(data, new Map());
   const scores = data.members.map((m) => Math.max(1, memberScore(m)));
   const bodies = packBubbles(scores, BOX);
-  const fire = (type: string, x: number, y: number) =>
-    canvas.listeners.get(type)?.({ pointerId: 1, pointerType: "mouse", button: 0, clientX: x, clientY: y });
-  return { engine, bodies, fire, hovers, canvas };
+  const fire = (type: string, x: number, y: number, pointerType = "mouse") =>
+    canvas.listeners.get(type)?.({ pointerId: 1, pointerType, button: 0, clientX: x, clientY: y });
+  return { engine, bodies, fire, hovers, canvas, host };
 }
 
 await describe("bubbleMapEngine", () => {
@@ -182,6 +198,41 @@ await describe("bubbleMapEngine", () => {
     assert.equal(tip.hidden, true);
     fire("pointerup", target.x + 10, target.y);
     assert.equal(tip.hidden, false);
+  }).catch(assert.fail);
+
+  it("opens the profile on a touch tap and on a touch wobble under the touch threshold", () => {
+    const { bodies, fire, hovers } = setup(12);
+    const target = bodies[1]!;
+    fire("pointerdown", target.x, target.y, "touch");
+    fire("pointerup", target.x, target.y, "touch");
+    fire("pointerdown", target.x, target.y, "touch");
+    fire("pointermove", target.x + 6, target.y, "touch");
+    fire("pointerup", target.x + 6, target.y, "touch");
+    assert.equal(opened.length, 2);
+    assert.ok(hovers.every((handle) => handle === null));
+  }).catch(assert.fail);
+
+  it("treats a touch move past the touch threshold as a drag", () => {
+    const { bodies, fire } = setup(12);
+    const target = bodies[1]!;
+    fire("pointerdown", target.x, target.y, "touch");
+    fire("pointermove", target.x + 9, target.y, "touch");
+    fire("pointerup", target.x + 9, target.y, "touch");
+    assert.deepEqual(opened, []);
+  }).catch(assert.fail);
+
+  it("re-fits the same members into a resized box without changing the count", () => {
+    const { engine, host } = setup(12);
+    const before = engine.positions().length;
+    host.clientWidth = 148;
+    for (const callback of resizeCallbacks) callback();
+    pump(30);
+    const after = engine.positions();
+    assert.equal(after.length, before);
+    for (const body of after) {
+      assert.ok(body.x - body.r >= -0.5 && body.x + body.r <= 148.5, `x ${body.x} r ${body.r}`);
+      assert.ok(body.y - body.r >= -0.5 && body.y + body.r <= BOX.height + 0.5, `y ${body.y} r ${body.r}`);
+    }
   }).catch(assert.fail);
 
   it("cancels a live drag when a smaller payload re-packs to fewer bodies", () => {
