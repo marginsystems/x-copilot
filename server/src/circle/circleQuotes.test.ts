@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { getPlatformDb } from "../db.ts";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { defaultMigrationsDir, getPlatformDb } from "../db.ts";
 import {
   closeTempPlatformDb,
   openTempPlatformDb,
@@ -14,6 +16,7 @@ import type { xApiGet } from "../x-api/xApi.ts";
 import {
   listPendingQuotePosts,
   parseQuoteTargets,
+  quoteLookupId,
   resolveQuoteTargets,
   type PendingQuotePost,
 } from "./circleQuotes.ts";
@@ -49,6 +52,8 @@ function pending(partial: Partial<PendingQuotePost>): PendingQuotePost {
     postId: "q1",
     xUserId: "99",
     quotedPostId: null,
+    inReplyToId: null,
+    inReplyToUserId: null,
     postedAt: "2026-09-01T00:00:00.000Z",
     ...partial,
   };
@@ -101,6 +106,84 @@ await describe("circleQuotes", async () => {
     assert.deepEqual(parsed.links.map((l) => [l.postId, l.authorKey]), [["q1", "bob"]]);
   });
 
+  await it("credits the quoted author of a quote-reply and falls back to the reply parent", () => {
+    const aliceUser = { id: "77", username: "Alice" };
+    const parsed = parseQuoteTargets(
+      {
+        data: [
+          {
+            id: "q1",
+            author_id: "99",
+            in_reply_to_user_id: "77",
+            referenced_tweets: [{ type: "replied_to", id: "p1" }, { type: "quoted", id: "t1" }],
+          },
+          {
+            id: "q2",
+            author_id: "99",
+            in_reply_to_user_id: "77",
+            referenced_tweets: [{ type: "replied_to", id: "p2" }, { type: "quoted", id: "t2" }],
+          },
+          {
+            id: "q3",
+            author_id: "99",
+            in_reply_to_user_id: "99",
+            referenced_tweets: [{ type: "replied_to", id: "p3" }, { type: "quoted", id: "t2" }],
+          },
+        ],
+        includes: {
+          tweets: [
+            { id: "t1", author_id: "7" },
+            { id: "t2", author_id: "99" },
+          ],
+          users: [bobUser, aliceUser, { id: "99", username: "me" }],
+        },
+      },
+      [
+        pending({ inReplyToId: "p1" }),
+        pending({ postId: "q2", inReplyToId: "p2" }),
+        pending({ postId: "q3", inReplyToId: "p3" }),
+      ],
+      "2026-09-30T00:00:00.000Z",
+    );
+    assert.deepEqual(
+      parsed.links.map((l) => [l.postId, l.authorKey, l.kind]),
+      [["q1", "bob", "quote"], ["q2", "alice", "reply"]],
+    );
+    assert.deepEqual(parsed.profiles.map((p) => p.handle), ["Bob", "Alice"]);
+  });
+
+  await it("looks up a quote-reply by its own id so the reply parent comes back", () => {
+    assert.equal(quoteLookupId(pending({ quotedPostId: "t1" })), "t1");
+    assert.equal(quoteLookupId(pending({ quotedPostId: "t1", inReplyToId: "p1" })), "q1");
+  });
+
+  await it("reclassifies stored quote-replies as quotes so the resolver picks them up", () => {
+    const tenantId = ensureUserTenant(userId);
+    upsertOwnPost({
+      parsed: quotePost({ quotedPostId: "t1", inReplyToId: "p1", inReplyToUserId: "77" }),
+      userId,
+      tenantId,
+    });
+    upsertOwnPost({
+      parsed: quotePost({ kind: "reply", postId: "q1", inReplyToId: "p1" }),
+      userId,
+      tenantId,
+    });
+    upsertOwnPost({
+      parsed: quotePost({ kind: "reply", postId: "r1", eventUuid: "evt-r1", inReplyToId: "p1" }),
+      userId,
+      tenantId,
+    });
+    assert.deepEqual(listPendingQuotePosts(userId, 10), []);
+    getPlatformDb().exec(
+      readFileSync(join(defaultMigrationsDir(), "034_quote_reply_kind.sql"), "utf8"),
+    );
+    assert.deepEqual(
+      listPendingQuotePosts(userId, 10).map((p) => [p.postId, p.quotedPostId, p.inReplyToId]),
+      [["q1", "t1", "p1"]],
+    );
+  });
+
   await it("stores the quoted post id from the webhook and resolves every pending quote once", async () => {
     const tenantId = ensureUserTenant(userId);
     upsertOwnPost({ parsed: quotePost({ quotedPostId: "t1" }), userId, tenantId });
@@ -136,8 +219,8 @@ await describe("circleQuotes", async () => {
       {
         path: "/tweets",
         ids: "q2,t1",
-        expansions: "author_id,referenced_tweets.id.author_id",
-        "tweet.fields": "author_id,referenced_tweets",
+        expansions: "author_id,referenced_tweets.id.author_id,in_reply_to_user_id",
+        "tweet.fields": "author_id,referenced_tweets,in_reply_to_user_id",
         "user.fields": "username,name,profile_image_url",
       },
     ]);

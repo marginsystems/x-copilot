@@ -1,6 +1,7 @@
 import { getPlatformDb } from "../db.js";
 import { isRecord, objectValue } from "../platform/unknownValue.js";
 import { xApiGet } from "../x-api/xApi.js";
+import { circleTargetFromAuthors } from "./circleTarget.js";
 import { recordCircleLinks, upsertXProfiles, type CircleLink } from "./circleStore.js";
 import { parseXUsers, toXProfile, type XProfile } from "./xProfiles.js";
 
@@ -11,6 +12,8 @@ export type PendingQuotePost = {
   postId: string;
   xUserId: string;
   quotedPostId: string | null;
+  inReplyToId: string | null;
+  inReplyToUserId: string | null;
   postedAt: string;
 };
 
@@ -20,16 +23,22 @@ export type QuoteResolveResult = {
   failed: boolean;
 };
 
+function optionalId(value: unknown): string | null {
+  return typeof value === "string" && value ? value : null;
+}
+
 function parsePendingRow(row: unknown): PendingQuotePost | null {
   if (!isRecord(row)) return null;
-  const { id, x_user_id, quoted_post_id, posted_at } = row;
+  const { id, x_user_id, quoted_post_id, in_reply_to_id, in_reply_to_user_id, posted_at } = row;
   if (typeof id !== "string" || typeof x_user_id !== "string" || typeof posted_at !== "string") {
     return null;
   }
   return {
     postId: id,
     xUserId: x_user_id,
-    quotedPostId: typeof quoted_post_id === "string" && quoted_post_id ? quoted_post_id : null,
+    quotedPostId: optionalId(quoted_post_id),
+    inReplyToId: optionalId(in_reply_to_id),
+    inReplyToUserId: optionalId(in_reply_to_user_id),
     postedAt: posted_at,
   };
 }
@@ -37,7 +46,8 @@ function parsePendingRow(row: unknown): PendingQuotePost | null {
 export function listPendingQuotePosts(userId: string, limit: number): PendingQuotePost[] {
   return getPlatformDb()
     .prepare(
-      `SELECT p.id, p.x_user_id, p.quoted_post_id, p.posted_at FROM own_posts p
+      `SELECT p.id, p.x_user_id, p.quoted_post_id, p.in_reply_to_id, p.in_reply_to_user_id, p.posted_at
+       FROM own_posts p
        WHERE p.user_id = ? AND p.kind = 'quote'
          AND NOT EXISTS (
            SELECT 1 FROM circle_links l WHERE l.user_id = p.user_id AND l.post_id = p.id
@@ -70,6 +80,7 @@ export function markQuotePostsChecked(
 }
 
 export function quoteLookupId(post: PendingQuotePost): string {
+  if (post.inReplyToId) return post.postId;
   return post.quotedPostId ?? post.postId;
 }
 
@@ -94,8 +105,10 @@ export function parseQuoteTargets(
       user.id ? [[user.id, user] as const] : [],
     ),
   );
+  const usersByKey = new Map([...users.values()].map((user) => [user.authorKey, user] as const));
   const tweetAuthors = new Map<string, string>();
   const quotedByPost = new Map<string, string>();
+  const replyUserByPost = new Map<string, string>();
   const tweets: unknown[] = [
     ...(Array.isArray(root.data) ? (root.data as unknown[]) : []),
     ...(Array.isArray(includes.tweets) ? (includes.tweets as unknown[]) : []),
@@ -106,17 +119,24 @@ export function parseQuoteTargets(
     if (typeof tweet.author_id === "string") tweetAuthors.set(tweet.id, tweet.author_id);
     const quoted = quotedRefId(tweet);
     if (quoted) quotedByPost.set(tweet.id, quoted);
+    if (typeof tweet.in_reply_to_user_id === "string") {
+      replyUserByPost.set(tweet.id, tweet.in_reply_to_user_id);
+    }
   }
   const links: CircleLink[] = [];
   const profiles = new Map<string, XProfile>();
   for (const post of posts) {
     const quoted = post.quotedPostId ?? quotedByPost.get(post.postId);
-    const authorId = quoted ? tweetAuthors.get(quoted) : undefined;
-    if (!authorId || authorId === post.xUserId) continue;
-    const user = users.get(authorId);
-    if (!user) continue;
-    links.push({ postId: post.postId, authorKey: user.authorKey, kind: "quote", at: post.postedAt });
-    profiles.set(user.authorKey, toXProfile(user));
+    const target = circleTargetFromAuthors({
+      quotedAuthorId: quoted ? tweetAuthors.get(quoted) : undefined,
+      replyUserId: replyUserByPost.get(post.postId) ?? post.inReplyToUserId,
+      ownXUserId: post.xUserId,
+      users,
+    });
+    if (!target) continue;
+    links.push({ postId: post.postId, ...target, at: post.postedAt });
+    const user = usersByKey.get(target.authorKey);
+    if (user) profiles.set(user.authorKey, toXProfile(user));
   }
   return { links, profiles: [...profiles.values()] };
 }
@@ -139,8 +159,8 @@ export async function resolveQuoteTargets(opts: {
       path: "/tweets",
       query: {
         ids: [...new Set(batch.map(quoteLookupId))].join(","),
-        expansions: "author_id,referenced_tweets.id.author_id",
-        "tweet.fields": "author_id,referenced_tweets",
+        expansions: "author_id,referenced_tweets.id.author_id,in_reply_to_user_id",
+        "tweet.fields": "author_id,referenced_tweets,in_reply_to_user_id",
         "user.fields": "username,name,profile_image_url",
       },
       signal: opts.signal,

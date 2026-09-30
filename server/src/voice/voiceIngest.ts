@@ -15,6 +15,7 @@ import {
   type XProfile,
   type XUserRecord,
 } from "../circle/xProfiles.js";
+import { circleTargetFromAuthors, type CircleTarget } from "../circle/circleTarget.js";
 import { classifyPostKind } from "../x-api/xActivity.js";
 import { xApiGet, type XApiGetResult } from "../x-api/xApi.js";
 import type { VoiceReplyInput } from "./voiceStore.js";
@@ -97,7 +98,7 @@ function quotedId(tweet: RawTweet): string | null {
   return null;
 }
 
-export type CircleTarget = { authorKey: string; kind: "reply" | "quote" };
+export type { CircleTarget };
 
 export type PulledPost = VoiceReplyInput & {
   inReplyToUserId?: string | null;
@@ -123,17 +124,12 @@ function circleTargetFor(
   tweetAuthors: ReadonlyMap<string, string>,
 ): CircleTarget | null {
   const quoted = quotedId(tweet);
-  const quotedAuthorId = quoted ? tweetAuthors.get(quoted) : undefined;
-  const quotedUser = quotedAuthorId && quotedAuthorId !== ownXUserId
-    ? users.get(quotedAuthorId)
-    : undefined;
-  if (quotedUser) return { authorKey: quotedUser.authorKey, kind: "quote" };
-  const replyUserId =
-    typeof tweet.in_reply_to_user_id === "string" ? tweet.in_reply_to_user_id : null;
-  const replyUser = replyUserId && replyUserId !== ownXUserId
-    ? users.get(replyUserId)
-    : undefined;
-  return replyUser ? { authorKey: replyUser.authorKey, kind: "reply" } : null;
+  return circleTargetFromAuthors({
+    quotedAuthorId: quoted ? tweetAuthors.get(quoted) : undefined,
+    replyUserId: typeof tweet.in_reply_to_user_id === "string" ? tweet.in_reply_to_user_id : null,
+    ownXUserId,
+    users,
+  });
 }
 
 function isRetweet(tweet: RawTweet): boolean {
