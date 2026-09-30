@@ -191,6 +191,7 @@ await describe("clampTargetCool / clampBucketSize", async () => {
 const NO_X_FILTERS = {
   dropNativeMedia: false,
   dropHashtags: false,
+  dropArticles: false,
   filterByMinViews: false,
 };
 
@@ -211,7 +212,7 @@ await describe("withScoutSearchExclusions", async () => {
   });
 
   await it("filters media, hashtags, and low likes on X by default so rejected posts are never billed", () => {
-    const expected = `shipping AI -is:retweet -is:reply -has:media -has:hashtags min_likes:${SCOUT_MIN_LIKES}`;
+    const expected = `shipping AI -is:retweet -is:reply -has:media -has:hashtags -url:"x.com/i/article" min_likes:${SCOUT_MIN_LIKES}`;
     assert.equal(withScoutSearchExclusions("shipping AI"), expected);
     assert.equal(withScoutSearchExclusions("shipping AI", {}), expected);
   });
@@ -219,22 +220,60 @@ await describe("withScoutSearchExclusions", async () => {
   await it("leaves each X-side filter off when its Scout setting is off", () => {
     assert.equal(
       withScoutSearchExclusions("shipping AI", { dropNativeMedia: false }),
-      `shipping AI -is:retweet -is:reply -has:hashtags min_likes:${SCOUT_MIN_LIKES}`,
+      `shipping AI -is:retweet -is:reply -has:hashtags -url:"x.com/i/article" min_likes:${SCOUT_MIN_LIKES}`,
     );
     assert.equal(
       withScoutSearchExclusions("shipping AI", { dropHashtags: false }),
-      `shipping AI -is:retweet -is:reply -has:media min_likes:${SCOUT_MIN_LIKES}`,
+      `shipping AI -is:retweet -is:reply -has:media -url:"x.com/i/article" min_likes:${SCOUT_MIN_LIKES}`,
     );
     assert.equal(
       withScoutSearchExclusions("shipping AI", { filterByMinViews: false }),
-      "shipping AI -is:retweet -is:reply -has:media -has:hashtags",
+      'shipping AI -is:retweet -is:reply -has:media -has:hashtags -url:"x.com/i/article"',
+    );
+  });
+
+  await it("excludes X Articles on X's side unless dropArticles is off", () => {
+    assert.equal(
+      withScoutSearchExclusions("shipping AI", {
+        ...NO_X_FILTERS,
+        dropArticles: undefined,
+      }),
+      'shipping AI -is:retweet -is:reply -url:"x.com/i/article"',
+    );
+    assert.equal(
+      withScoutSearchExclusions("shipping AI", { dropArticles: false }),
+      `shipping AI -is:retweet -is:reply -has:media -has:hashtags min_likes:${SCOUT_MIN_LIKES}`,
+    );
+  });
+
+  await it("does not repeat an article exclusion the query already has", () => {
+    assert.equal(
+      withScoutSearchExclusions('launch -URL:"x.com/i/article"', NO_X_FILTERS),
+      'launch -URL:"x.com/i/article" -is:retweet -is:reply',
+    );
+  });
+
+  await it("keeps the article exclusion outside the OR group", () => {
+    assert.equal(
+      withScoutSearchExclusions("freight OR logistics", {
+        ...NO_X_FILTERS,
+        dropArticles: undefined,
+      }),
+      '(freight OR logistics) -is:retweet -is:reply -url:"x.com/i/article"',
+    );
+    assert.equal(
+      withScoutSearchExclusions(
+        'freight OR logistics -url:"x.com/i/article" min_likes:20',
+        NO_X_FILTERS,
+      ),
+      '(freight OR logistics) -url:"x.com/i/article" min_likes:20 -is:retweet -is:reply',
     );
   });
 
   await it("keeps a planner-chosen like floor and does not repeat operators", () => {
     assert.equal(
       withScoutSearchExclusions("launch min_likes:20 -has:media"),
-      "launch min_likes:20 -has:media -is:retweet -is:reply -has:hashtags",
+      'launch min_likes:20 -has:media -is:retweet -is:reply -has:hashtags -url:"x.com/i/article"',
     );
   });
 
@@ -245,7 +284,7 @@ await describe("withScoutSearchExclusions", async () => {
     );
     assert.equal(
       withScoutSearchExclusions("launch min_faves:10"),
-      "launch min_likes:10 -is:retweet -is:reply -has:media -has:hashtags",
+      'launch min_likes:10 -is:retweet -is:reply -has:media -has:hashtags -url:"x.com/i/article"',
     );
   });
 
@@ -263,21 +302,21 @@ await describe("withScoutSearchExclusions", async () => {
   await it("applies existing like and content filters to every OR branch", () => {
     assert.equal(
       withScoutSearchExclusions("freight OR logistics min_likes:20 -has:media"),
-      "(freight OR logistics) min_likes:20 -has:media -is:retweet -is:reply -has:hashtags",
+      '(freight OR logistics) min_likes:20 -has:media -is:retweet -is:reply -has:hashtags -url:"x.com/i/article"',
     );
   });
 
   await it("does not append a second floor after a negated like operator", () => {
     assert.equal(
       withScoutSearchExclusions("launch -min_faves:10"),
-      "launch -min_likes:10 -is:retweet -is:reply -has:media -has:hashtags",
+      'launch -min_likes:10 -is:retweet -is:reply -has:media -has:hashtags -url:"x.com/i/article"',
     );
   });
 
   await it("skips the like floor when the view floor is zero", () => {
     assert.equal(
       withScoutSearchExclusions("shipping AI", { minViews: 0 }),
-      "shipping AI -is:retweet -is:reply -has:media -has:hashtags",
+      'shipping AI -is:retweet -is:reply -has:media -has:hashtags -url:"x.com/i/article"',
     );
   });
 
