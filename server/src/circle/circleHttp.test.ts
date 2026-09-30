@@ -150,6 +150,57 @@ await describe("circleHttp", async () => {
     );
   });
 
+  await it("GET /api/circle fills missing PFPs once per hydrate interval", async () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-circle-hydrate",
+      email: "h@example.com",
+      emailVerified: true,
+      displayName: "Hydrate Me",
+    });
+    await markInteracted({ threadId: "t1", author: "@alice", userId: user.id, replyId: "r1" });
+    const { token } = createSession(user.id);
+    const cookie = `${SESSION_COOKIE}=${encodeURIComponent(token)}`;
+    process.env.X_API_BEARER_TOKEN = "test-bearer";
+    const originalFetch = globalThis.fetch;
+    const usersBy: URL[] = [];
+    globalThis.fetch = (async (input: Parameters<typeof fetch>[0]) => {
+      const url = new URL(String(input));
+      if (url.pathname.endsWith("/users/by")) usersBy.push(url);
+      return new Response(
+        JSON.stringify({
+          data: [
+            {
+              id: "1",
+              username: "alice",
+              name: "Alice A",
+              profile_image_url: "https://pbs.twimg.com/profile_images/1/a_normal.jpg",
+            },
+          ],
+        }),
+        { status: 200 },
+      );
+    }) as typeof fetch;
+    try {
+      const first = await call("/api/circle", cookie);
+      assert.equal(first.status, 200);
+      assert.ok(Array.isArray(first.json.members));
+      assert.equal(
+        expectRecord(first.json.members[0]).avatarUrl,
+        "https://pbs.twimg.com/profile_images/1/a_400x400.jpg",
+      );
+      getPlatformDb().prepare(`DELETE FROM x_profiles`).run();
+      const second = await call("/api/circle", cookie);
+      assert.equal(second.status, 200);
+      assert.ok(Array.isArray(second.json.members));
+      assert.equal(expectRecord(second.json.members[0]).avatarUrl, null);
+      assert.equal(usersBy.length, 1);
+      assert.equal(usersBy[0]?.searchParams.get("usernames"), "alice");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   await it("a failed users/by call writes nothing", async () => {
     const fetchUsers: typeof xApiGet = () =>
       Promise.resolve({ ok: false, status: 429, error: "rate_limited", message: "slow down" });

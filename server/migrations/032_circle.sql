@@ -15,5 +15,5 @@ CREATE TABLE IF NOT EXISTS circle_links (
   PRIMARY KEY (user_id, post_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_circle_links_user_author
-  ON circle_links (user_id, author_key);
+CREATE INDEX IF NOT EXISTS idx_circle_links_user_at
+  ON circle_links (user_id, at DESC, post_id DESC);
