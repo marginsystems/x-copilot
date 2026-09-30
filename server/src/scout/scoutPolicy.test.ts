@@ -248,7 +248,10 @@ await describe("withScoutSearchExclusions", async () => {
 
   await it("does not repeat an article exclusion the query already has", () => {
     assert.equal(
-      withScoutSearchExclusions('launch -URL:"x.com/i/article"', NO_X_FILTERS),
+      withScoutSearchExclusions('launch -URL:"x.com/i/article"', {
+        ...NO_X_FILTERS,
+        dropArticles: undefined,
+      }),
       'launch -URL:"x.com/i/article" -is:retweet -is:reply',
     );
   });
@@ -264,7 +267,7 @@ await describe("withScoutSearchExclusions", async () => {
     assert.equal(
       withScoutSearchExclusions(
         'freight OR logistics -url:"x.com/i/article" min_likes:20',
-        NO_X_FILTERS,
+        { ...NO_X_FILTERS, dropArticles: undefined },
       ),
       '(freight OR logistics) -url:"x.com/i/article" min_likes:20 -is:retweet -is:reply',
     );
