@@ -11,7 +11,9 @@ import { niceCeil, type GaugeTone, type GaugeZone } from "./gaugeGeometry";
 import { REPLY_PACE_MS } from "./replyPace";
 
 export const REPLY_RATE_CEILING_PER_HOUR = 3_600_000 / REPLY_PACE_MS;
-export const REPLY_RATE_SCALE_STEPS = [1, 2, 5, 10, 20, 30, REPLY_RATE_CEILING_PER_HOUR];
+export const REPLY_HOUR_BUSY = 20;
+export const REPLY_HOUR_HOT = 35;
+export const REPLY_HOUR_OVER = 50;
 export const REPLIES_DAY_SCALE_STEPS = [10, 20, 50, 100, 200];
 export const TANK_LOW_FUEL = 2;
 
@@ -54,9 +56,34 @@ export type DeskGaugeSpec = {
   note: string;
 };
 
-export function replyRateScaleMax(ratePerHour: number): number {
-  return niceCeil(ratePerHour, REPLY_RATE_SCALE_STEPS);
+export type ReplyHourZone = "normal" | "busy" | "hot" | "over";
+
+export const REPLY_HOUR_ZONE_WORD: Record<ReplyHourZone, string> = {
+  normal: "normal pace",
+  busy: "busy",
+  hot: "hot",
+  over: "over pace",
+};
+
+export function replyHourZone(repliesLastHour: number): ReplyHourZone {
+  if (!(repliesLastHour >= REPLY_HOUR_BUSY)) return "normal";
+  if (repliesLastHour < REPLY_HOUR_HOT) return "busy";
+  if (repliesLastHour < REPLY_HOUR_OVER) return "hot";
+  return "over";
 }
+
+const REPLY_HOUR_TONE: Record<ReplyHourZone, GaugeTone | null> = {
+  normal: null,
+  busy: null,
+  hot: "warn",
+  over: "danger",
+};
+
+export const REPLY_HOUR_ZONES: GaugeZone[] = [
+  { from: 0, to: REPLY_HOUR_BUSY, tone: "gain" },
+  { from: REPLY_HOUR_HOT, to: REPLY_HOUR_OVER, tone: "warn" },
+  { from: REPLY_HOUR_OVER, to: REPLY_RATE_CEILING_PER_HOUR, tone: "danger" },
+];
 
 export function repliesDayScaleMax(replies: number): number {
   return niceCeil(replies, REPLIES_DAY_SCALE_STEPS);
@@ -91,7 +118,7 @@ export function gaugeValueText(spec: DeskGaugeSpec): string {
 }
 
 export function deskGaugeSpecs(g: DeskInstruments): DeskGaugeSpec[] {
-  const rateMax = replyRateScaleMax(g.repliesPerHour);
+  const hourZone = replyHourZone(g.repliesLastHour);
   const dayMax = repliesDayScaleMax(g.repliesUtcDay);
   const cap = Math.max(1, g.dailyPostCap);
   const band = g.inboundBand;
@@ -99,18 +126,19 @@ export function deskGaugeSpecs(g: DeskInstruments): DeskGaugeSpec[] {
     {
       id: "repliesPerHour",
       label: "Replies / hour",
-      unit: "replies per hour",
-      valueText: formatPerHour(g.repliesPerHour),
-      value: g.repliesPerHour,
+      unit: `replies in the last 60 minutes, ${REPLY_HOUR_ZONE_WORD[hourZone]}`,
+      valueText: String(g.repliesLastHour),
+      value: g.repliesLastHour,
       min: 0,
-      max: rateMax,
-      zones: [],
+      max: REPLY_RATE_CEILING_PER_HOUR,
+      zones: REPLY_HOUR_ZONES,
+      tone: REPLY_HOUR_TONE[hourZone],
       majorSegments: 2,
       minorPerSegment: 4,
-      tickLabels: edgeLabels(rateMax),
+      tickLabels: edgeLabels(REPLY_RATE_CEILING_PER_HOUR),
       showFill: true,
-      delta: g.repliesPerHourDelta,
-      note: "Last 500 marks on this desk, as a real hourly rate.",
+      delta: g.repliesLastHourDelta,
+      note: `Replies in the last 60 minutes. Normal under ${REPLY_HOUR_BUSY}, busy to ${REPLY_HOUR_HOT}, hot to ${REPLY_HOUR_OVER}, over pace above. Long-run average ${formatPerHour(g.repliesPerHour)} an hour.`,
     },
     {
       id: "repliesToday",

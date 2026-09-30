@@ -51,6 +51,8 @@ export type DeskInstruments = {
   windowSize: number;
   repliesPerHour: number;
   repliesPerHourDelta: InstrumentDelta;
+  repliesLastHour: number;
+  repliesLastHourDelta: InstrumentDelta;
   repliesUtcDay: number;
   repliesUtcDayDelta: InstrumentDelta;
   originalsToday: number;
@@ -228,6 +230,18 @@ function countDelta(
   };
 }
 
+export function countLastHour(timesMs: number[], nowMs: number): number {
+  return countInRange(finiteTimes(timesMs), nowMs - HOUR_MS, nowMs);
+}
+
+function lastHourDelta(times: number[], nowMs: number): InstrumentDelta {
+  const current = countLastHour(times, nowMs);
+  return {
+    pct24h: pctDelta(current, countLastHour(times, nowMs - DAY_MS)),
+    pct7d: pctDelta(current, countLastHour(times, nowMs - 7 * DAY_MS)),
+  };
+}
+
 function rateDelta(times: number[], nowMs: number): InstrumentDelta {
   return {
     pct24h: pctDelta(
@@ -264,6 +278,8 @@ export function readDeskInstruments(
     windowSize: window.length,
     repliesPerHour: trailingPerHour(replyTimes, input.nowMs),
     repliesPerHourDelta: rateDelta(replyTimes, input.nowMs),
+    repliesLastHour: countLastHour(replyTimes, input.nowMs),
+    repliesLastHourDelta: lastHourDelta(replyTimes, input.nowMs),
     repliesUtcDay: replyTimes.filter(
       (time) => time >= dayStart && time <= input.nowMs,
     ).length,

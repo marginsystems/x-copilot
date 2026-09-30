@@ -11,6 +11,7 @@ import {
   RATE_WINDOW,
   readDeskInstruments,
   trailingPerHour,
+  countLastHour,
   utcDayStartMs,
   type DeskInstrumentInput,
   type DeskInstrumentMark,
@@ -61,6 +62,14 @@ await describe("dailyPostCap", () => {
     );
   }).catch(assert.fail);
 
+});
+
+await describe("countLastHour", () => {
+  it("counts replies in the 60 minutes ending now, excluding the edge an hour back", () => {
+    const times = [NOW, NOW - 59 * 60_000, NOW - 60 * 60_000, NOW - 61 * 60_000, NOW + 1, Number.NaN];
+    assert.equal(countLastHour(times, NOW), 2);
+    assert.equal(countLastHour([], NOW), 0);
+  }).catch(assert.fail);
 });
 
 await describe("trailingPerHour", () => {

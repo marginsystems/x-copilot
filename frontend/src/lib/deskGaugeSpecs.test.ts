@@ -1,13 +1,14 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  REPLY_HOUR_ZONES,
   REPLY_RATE_CEILING_PER_HOUR,
   TANK_LOW_FUEL,
   deltaSpoken,
   deskGaugeSpecs,
   gaugeValueText,
   repliesDayScaleMax,
-  replyRateScaleMax,
+  replyHourZone,
 } from "./deskGaugeSpecs.ts";
 import { readDeskInstruments } from "./deskInstruments.ts";
 
@@ -27,12 +28,40 @@ function instruments(over: Partial<Parameters<typeof readDeskInstruments>[0]> = 
 }
 
 await describe("deskGaugeSpecs", () => {
-  it("derives the replies per hour scale from the rate, capped at the one-a-minute pace", () => {
+  it("bands replies in the last hour as normal, busy, hot and over pace", () => {
+    assert.equal(replyHourZone(0), "normal");
+    assert.equal(replyHourZone(19), "normal");
+    assert.equal(replyHourZone(20), "busy");
+    assert.equal(replyHourZone(34), "busy");
+    assert.equal(replyHourZone(35), "hot");
+    assert.equal(replyHourZone(49), "hot");
+    assert.equal(replyHourZone(50), "over");
+    assert.equal(replyHourZone(Number.NaN), "normal");
+  }).catch(assert.fail);
+
+  it("draws replies per hour as the last 60 minutes on a 0 to 60 dial with pace zones", () => {
     assert.equal(REPLY_RATE_CEILING_PER_HOUR, 60);
-    assert.equal(replyRateScaleMax(0.54), 1);
-    assert.equal(replyRateScaleMax(1.9), 5);
-    assert.equal(replyRateScaleMax(0), 1);
-    assert.equal(replyRateScaleMax(500), 60);
+    const replyAtMs = Array.from({ length: 40 }, (_, i) => NOW - i * 60_000);
+    const replyAtOld = Array.from({ length: 300 }, (_, i) => NOW - 2 * 3_600_000 - i * 3_600_000);
+    const rate = deskGaugeSpecs(instruments({ replyAtMs: [...replyAtMs, ...replyAtOld] }))[0]!;
+    assert.equal(rate.value, 40);
+    assert.equal(rate.valueText, "40");
+    assert.equal(rate.max, 60);
+    assert.deepEqual(rate.zones, REPLY_HOUR_ZONES);
+    assert.deepEqual(rate.zones, [
+      { from: 0, to: 20, tone: "gain" },
+      { from: 35, to: 50, tone: "warn" },
+      { from: 50, to: 60, tone: "danger" },
+    ]);
+    assert.equal(rate.tone, "warn");
+    assert.match(rate.unit, /last 60 minutes, hot$/);
+    const quiet = deskGaugeSpecs(instruments({ replyAtMs: replyAtOld }))[0]!;
+    assert.equal(quiet.value, 0);
+    assert.equal(quiet.tone, null);
+    const over = deskGaugeSpecs(
+      instruments({ replyAtMs: Array.from({ length: 55 }, (_, i) => NOW - i * 60_000) }),
+    )[0]!;
+    assert.equal(over.tone, "danger");
   }).catch(assert.fail);
 
   it("derives the replies today scale from the count", () => {
@@ -84,10 +113,13 @@ await describe("deskGaugeSpecs", () => {
     const spec = deskGaugeSpecs(instruments())[0]!;
     const text = gaugeValueText({
       ...spec,
-      valueText: "0.54",
+      valueText: "12",
       delta: { pct24h: 1.3, pct7d: null },
     });
-    assert.equal(text, "0.54 replies per hour, up 1.3% over 24h, new over 7d");
+    assert.equal(
+      text,
+      "12 replies in the last 60 minutes, normal pace, up 1.3% over 24h, new over 7d",
+    );
     assert.equal(deltaSpoken(-6.3, "24h"), "down 6.3% over 24h");
     assert.equal(deltaSpoken(0, "7d"), "unchanged over 7d");
     assert.equal(gaugeValueText(deskGaugeSpecs(instruments())[4]!), "7 / 10 usable scouted replies");
