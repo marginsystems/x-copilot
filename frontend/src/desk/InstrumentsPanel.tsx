@@ -60,7 +60,7 @@ export function InstrumentsPanel({
     <section
       className="desk-instruments"
       aria-label="Instruments"
-      title="Last 500 marks. Arrows are 24h and 7d."
+      title="Replies / hour counts the last 60 minutes. Arrows compare with 24h and 7d ago."
     >
       <div className="desk-gauges">
         {specs.map((spec) => (
