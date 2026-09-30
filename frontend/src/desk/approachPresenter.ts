@@ -14,6 +14,7 @@ import {
   approachCollectingCopy,
   approachCollectingVerb,
 } from "../lib/phaseWhy";
+import { forYouTargetId } from "../lib/forYou";
 import type { ScoutStageId } from "../lib/scoutStages";
 import type { ThreadCard } from "./types";
 
@@ -164,7 +165,8 @@ export function presentApproach(input: ApproachCardInput): ApproachPresentation 
     };
   }
   const detectsReply =
-    input.suggestion?.kind === "reply" && Boolean(input.suggestion.targetId);
+    input.suggestion?.kind === "reply" &&
+    Boolean(forYouTargetId(input.suggestion));
   return {
     ...blank,
     kind: "suggested",

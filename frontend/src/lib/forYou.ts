@@ -96,6 +96,10 @@ export type ForYouSuggestion = {
   targetAuthor: string | null;
 };
 
+export function forYouTargetId(row: ForYouSuggestion): string | null {
+  return row.targetId || row.targetUrl?.match(/\/status\/(\d+)/)?.[1] || null;
+}
+
 export function parseForYouSuggestion(raw: unknown): ForYouSuggestion | null {
   if (!isRecord(raw)) return null;
   const row = raw;
