@@ -58,14 +58,14 @@ export function DeskTop({
           className="desk-top-toggle"
           aria-expanded={open}
           aria-controls={bodyId}
-          aria-label={open ? "Minimize desk panel" : "Expand desk panel"}
           onClick={() => {
             setEverOpened(true);
             onToggle();
           }}
         >
-          <span className="desk-top-caret" aria-hidden="true">
-            {open ? "–" : "+"}
+          <ToggleIcon open={open} />
+          <span className="desk-top-toggle-label">
+            {open ? "Hide cockpit" : "Show cockpit"}
           </span>
         </button>
       </div>
@@ -111,5 +111,24 @@ export function DeskTop({
         </div>
       </div>
     </div>
+  );
+}
+
+function ToggleIcon({ open }: { open: boolean }) {
+  return (
+    <svg
+      className="desk-top-toggle-icon"
+      viewBox="0 0 24 24"
+      width="14"
+      height="14"
+      aria-hidden="true"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d={open ? "M6 15l6-6 6 6" : "M6 9l6 6 6-6"} />
+    </svg>
   );
 }

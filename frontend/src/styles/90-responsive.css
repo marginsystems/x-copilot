@@ -210,3 +210,19 @@
     animation-duration: 180ms;
   }
 }
+
+@media (max-width: 560px) {
+  .menu-toggle {
+    top: 0;
+    right: 4px;
+    width: 44px;
+    height: 44px;
+  }
+
+  .desk .threads-scroll button.primary,
+  .desk .threads-scroll button.ghost,
+  .desk .threads-scroll a.primary,
+  .desk .threads-scroll a.ghost {
+    min-height: 44px;
+  }
+}

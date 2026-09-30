@@ -30,7 +30,7 @@ export function deskPreviewPlugin(repoRoot: string): Plugin {
         }
         if (path === "/__dev/blank") {
           res.setHeader("Content-Type", "text/html");
-          res.end("<!doctype html><title>blank</title><body style=\"margin:0\">");
+          res.end("<!doctype html><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>blank</title><body style=\"margin:0\">");
           return;
         }
         if (path === "/__dev/login") {

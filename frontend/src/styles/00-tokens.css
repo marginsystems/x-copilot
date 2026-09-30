@@ -20,6 +20,8 @@
   --gauge-track: #332d27;
   --gauge-tick: #7d746a;
   --gauge-bezel: #4d453c;
+  --chart-quote: #7ea88f;
+  --chart-reply: #d4a574;
   --gauge-warn: #d9a441;
   --on-accent: #161310;
   --radius: 4px;
@@ -39,14 +41,16 @@
   --muted: #4a433c;
   --accent: #14527a;
   --accent-dim: #7ea8c4;
-  --danger: #b54d45;
+  --danger: #9c3a33;
   --danger-dim: #f0d4d0;
   --gain: #2d6a3c;
   --gain-dim: #cfe3d4;
   --ink: #fffaf4;
   --gauge-track: #ddd4c8;
   --gauge-tick: #6b6259;
-  --gauge-bezel: #b8ad9f;
+  --gauge-bezel: #948a7c;
+  --chart-quote: #4f8a63;
+  --chart-reply: #a86a2c;
   --gauge-warn: #9a6700;
   --on-accent: #ffffff;
 }
