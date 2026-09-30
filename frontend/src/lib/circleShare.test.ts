@@ -7,6 +7,7 @@ import {
   circleInitials,
   circleRefreshKey,
   circleRings,
+  CIRCLE_SHARE_CTA,
   circleShareCaption,
   circleShareIntentUrl,
   circleShareLayout,
@@ -101,12 +102,12 @@ await describe("circleSharePayload", () => {
 });
 
 await describe("caption and intent", () => {
-  it("names the member count, site, and disclaimer", () => {
+  it("names the member count and ends on the call to action", () => {
     const payload = circleSharePayload(response(64))!;
     const caption = circleShareCaption(payload);
     assert.match(caption, /^My X Circle — the 64 people I talk with most on X\./);
-    assert.ok(caption.includes(FLIGHT_SHARE_SITE));
-    assert.ok(caption.endsWith(FLIGHT_SHARE_DISCLAIMER));
+    assert.ok(caption.endsWith(`${CIRCLE_SHARE_CTA} → ${FLIGHT_SHARE_SITE}`));
+    assert.ok(!caption.includes(FLIGHT_SHARE_DISCLAIMER));
     const url = new URL(circleShareIntentUrl(payload));
     assert.equal(url.origin + url.pathname, "https://x.com/intent/tweet");
     assert.equal(url.searchParams.get("text"), caption);
@@ -116,6 +117,18 @@ await describe("caption and intent", () => {
     assert.equal(
       circleCountsLine(circleSharePayload(response(64))!),
       "638 replies · 13 quotes · 64 people",
+    );
+  }).catch(assert.fail);
+
+  it("leaves zero counts off the counts line", () => {
+    const payload = circleSharePayload(response(64))!;
+    assert.equal(
+      circleCountsLine({ ...payload, totals: { ...payload.totals, quotes: 0 } }),
+      "638 replies · 64 people",
+    );
+    assert.equal(
+      circleCountsLine({ ...payload, totals: { ...payload.totals, replies: 0 } }),
+      "13 quotes · 64 people",
     );
   }).catch(assert.fail);
 
@@ -280,8 +293,9 @@ await describe("drawCircleShareImage", () => {
     assert.ok(rec.texts.includes("@me"));
     assert.ok(rec.texts.some((t) => /^X Circle · Sep 30, 2026$/.test(t)));
     assert.ok(rec.texts.includes("638 replies · 13 quotes · 64 people"));
-    assert.ok(rec.texts.includes(FLIGHT_SHARE_SITE));
-    assert.ok(rec.texts.includes(FLIGHT_SHARE_DISCLAIMER));
+    assert.ok(rec.texts.includes(`${FLIGHT_SHARE_SITE} →`));
+    assert.ok(rec.texts.includes(CIRCLE_SHARE_CTA));
+    assert.ok(!rec.texts.includes(FLIGHT_SHARE_DISCLAIMER));
   }).catch(assert.fail);
 
   it("draws initials for the center when the self avatar is missing", () => {

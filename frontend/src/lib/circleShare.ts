@@ -1,6 +1,5 @@
 import { apiFetch } from "./apiBase";
 import {
-  FLIGHT_SHARE_DISCLAIMER,
   FLIGHT_SHARE_HEIGHT,
   FLIGHT_SHARE_SITE,
   FLIGHT_SHARE_WIDTH,
@@ -142,9 +141,11 @@ export function circleSharePayload(
   return { ...resp, members: resp.members.slice(0, CIRCLE_MAX_MEMBERS) };
 }
 
+export const CIRCLE_SHARE_CTA = "Generate your free X Circle";
+
 export function circleShareCaption(payload: CircleSharePayload): string {
   const head = `My X Circle — the ${payload.members.length} people I talk with most on X.`;
-  return [head, "", FLIGHT_SHARE_SITE, FLIGHT_SHARE_DISCLAIMER].join("\n");
+  return [head, "", `${CIRCLE_SHARE_CTA} → ${FLIGHT_SHARE_SITE}`].join("\n");
 }
 
 export function circleShareIntentUrl(payload: CircleSharePayload): string {
@@ -310,11 +311,15 @@ function plural(n: number, one: string, many: string): string {
 
 export function circleCountsLine(payload: CircleSharePayload): string {
   const { replies, quotes } = payload.totals;
-  return [
-    plural(replies, "reply", "replies"),
-    plural(quotes, "quote", "quotes"),
-    plural(payload.members.length, "person", "people"),
-  ].join(" · ");
+  const parts: [number, string, string][] = [
+    [replies, "reply", "replies"],
+    [quotes, "quote", "quotes"],
+    [payload.members.length, "person", "people"],
+  ];
+  return parts
+    .filter(([n]) => Math.round(n) > 0)
+    .map(([n, one, many]) => plural(n, one, many))
+    .join(" · ");
 }
 
 function circlePath(ctx: CircleDrawCtx, x: number, y: number, r: number): void {
@@ -485,14 +490,16 @@ function drawFooter(ctx: CircleDrawCtx, L: CircleShareLayout, payload: CircleSha
   ctx.fillStyle = C.border;
   ctx.fillRect(padX, L.footerTop, contentW, 2);
   ctx.textBaseline = "middle";
+  const site = `${FLIGHT_SHARE_SITE} →`;
   ctx.fillStyle = C.accent;
   ctx.font = `600 26px ${FONT_HEAD}`;
-  ctx.fillText(FLIGHT_SHARE_SITE, padX, L.footerTextY);
-  const siteW = ctx.measureText(FLIGHT_SHARE_SITE).width;
-  ctx.fillStyle = C.muted;
-  fitFont(ctx, FLIGHT_SHARE_DISCLAIMER, contentW - siteW - 40, "400", 18, FONT_BODY, 12);
+  const siteW = ctx.measureText(site).width;
   ctx.textAlign = "right";
-  ctx.fillText(FLIGHT_SHARE_DISCLAIMER, right, L.footerTextY);
+  ctx.fillText(site, right, L.footerTextY);
+  ctx.textAlign = "left";
+  ctx.fillStyle = C.text;
+  fitFont(ctx, CIRCLE_SHARE_CTA, contentW - siteW - 40, "600", 26, FONT_HEAD, 16);
+  ctx.fillText(CIRCLE_SHARE_CTA, padX, L.footerTextY);
   ctx.textAlign = "left";
   ctx.textBaseline = "top";
 }
