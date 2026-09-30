@@ -20,7 +20,7 @@ export const FLIGHT_SHARE_HEIGHT = 1350;
 export const FLIGHT_SHARE_SITE = "xcopilot.dev";
 export const FLIGHT_SHARE_DISCLAIMER = `Built by ${LEGAL_ENTITY.replace(/\.$/, "")}. Not affiliated with X Corp.`;
 
-const C = {
+export const SHARE_PALETTE = {
   bg: "#161310",
   panel: "#1f1b17",
   raised: "#26211c",
@@ -38,9 +38,12 @@ const C = {
   viewsLine: "rgba(126, 184, 220, 0.6)",
   viewsFill: "rgba(126, 184, 220, 0.07)",
 };
+const C = SHARE_PALETTE;
 
-const FONT_HEAD = '"Space Grotesk", "Segoe UI", sans-serif';
-const FONT_BODY = '"IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace';
+export const SHARE_FONT_HEAD = '"Space Grotesk", "Segoe UI", sans-serif';
+export const SHARE_FONT_BODY = '"IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace';
+const FONT_HEAD = SHARE_FONT_HEAD;
+const FONT_BODY = SHARE_FONT_BODY;
 
 export type FlightAltitudePoint = {
   period: string;
@@ -123,7 +126,7 @@ export function flightShareIntentUrl(payload: FlightSharePayload): string {
   return `https://x.com/intent/tweet?${params.toString()}`;
 }
 
-type DrawCtx = {
+export type DrawCtx = {
   fillStyle: CanvasRenderingContext2D["fillStyle"];
   strokeStyle: CanvasRenderingContext2D["strokeStyle"];
   font: string;
@@ -265,7 +268,7 @@ function clip(text: string, max: number): string {
   return `${t.slice(0, Math.max(1, max - 1))}…`;
 }
 
-function roundedRect(
+export function roundedRect(
   ctx: DrawCtx,
   x: number,
   y: number,
@@ -280,7 +283,7 @@ function roundedRect(
   ctx.rect(x, y, w, h);
 }
 
-function fitFont(
+export function fitFont(
   ctx: DrawCtx,
   text: string,
   maxW: number,
@@ -616,7 +619,7 @@ export async function renderFlightShareBlob(
   });
 }
 
-function triggerDownload(blob: Blob, filename: string): void {
+export function triggerDownload(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
