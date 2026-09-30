@@ -93,7 +93,7 @@ function pump(count: number): void {
   for (let i = 0; i < count; i++) {
     const due = frames;
     frames = [];
-    clock += 17;
+    clock = Math.max(clock, performance.now()) + 17;
     for (const cb of due) cb(clock);
   }
 }
@@ -112,6 +112,7 @@ beforeEach(() => {
     "requestAnimationFrame",
     "cancelAnimationFrame",
     "ResizeObserver",
+    "matchMedia",
   ]) {
     saved[key] = g[key];
   }
@@ -233,6 +234,43 @@ await describe("bubbleMapEngine", () => {
       assert.ok(body.x - body.r >= -0.5 && body.x + body.r <= 148.5, `x ${body.x} r ${body.r}`);
       assert.ok(body.y - body.r >= -0.5 && body.y + body.r <= BOX.height + 0.5, `y ${body.y} r ${body.r}`);
     }
+  }).catch(assert.fail);
+
+  it("fills the tooltip with the name, the @handle and the counts", () => {
+    const { bodies, fire } = setup(12);
+    const target = bodies[1]!;
+    fire("pointermove", target.x, target.y);
+    const lines = created
+      .filter((element) => element.className.startsWith("desk-circle-tip-"))
+      .map((element) => [element.className, element.textContent]);
+    assert.deepEqual(lines.slice(0, 2), [
+      ["desk-circle-tip-name", "Friend 0"],
+      ["desk-circle-tip-handle", "@friend_0"],
+    ]);
+    assert.equal(lines[2]?.[0], "desk-circle-tip-detail");
+    assert.match(lines[2]?.[1] ?? "", /^40 replies$/);
+  }).catch(assert.fail);
+
+  it("snaps back to rest on release under reduced motion", () => {
+    (globalThis as Record<string, unknown>).matchMedia = (query: string) => ({
+      matches: query.includes("reduced-motion"),
+      addEventListener() {},
+      removeEventListener() {},
+    });
+    const { engine, bodies, fire } = setup(12);
+    const rest = engine.positions();
+    const target = bodies[1]!;
+    fire("pointerdown", target.x, target.y);
+    fire("pointermove", target.x + 40, target.y + 10);
+    pump(5);
+    assert.notDeepEqual(engine.positions(), rest);
+    fire("pointerup", target.x + 40, target.y + 10);
+    pump(5);
+    const after = engine.positions();
+    assert.equal(after.length, rest.length);
+    after.forEach((body, i) => {
+      assert.ok(Math.hypot(body.x - rest[i]!.x, body.y - rest[i]!.y) < 0.5, `body ${i} not at rest`);
+    });
   }).catch(assert.fail);
 
   it("cancels a live drag when a smaller payload re-packs to fewer bodies", () => {
