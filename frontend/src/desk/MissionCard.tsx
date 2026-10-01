@@ -12,8 +12,8 @@ import { ThreadRow } from "./ThreadRow";
 import type { ThreadCard } from "../../../shared/src/deskTypes";
 import { watchDeskThreads } from "./watch";
 
-export { pickApproachSuggestion } from "../lib/approachCard";
-export { pickApproachScout } from "./approachScout";
+export { pickApproachSuggestion } from "../../../shared/src/approachCard";
+export { pickApproachScout } from "../../../shared/src/approachScout";
 
 export function ApproachLoadingCard() {
   return (
