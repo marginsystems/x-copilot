@@ -1,10 +1,11 @@
 /**
- * Cited defaults from xai-org/x-algorithm @ d011592.
+ * Cited defaults from xai-org/x-algorithm @ b79b947.
  * Every public number is a permalink. Do not invent extras.
  */
 
-export const LEARN_SOURCE_SHA = "d011592";
-export const LEARN_SOURCE_DATE = "2026-08-24";
+export const LEARN_SOURCE_SHA = "b79b947";
+export const LEARN_SOURCE_DATE = "2026-10-01";
+export const LEARN_PREVIOUS_SHA = "d011592";
 export const LEARN_SOURCE_REPO = "https://github.com/xai-org/x-algorithm";
 
 const MONTH_NAMES = [
@@ -22,16 +23,16 @@ export const LEARN_SOURCE_DATE_LABEL = formatLearnSourceDate(LEARN_SOURCE_DATE);
 export const LEARN_HUB_TITLE = "Learn the X algorithm — x-copilot";
 export const LEARN_HUB_HEADING = "Learn";
 export const LEARN_HUB_DESCRIPTION =
-  "Cited lessons on how X For You ranks posts. Weights multiply P(action), not raw likes. From xai-org/x-algorithm at d011592. Not affiliated with X Corp.";
+  "Cited lessons on how X For You ranks posts. Weights multiply P(action), not raw likes. From xai-org/x-algorithm at b79b947. Not affiliated with X Corp.";
 export const LEARN_HUB_LEDE =
-  "Four cited lessons on how X For You ranks posts. Every number is a permalink into xai-org/x-algorithm at d011592. Weights multiply P(action), not raw likes. Not a blog.";
-export const LEARN_HUB_META = `Cited from xai-org/x-algorithm at d011592 (${LEARN_SOURCE_DATE_LABEL}). Defaults in this snapshot. Not affiliated with X Corp.`;
+  "Five cited lessons on how X For You ranks posts. Every number is a permalink into xai-org/x-algorithm at b79b947. Weights multiply P(action), not raw likes. Not a blog.";
+export const LEARN_HUB_META = `Cited from xai-org/x-algorithm at b79b947 (${LEARN_SOURCE_DATE_LABEL}). Defaults in this snapshot. Not affiliated with X Corp.`;
 
 export const LEARN_TITLE = "What a like is worth — x-copilot";
 export const LEARN_HEADING = "What a like is worth";
 export const LEARN_DESCRIPTION =
-  "X For You ranking weights multiply P(action) for this viewer, not raw likes or reports. Defaults from xai-org/x-algorithm at d011592. Not affiliated with X Corp.";
-export const LEARN_META = `Cited from xai-org/x-algorithm at d011592 (${LEARN_SOURCE_DATE_LABEL}). Defaults in this snapshot. Not affiliated with X Corp.`;
+  "X For You ranking weights multiply P(action) for this viewer, not raw likes or reports. Defaults from xai-org/x-algorithm at b79b947. Not affiliated with X Corp.";
+export const LEARN_META = `Cited from xai-org/x-algorithm at b79b947 (${LEARN_SOURCE_DATE_LABEL}). Defaults in this snapshot. Not affiliated with X Corp.`;
 export const LEARN_WEIGHTS_PATH = "/learn/what-a-like-is-worth";
 export const LEARN_WEIGHTS_IMAGE = "/og-learn-weights.png";
 export const LEARN_WEIGHTS_IMAGE_ALT =
@@ -42,8 +43,8 @@ export const LEARN_WEIGHTS_FIGURE_APPLY = "/learn/weights-apply.png";
 export const LEARN_FOLLOW_TITLE = "Follow and out-of-network — x-copilot";
 export const LEARN_FOLLOW_HEADING = "Follow and out-of-network";
 export const LEARN_FOLLOW_DESCRIPTION =
-  "X For You in-network posts come from thunder/. Out-of-network posts, and followed replies or reposts, are multiplied by 0.75. Follow-author is +4.0. Defaults from xai-org/x-algorithm at d011592. Not affiliated with X Corp.";
-export const LEARN_FOLLOW_META = `Cited from xai-org/x-algorithm at d011592 (${LEARN_SOURCE_DATE_LABEL}). Defaults in this snapshot. Not affiliated with X Corp.`;
+  "X For You in-network posts come from thunder/. Out-of-network posts, and followed replies or reposts, are multiplied by 0.75. Follow-author is +4.0. Defaults from xai-org/x-algorithm at b79b947. Not affiliated with X Corp.";
+export const LEARN_FOLLOW_META = `Cited from xai-org/x-algorithm at b79b947 (${LEARN_SOURCE_DATE_LABEL}). Defaults in this snapshot. Not affiliated with X Corp.`;
 
 export const LEARN_DRAWER_HEADING = "How ranking works";
 export const LEARN_DRAWER_LEAD =
@@ -51,7 +52,7 @@ export const LEARN_DRAWER_LEAD =
 export const LEARN_DRAWER_OON =
   "Out-of-network posts, and followed replies or reposts, are then multiplied by 0.75.";
 export const LEARN_DRAWER_SOURCE =
-  "Defaults from xai-org/x-algorithm at d011592. Not affiliated with X Corp.";
+  "Defaults from xai-org/x-algorithm at b79b947. Not affiliated with X Corp.";
 
 export const LEARN_FORMULA = "Final Score = Σ (weight_i × P(action_i))";
 
@@ -68,22 +69,20 @@ export const LEARN_PARAM_COMMENT_SNIPPET = `// Each weight multiplies the *predi
 // "one report cancels 468 likes" -- this is incorrect because the
 // weights apply to the predicted probabilities rather than raw counts.`;
 
-export const LEARN_REPLY_WEIGHT_SNIPPET = `fn bidirectional_boost_eligible(candidate: &PostCandidate) -> bool {
-    candidate.in_reply_to_tweet_id.is_none()
-        && candidate.retweeted_tweet_id.is_none()
-        && candidate.is_mutual_follow_author == Some(true)
-}
-
-fn reply_weight_for(&self, candidate: &PostCandidate) -> f64 {
+export const LEARN_REPLY_WEIGHT_SNIPPET = `pub fn reply_weight_for(&self, candidate: &CandidateScoringInputs) -> f64 {
     if self.bidirectional_follow_reply_weight_boost != 0.0
-        && Self::bidirectional_boost_eligible(candidate)
+        && candidate.bidirectional_boost_eligible()
     {
         return self.reply + self.bidirectional_follow_reply_weight_boost;
     }
     self.reply
 }`;
 
-export const LEARN_DIVERSITY_SNIPPET = `fn diversity_multiplier(decay_factor: f64, floor: f64, exponent: f64) -> f64 {
+export const LEARN_REPLY_ELIGIBLE_SNIPPET = `pub fn bidirectional_boost_eligible(&self) -> bool {
+    !self.is_reply && !self.is_retweet && self.is_mutual_follow_author
+}`;
+
+export const LEARN_DIVERSITY_SNIPPET = `pub fn diversity_multiplier(decay_factor: f64, floor: f64, exponent: f64) -> f64 {
     (1.0 - floor) * decay_factor.powf(exponent) + floor
 }`;
 
@@ -168,20 +167,22 @@ export const LEARN_THUNDER_FOLLOW_TAKE_SNIPPET = `        let following_count = 
             .take(MAX_INPUT_LIST_SIZE)
             .collect();`;
 
-export const LEARN_OON_SNIPPET = `let oon_applies = |c: &PostCandidate| match c.in_network {
-    Some(false) => true,
-    Some(true) => {
-        deboost_in_network_replies_retweets
-            && (c.in_reply_to_tweet_id.is_some() || c.retweeted_tweet_id.is_some())
+export const LEARN_OON_SNIPPET = `fn oon_applies(weights: &ValueModelWeights, candidate: &CandidateScoringInputs) -> bool {
+    match candidate.in_network {
+        Some(false) => true,
+        Some(true) => {
+            weights.oon_rescore_in_network_replies_retweets
+                && (candidate.is_reply || candidate.is_retweet)
+        }
+        None => false,
     }
-    None => false,
-};`;
+}`;
 
 export const LEARN_REPLY_TITLE = "Posts that get a reply — x-copilot";
 export const LEARN_REPLY_HEADING = "Posts that get a reply";
 export const LEARN_REPLY_DESCRIPTION =
-  "X For You reply weight is +5.0. Mutual-follow originals add +15.0. Both multiply P(reply), not raw replies. Craft that invites a reply. Defaults from xai-org/x-algorithm at d011592. Not affiliated with X Corp.";
-export const LEARN_REPLY_META = `Cited from xai-org/x-algorithm at d011592 (${LEARN_SOURCE_DATE_LABEL}). Defaults in this snapshot. Not affiliated with X Corp.`;
+  "X For You reply weight is +5.0. Mutual-follow originals add +15.0. Both multiply P(reply), not raw replies. Craft that invites a reply. Defaults from xai-org/x-algorithm at b79b947. Not affiliated with X Corp.";
+export const LEARN_REPLY_META = `Cited from xai-org/x-algorithm at b79b947 (${LEARN_SOURCE_DATE_LABEL}). Defaults in this snapshot. Not affiliated with X Corp.`;
 export const LEARN_REPLY_PATH = "/learn/posts-that-get-a-reply";
 export const LEARN_REPLY_IMAGE = "/og-learn-reply.png";
 export const LEARN_REPLY_IMAGE_ALT =
@@ -194,8 +195,8 @@ export const LEARN_FOLLOW_PATH = "/learn/follow";
 export const LEARN_VOLUME_TITLE = "How many replies a day — x-copilot";
 export const LEARN_VOLUME_HEADING = "How many replies a day";
 export const LEARN_VOLUME_DESCRIPTION =
-  "X For You has no daily reply or post quota in this snapshot. Decay 0.5 and floor 0.25 multiply extras in one viewer's slate. Thunder takes at most 30 replies per author into that viewer's in-network pool. ReplySpamBot and TweetSpamBot score action sequences; fire thresholds are redacted. A quiet reply adds ~0; it does not subtract. Defaults from xai-org/x-algorithm at d011592. Not affiliated with X Corp.";
-export const LEARN_VOLUME_META = `Cited from xai-org/x-algorithm at d011592 (${LEARN_SOURCE_DATE_LABEL}). Defaults in this snapshot. Not affiliated with X Corp.`;
+  "X For You has no daily reply or post quota in this snapshot. Decay 0.5 and floor 0.25 multiply extras in one viewer's slate. Thunder takes at most 30 replies per author into that viewer's in-network pool. ReplySpamBot and TweetSpamBot score action sequences; fire thresholds are redacted. A quiet reply adds ~0; it does not subtract. Defaults from xai-org/x-algorithm at b79b947. Not affiliated with X Corp.";
+export const LEARN_VOLUME_META = `Cited from xai-org/x-algorithm at b79b947 (${LEARN_SOURCE_DATE_LABEL}). Defaults in this snapshot. Not affiliated with X Corp.`;
 export const LEARN_VOLUME_PATH = "/learn/how-many-replies";
 export const LEARN_VOLUME_IMAGE = "/og-learn-volume.png";
 export const LEARN_VOLUME_IMAGE_ALT =
@@ -206,14 +207,32 @@ export const LEARN_VOLUME_FIGURE_THUNDER = "/learn/volume-thunder.png";
 export const LEARN_GIVE_TITLE = "Likes and follows you give — x-copilot";
 export const LEARN_GIVE_HEADING = "Likes and follows you give";
 export const LEARN_GIVE_DESCRIPTION =
-  "When you reply, do not like the parent and do not auto-follow them. LikeBot, FollowBot, and EngagementAmplifier score those sequences; fire thresholds are redacted, so we do not treat that habit as safe. A like you give is not subtracted from your post score. Favorite 0.5 and Follow author 4.0 multiply P(action) for this viewer. Thunder takes at most 10000 followed ids for your in-network fetch. Defaults from xai-org/x-algorithm at d011592. Not affiliated with X Corp.";
-export const LEARN_GIVE_META = `Cited from xai-org/x-algorithm at d011592 (${LEARN_SOURCE_DATE_LABEL}). Defaults in this snapshot. Not affiliated with X Corp.`;
+  "When you reply, do not like the parent and do not auto-follow them. LikeBot, FollowBot, and EngagementAmplifier score those sequences; fire thresholds are redacted, so we do not treat that habit as safe. A like you give is not subtracted from your post score. Favorite 0.5 and Follow author 4.0 multiply P(action) for this viewer. Thunder takes at most 10000 followed ids for your in-network fetch. Defaults from xai-org/x-algorithm at b79b947. Not affiliated with X Corp.";
+export const LEARN_GIVE_META = `Cited from xai-org/x-algorithm at b79b947 (${LEARN_SOURCE_DATE_LABEL}). Defaults in this snapshot. Not affiliated with X Corp.`;
 export const LEARN_GIVE_PATH = "/learn/likes-and-follows-you-give";
 export const LEARN_GIVE_IMAGE = "/og-learn-give.png";
 export const LEARN_GIVE_IMAGE_ALT =
   "x-copilot Learn — a like mark enters their post, not your score";
 export const LEARN_GIVE_FIGURE_LIKEBOT = "/learn/give-likebot.png";
 export const LEARN_GIVE_FIGURE_FOLLOW = "/learn/give-follow-cap.png";
+
+export const LEARN_READ_SHA = LEARN_SOURCE_SHA;
+export const LEARN_READ_DATE = LEARN_SOURCE_DATE;
+export const LEARN_READ_DATE_LABEL = formatLearnSourceDate(LEARN_READ_DATE);
+export const LEARN_READ_CHANGE_SHA = "a707cc2";
+export const LEARN_READ_CHANGE_DATE = "2026-09-29";
+export const LEARN_READ_CHANGE_DATE_LABEL = formatLearnSourceDate(LEARN_READ_CHANGE_DATE);
+export const LEARN_READ_CHANGE_HREF = `${LEARN_SOURCE_REPO}/commit/${LEARN_READ_CHANGE_SHA}`;
+
+export const LEARN_READ_TITLE = "The read beats the tap — x-copilot";
+export const LEARN_READ_HEADING = "The read beats the tap";
+export const LEARN_READ_DESCRIPTION =
+  "X For You cut the click weight from 0.4 to 0.3 and added 0.4 on P(stay more than 10 seconds after the tap). Not interested went from -43.2 to -47.52. All three multiply P(action) for this viewer. Defaults from xai-org/x-algorithm at b79b947. Not affiliated with X Corp.";
+export const LEARN_READ_META = `Cited from xai-org/x-algorithm at ${LEARN_READ_SHA} (${LEARN_READ_DATE_LABEL}). Weights changed in ${LEARN_READ_CHANGE_SHA} (${LEARN_READ_CHANGE_DATE_LABEL}). Not affiliated with X Corp.`;
+export const LEARN_READ_PATH = "/learn/the-read-beats-the-tap";
+export const LEARN_READ_IMAGE = "/og-learn.png";
+export const LEARN_READ_IMAGE_ALT =
+  "x-copilot Learn — ranking weights on a dark field";
 
 export const LEARN_IMAGE = "/og-learn.png";
 export const LEARN_IMAGE_ALT =
@@ -225,7 +244,8 @@ export type LearnLessonView =
   | "learnWeights"
   | "learnReply"
   | "learnVolume"
-  | "learnGive";
+  | "learnGive"
+  | "learnRead";
 
 export type LearnLesson = {
   view: LearnLessonView;
@@ -266,6 +286,13 @@ export const LEARN_LESSONS: readonly LearnLesson[] = [
     number: "04",
     heading: LEARN_GIVE_HEADING,
     lede: "Eight spam heads, not For You. Reply-only is ReplySpamBot. Ramp and decay stay theory. Do not like or auto-follow who you reply to. Fire lines stay redacted. A like you give is not a For You debit.",
+  },
+  {
+    view: "learnRead",
+    href: LEARN_READ_PATH,
+    number: "05",
+    heading: LEARN_READ_HEADING,
+    lede: "The tap fell from 0.4 to 0.3. Staying past 10 seconds after it is a new 0.4. Not interested is now −47.52.",
   },
 ];
 
@@ -330,128 +357,97 @@ export type LearnWeight = {
 
 /** Defaults in home-mixer/params/param.rs at LEARN_SOURCE_SHA. */
 export const LEARN_WEIGHTS: LearnWeight[] = [
-  { action: "Favorite (like)", weight: 0.5, param: "FavoriteWeight", startLine: 314, endLine: 314 },
-  { action: "Retweet", weight: 1.0, param: "RetweetWeight", startLine: 328, endLine: 328 },
-  { action: "Click", weight: 0.4, param: "ClickWeight", startLine: 341, endLine: 341 },
-  { action: "Share", weight: 2.0, param: "ShareWeight", startLine: 350, endLine: 350 },
-  { action: "Follow author", weight: 4.0, param: "FollowAuthorWeight", startLine: 377, endLine: 382 },
-  { action: "Reply", weight: 5.0, param: "ReplyWeight", startLine: 315, endLine: 315 },
-  { action: "Quote", weight: 5.0, param: "QuoteWeight", startLine: 364, endLine: 364 },
-  { action: "Share via DM", weight: 5.0, param: "ShareViaDmWeight", startLine: 351, endLine: 356 },
+  { action: "Favorite (like)", weight: 0.5, param: "FavoriteWeight", startLine: 302, endLine: 302 },
+  { action: "Retweet", weight: 1.0, param: "RetweetWeight", startLine: 316, endLine: 316 },
+  { action: "Click", weight: 0.3, param: "ClickWeight", startLine: 329, endLine: 329 },
+  {
+    action: "Stays past 10 s after the click",
+    weight: 0.4,
+    param: "ContClickDwellTimeWeight",
+    startLine: 383,
+    endLine: 388,
+  },
+  { action: "Share", weight: 2.0, param: "ShareWeight", startLine: 338, endLine: 338 },
+  { action: "Follow author", weight: 4.0, param: "FollowAuthorWeight", startLine: 365, endLine: 370 },
+  { action: "Reply", weight: 5.0, param: "ReplyWeight", startLine: 303, endLine: 303 },
+  { action: "Quote", weight: 5.0, param: "QuoteWeight", startLine: 352, endLine: 352 },
+  { action: "Share via DM", weight: 5.0, param: "ShareViaDmWeight", startLine: 339, endLine: 344 },
   {
     action: "Share via copy link",
     weight: 20.0,
     param: "ShareViaCopyLinkWeight",
-    startLine: 357,
-    endLine: 362,
+    startLine: 345,
+    endLine: 350,
   },
   {
     action: "Mutual-follow reply boost",
     weight: 15.0,
     param: "BidirectionalFollowReplyWeightBoost",
-    startLine: 316,
-    endLine: 321,
+    startLine: 304,
+    endLine: 309,
   },
   {
     action: "Not interested",
-    weight: -43.2,
+    weight: -47.52,
     param: "NotInterestedWeight",
-    startLine: 456,
-    endLine: 461,
+    startLine: 390,
+    endLine: 395,
   },
   {
     action: "Block author",
     weight: -31.2,
     param: "BlockAuthorWeight",
-    startLine: 462,
-    endLine: 467,
+    startLine: 396,
+    endLine: 401,
   },
   {
     action: "Mute author",
     weight: -58.8,
     param: "MuteAuthorWeight",
-    startLine: 468,
-    endLine: 473,
+    startLine: 402,
+    endLine: 407,
   },
-  { action: "Report", weight: -234.0, param: "ReportWeight", startLine: 474, endLine: 474 },
+  { action: "Report", weight: -234.0, param: "ReportWeight", startLine: 408, endLine: 408 },
 ];
+
+export function algorithmPermalinkAt(
+  sha: string,
+  path: string,
+  startLine?: number,
+  endLine?: number,
+): string {
+  const base = `${LEARN_SOURCE_REPO}/blob/${sha}/${path}`;
+  if (startLine == null) return base;
+  if (endLine == null || endLine === startLine) return `${base}#L${startLine}`;
+  return `${base}#L${startLine}-L${endLine}`;
+}
 
 export function algorithmPermalink(
   path: string,
   startLine?: number,
   endLine?: number,
 ): string {
-  const base = `${LEARN_SOURCE_REPO}/blob/${LEARN_SOURCE_SHA}/${path}`;
-  if (startLine == null) return base;
-  if (endLine == null || endLine === startLine) return `${base}#L${startLine}`;
-  return `${base}#L${startLine}-L${endLine}`;
+  return algorithmPermalinkAt(LEARN_SOURCE_SHA, path, startLine, endLine);
 }
 
-export const LEARN_PARAM_COMMENT_HREF = algorithmPermalink(
-  "home-mixer/params/param.rs",
-  285,
-  313,
-);
+export const LEARN_PARAM_COMMENT_HREF = algorithmPermalink("home-mixer/params/param.rs", 273, 301);
 export const LEARN_PARAM_FILE_HREF = algorithmPermalink("home-mixer/params/param.rs");
-export const LEARN_SCORER_HREF = algorithmPermalink(
-  "home-mixer/scorers/ranking_scorer.rs",
-  447,
-  458,
-);
-export const LEARN_README_SCORE_HREF = algorithmPermalink("README.md", 337, 338);
-export const LEARN_OON_HREF = algorithmPermalink("home-mixer/params/param.rs", 252, 257);
-export const LEARN_OON_SWITCH_HREF = algorithmPermalink(
-  "home-mixer/params/param.rs",
-  266,
-  271,
-);
-export const LEARN_OON_APPLY_HREF = algorithmPermalink(
-  "home-mixer/scorers/ranking_scorer.rs",
-  805,
-  816,
-);
-export const LEARN_FOLLOW_AUTHOR_HREF = algorithmPermalink(
-  "home-mixer/params/param.rs",
-  377,
-  382,
-);
-export const LEARN_REPLY_WEIGHT_HREF = algorithmPermalink(
-  "home-mixer/params/param.rs",
-  315,
-  315,
-);
-export const LEARN_MUTUAL_REPLY_HREF = algorithmPermalink(
-  "home-mixer/params/param.rs",
-  316,
-  321,
-);
-export const LEARN_MUTUAL_REPLY_APPLY_HREF = algorithmPermalink(
-  "home-mixer/scorers/ranking_scorer.rs",
-  180,
-  193,
-);
-export const LEARN_THUNDER_HREF = algorithmPermalink("README.md", 60, 63);
-export const LEARN_DIVERSITY_HREF = algorithmPermalink(
-  "home-mixer/params/param.rs",
-  228,
-  239,
-);
-export const LEARN_DIVERSITY_ENABLE_HREF = algorithmPermalink(
-  "home-mixer/params/param.rs",
-  222,
-  227,
-);
-export const LEARN_DIVERSITY_FN_HREF = algorithmPermalink(
-  "home-mixer/scorers/ranking_scorer.rs",
-  643,
-  645,
-);
-export const LEARN_DIVERSITY_APPLY_HREF = algorithmPermalink(
-  "home-mixer/scorers/ranking_scorer.rs",
-  717,
-  740,
-);
-export const LEARN_README_ADJUST_HREF = algorithmPermalink("README.md", 345, 349);
+export const LEARN_SCORER_HREF = algorithmPermalink("xai-value-model/scoring.rs", 57, 59);
+export const LEARN_README_SCORE_HREF = algorithmPermalink("README.md", 345, 346);
+export const LEARN_OON_HREF = algorithmPermalink("vm-ranker/params.rs", 175, 180);
+export const LEARN_OON_SWITCH_HREF = algorithmPermalink("vm-ranker/params.rs", 157, 162);
+export const LEARN_OON_APPLY_HREF = algorithmPermalink("xai-value-model/scoring.rs", 166, 175);
+export const LEARN_FOLLOW_AUTHOR_HREF = algorithmPermalink("home-mixer/params/param.rs", 365, 370);
+export const LEARN_REPLY_WEIGHT_HREF = algorithmPermalink("home-mixer/params/param.rs", 303, 303);
+export const LEARN_MUTUAL_REPLY_HREF = algorithmPermalink("home-mixer/params/param.rs", 304, 309);
+export const LEARN_MUTUAL_REPLY_APPLY_HREF = algorithmPermalink("xai-value-model/weights.rs", 78, 85);
+export const LEARN_MUTUAL_REPLY_ELIGIBLE_HREF = algorithmPermalink("xai-value-model/inputs.rs", 18, 20);
+export const LEARN_THUNDER_HREF = algorithmPermalink("README.md", 65, 68);
+export const LEARN_DIVERSITY_HREF = algorithmPermalink("vm-ranker/params.rs", 145, 156);
+export const LEARN_DIVERSITY_ENABLE_HREF = algorithmPermalink("vm-ranker/params.rs", 139, 144);
+export const LEARN_DIVERSITY_FN_HREF = algorithmPermalink("xai-value-model/scoring.rs", 143, 145);
+export const LEARN_DIVERSITY_APPLY_HREF = algorithmPermalink("xai-value-model/scoring.rs", 177, 211);
+export const LEARN_README_ADJUST_HREF = algorithmPermalink("README.md", 353, 357);
 export const LEARN_THUNDER_CAP_HREF = algorithmPermalink("thunder/config.rs", 1, 6);
 export const LEARN_THUNDER_FETCH_HREF = algorithmPermalink(
   "thunder/posts/post_store.rs",
@@ -519,12 +515,8 @@ export const LEARN_BDSM_COOLDOWN_HREF = algorithmPermalink(
   344,
   357,
 );
-export const LEARN_UTH_HREF = algorithmPermalink("README.md", 438, 442);
-export const LEARN_RANKING_VISIBILITY_HREF = algorithmPermalink(
-  "README.md",
-  464,
-  466,
-);
+export const LEARN_UTH_HREF = algorithmPermalink("README.md", 446, 450);
+export const LEARN_RANKING_VISIBILITY_HREF = algorithmPermalink("README.md", 472, 474);
 
 /** Defaults at LEARN_DIVERSITY_HREF. k is prior posts from this author in this slate. */
 export const LEARN_DIVERSITY_DECAY = 0.5;
@@ -548,9 +540,154 @@ export function learnAdjacentLessons(view: string): {
 
 export function formatLearnWeight(weight: number): string {
   const sign = weight > 0 ? "+" : "";
-  return `${sign}${weight.toFixed(1)}`;
+  const digits = Number.isInteger(weight) ? weight.toFixed(1) : String(weight);
+  return `${sign}${digits}`;
 }
 
 export function weightPermalink(row: LearnWeight): string {
   return algorithmPermalink("home-mixer/params/param.rs", row.startLine, row.endLine);
 }
+
+export function readPermalink(path: string, startLine?: number, endLine?: number): string {
+  return algorithmPermalinkAt(LEARN_READ_SHA, path, startLine, endLine);
+}
+
+export const LEARN_READ_CLICK_HREF = readPermalink("home-mixer/params/param.rs", 329, 329);
+export const LEARN_READ_CLICK_DWELL_HREF = readPermalink("home-mixer/params/param.rs", 383, 388);
+export const LEARN_READ_NOT_INTERESTED_HREF = readPermalink(
+  "home-mixer/params/param.rs",
+  390,
+  395,
+);
+export const LEARN_READ_LABEL_HREF = readPermalink("phoenix/xrex/configs/xrecsys.py", 691, 698);
+export const LEARN_READ_LABEL_ON_HREF = readPermalink("phoenix/xrex/configs/xrecsys.py", 268, 268);
+export const LEARN_READ_LOSS_HREF = readPermalink("phoenix/xrex/models/loss_recsys.py", 225, 247);
+export const LEARN_READ_SECONDS_HREF = readPermalink("phoenix/reference/world.py", 73, 74);
+export const LEARN_READ_APPLY_HREF = readPermalink("xai-value-model/scoring.rs", 108, 108);
+export const LEARN_READ_BDSM_DWELL_HREF = readPermalink("bdsm/runtime/model.py", 154, 155);
+
+export const LEARN_READ_CHANGE_SNIPPET = `-param!(ClickWeight, f64, "rust_home_mixer_click_weight", 0.4);
++param!(ClickWeight, f64, "rust_home_mixer_click_weight", 0.3);
+
+     ContClickDwellTimeWeight,
+     f64,
+     "rust_home_mixer_cont_click_dwell_time_weight",
+-    0.0
++    0.4
+
+     NotInterestedWeight,
+     f64,
+     "rust_home_mixer_not_interested_weight",
+-    -43.2
++    -47.52`;
+
+export const LEARN_READ_LABEL_SNIPPET = `ContinuousActionLossConfig(
+    action_index=recsys_pb2.ContinuousActionName.CLICK_DWELL_TIME,
+    metric_name="click-dwell-binary",
+    loss_weight=mparams.get("click_dwell_loss_weight", 0.0),
+    loss_type="binary",
+    binary_threshold=10.0,
+    norm_config=NormConfig(norm_scale=60.0),
+),`;
+
+export const LEARN_READ_LOSS_SNIPPET = `gt_binary = (gt_raw.astype(jnp.float32) > threshold).astype(jnp.float32)`;
+
+export const LEARN_READ_APPLY_SNIPPET = `apply(scores.click_dwell_time, weights.cont_click_dwell_time),`;
+
+export type LearnReadChange = {
+  action: string;
+  param: string;
+  before: number;
+  after: number;
+  changed: string;
+  beforeHref: string;
+  afterHref: string;
+};
+
+export const LEARN_READ_CHANGES: readonly LearnReadChange[] = [
+  {
+    action: "Click (tap into the post)",
+    param: "ClickWeight",
+    before: 0.4,
+    after: 0.3,
+    changed: LEARN_READ_CHANGE_DATE,
+    beforeHref: algorithmPermalinkAt(LEARN_PREVIOUS_SHA, "home-mixer/params/param.rs", 341, 341),
+    afterHref: LEARN_READ_CLICK_HREF,
+  },
+  {
+    action: "Stays past 10 s after the tap",
+    param: "ContClickDwellTimeWeight",
+    before: 0.0,
+    after: 0.4,
+    changed: LEARN_READ_CHANGE_DATE,
+    beforeHref: algorithmPermalinkAt(LEARN_PREVIOUS_SHA, "home-mixer/params/param.rs", 413, 418),
+    afterHref: LEARN_READ_CLICK_DWELL_HREF,
+  },
+  {
+    action: "Not interested",
+    param: "NotInterestedWeight",
+    before: -43.2,
+    after: -47.52,
+    changed: LEARN_READ_CHANGE_DATE,
+    beforeHref: algorithmPermalinkAt(LEARN_PREVIOUS_SHA, "home-mixer/params/param.rs", 456, 461),
+    afterHref: LEARN_READ_NOT_INTERESTED_HREF,
+  },
+  {
+    action: "Video open",
+    param: "VideoOpenWeight",
+    before: 0.05,
+    after: 0.07,
+    changed: "2026-08-25",
+    beforeHref: algorithmPermalinkAt(LEARN_PREVIOUS_SHA, "home-mixer/params/param.rs", 335, 340),
+    afterHref: readPermalink("home-mixer/params/param.rs", 323, 328),
+  },
+  {
+    action: "Video quality view (the watch)",
+    param: "VqvWeight",
+    before: 0.05,
+    after: 0.0,
+    changed: "2026-08-25",
+    beforeHref: algorithmPermalinkAt(LEARN_PREVIOUS_SHA, "home-mixer/params/param.rs", 349, 349),
+    afterHref: readPermalink("home-mixer/params/param.rs", 337, 337),
+  },
+  {
+    action: "Dwell in the feed (no tap)",
+    param: "DwellWeight",
+    before: 0.0,
+    after: 0.05,
+    changed: "2026-08-25",
+    beforeHref: algorithmPermalinkAt(LEARN_PREVIOUS_SHA, "home-mixer/params/param.rs", 363, 363),
+    afterHref: readPermalink("home-mixer/params/param.rs", 351, 351),
+  },
+];
+
+export function formatLearnChange(weight: number): string {
+  const sign = weight > 0 ? "+" : "";
+  return `${sign}${weight}`;
+}
+
+export const LEARN_READ_INSULT_RULE_HREF = readPermalink(
+  "visibility-filtering/rules/tweet_rules.rs",
+  592,
+  606,
+);
+export const LEARN_READ_INSULT_LEVEL_HREF = readPermalink(
+  "visibility-filtering/rules/registry.rs",
+  172,
+  177,
+);
+export const LEARN_READ_INSULT_CORPUS_HREF = readPermalink(
+  "visibility-filtering/rules/golden_corpus/oon_tweet_label.rs",
+  209,
+  209,
+);
+export const LEARN_READ_COLD_POOL_HREF = readPermalink("phoenix/xrex/data/cold_pool_filter.py", 16, 31);
+export const LEARN_READ_MOE_SWITCH_HREF = readPermalink("home-mixer/params/param.rs", 164, 169);
+export const LEARN_READ_COLD_START_SLOT_HREF = readPermalink("home-mixer/params/param.rs", 465, 476);
+export const LEARN_READ_COLD_START_CAP_HREF = readPermalink("home-mixer/params/param.rs", 477, 488);
+export const LEARN_READ_COLD_START_ELIGIBLE_HREF = readPermalink(
+  "home-mixer/scorers/author_cold_start.rs",
+  176,
+  181,
+);
+export const LEARN_READ_COLD_START_CHANGE_HREF = `${LEARN_SOURCE_REPO}/commit/77d431a`;

@@ -132,7 +132,7 @@ export function LearnVolumePage(props: {
         never go below ×{LEARN_DIVERSITY_FLOOR}.
       </p>
       <LearnCode
-        file="home-mixer/scorers/ranking_scorer.rs"
+        file="xai-value-model/scoring.rs"
         href={LEARN_DIVERSITY_FN_HREF}
       >
         {LEARN_DIVERSITY_SNIPPET}
@@ -225,13 +225,13 @@ export function LearnVolumePage(props: {
         "quiet post" ledger. You fail to earn predicted positives.
       </p>
       <LearnCode
-        file="home-mixer/scorers/ranking_scorer.rs"
+        file="xai-value-model/scoring.rs"
         href={LEARN_SCORER_HREF}
       >
         {LEARN_APPLY_SNIPPET}
       </LearnCode>
       <p>
-        Negative defaults (not interested −43.2, mute −58.8, block −31.2,
+        Negative defaults (not interested −47.52, mute −58.8, block −31.2,
         report −234.0) only move the score if the model predicts those actions
         for this viewer. An ignored reply is not a report.
       </p>
