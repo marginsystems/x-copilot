@@ -1,4 +1,4 @@
-import { act, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, renderHook, screen } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
 import { Account } from "../../src/Account";
 import { Analytics } from "../../src/Analytics";
@@ -8,6 +8,7 @@ import { useBilling } from "../../src/billing/useBilling";
 import { useUsage } from "../../src/usage/useUsage";
 import { parseAccount, parseAnalytics, parseBilling, parseUsage, parseSessions } from "../../src/lib/routePayloads";
 import { deferred } from "./support/deferred";
+import { stubFetch } from "./support/requests";
 
 const account = { ok: true, user: { displayName: "Reader", email: null, avatarUrl: null, xUsername: null }, providers: [], sessions: [] };
 const analytics = { ok: true, totals: { posts: 1, originals: 1, replies: 0, quotes: 0, reposts: 0, views: 123, likes: 0, replyCount: 0, retweets: 0, bookmarks: 0 }, series: [], kinds: [], top: [] };
@@ -31,21 +32,24 @@ test("endpoint parsers reject missing fields, wrong containers and malformed nes
 
 test.each(["account", "analytics"])("%s keeps good data after malformed and non-JSON refresh and recovers", async (route) => {
   const good = route === "account" ? account : analytics;
-  const fetchMock = vi.fn().mockResolvedValue(Response.json(good));
-  vi.stubGlobal("fetch", fetchMock);
+  const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(Response.json(good));
+  const requests = stubFetch(fetchMock);
   render(route === "account" ? <Account onBack={vi.fn()} onGoogle={vi.fn()} onX={vi.fn()} onSignedOut={vi.fn()} /> : <Analytics onBack={vi.fn()} />, { wrapper: SessionBoundary });
   const marker = route === "account" ? "Reader" : "123";
-  await screen.findByText(marker);
+  await requests.settle();
+  expect(screen.getByText(marker)).toBeTruthy();
   for (const response of [Response.json(null), new Response("<html>failed</html>"), Response.json({ message: "Unavailable" }, { status: 503 })]) {
     fetchMock.mockResolvedValueOnce(response);
     fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
-    await waitFor(() => expect(screen.getByRole("button", { name: "Refresh" }).hasAttribute("disabled")).toBe(false));
+    await requests.settle();
+    expect(screen.getByRole("button", { name: "Refresh" }).hasAttribute("disabled")).toBe(false);
     expect(screen.getByText(marker)).toBeTruthy();
     expect(document.querySelector(".danger")?.textContent).toBeTruthy();
   }
   fetchMock.mockResolvedValueOnce(Response.json(good));
   fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
-  await waitFor(() => expect(document.querySelector(".danger")).toBeNull());
+  await requests.settle();
+  expect(document.querySelector(".danger")).toBeNull();
 });
 
 test.each(["usage", "billing"])("%s retains data on failure, recovers, and ignores expired work", async (route) => {
@@ -79,22 +83,24 @@ test.each(["usage", "billing"])("%s retains data on failure, recovers, and ignor
 });
 
 test("account treats a non-JSON 401 as sign-out", async () => {
-  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("Unauthorized", { status: 401 })));
+  const requests = stubFetch(vi.fn<typeof fetch>().mockResolvedValue(new Response("Unauthorized", { status: 401 })));
   const onSignedOut = vi.fn();
   render(<Account onBack={vi.fn()} onGoogle={vi.fn()} onX={vi.fn()} onSignedOut={onSignedOut} />, { wrapper: SessionBoundary });
-  await waitFor(() => expect(onSignedOut).toHaveBeenCalledTimes(1));
+  await requests.settle();
+  expect(onSignedOut).toHaveBeenCalledTimes(1);
 });
 
 test("account digest preference 401 signs out", async () => {
-  const fetchMock = vi.fn()
+  const fetchMock = vi.fn<typeof fetch>()
     .mockResolvedValueOnce(Response.json({ ...account, mail: { digestEmailOptIn: false, digestEmailAvailable: true } }))
     .mockResolvedValueOnce(new Response("Unauthorized", { status: 401 }));
-  vi.stubGlobal("fetch", fetchMock);
+  const requests = stubFetch(fetchMock);
   const onSignedOut = vi.fn();
   render(<Account onBack={vi.fn()} onGoogle={vi.fn()} onX={vi.fn()} onSignedOut={onSignedOut} />, { wrapper: SessionBoundary });
-  const toggle = await screen.findByRole("checkbox");
-  fireEvent.click(toggle);
-  await waitFor(() => expect(onSignedOut).toHaveBeenCalledTimes(1));
+  await requests.settle();
+  fireEvent.click(screen.getByRole("checkbox"));
+  await requests.settle();
+  expect(onSignedOut).toHaveBeenCalledTimes(1);
   expect(fetchMock).toHaveBeenCalledTimes(2);
 });
 
@@ -107,24 +113,28 @@ test("root render failure leaves recovery controls", () => {
 });
 
 test.each(["account", "analytics"])("%s can recover from an invalid first response", async (route) => {
-  const fetchMock = vi.fn().mockResolvedValueOnce(Response.json({}));
-  vi.stubGlobal("fetch", fetchMock);
+  const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(Response.json({}));
+  const requests = stubFetch(fetchMock);
   render(route === "account" ? <Account onBack={vi.fn()} onGoogle={vi.fn()} onX={vi.fn()} onSignedOut={vi.fn()} /> : <Analytics onBack={vi.fn()} />, { wrapper: SessionBoundary });
-  await waitFor(() => expect(document.querySelector(".danger")?.textContent).toContain("invalid response"));
+  await requests.settle();
+  expect(document.querySelector(".danger")?.textContent).toContain("invalid response");
   fetchMock.mockResolvedValueOnce(Response.json(route === "account" ? account : analytics));
   fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
-  await screen.findByText(route === "account" ? "Reader" : "123");
+  await requests.settle();
+  expect(screen.getByText(route === "account" ? "Reader" : "123")).toBeTruthy();
   expect(document.querySelector(".danger")).toBeNull();
 });
 
 test("malformed revocation preserves sessions without replaying the mutation", async () => {
-  const fetchMock = vi.fn().mockResolvedValueOnce(Response.json({ ...account, sessions: [{ id: "device", browser: "Test browser", os: "Test OS", createdAt: "2026-09-01", lastSeenAt: "2026-09-01", ip: null, current: false }] })).mockResolvedValueOnce(Response.json({ ok: true, sessions: {} }));
-  vi.stubGlobal("fetch", fetchMock);
+  const fetchMock = vi.fn<typeof fetch>().mockResolvedValueOnce(Response.json({ ...account, sessions: [{ id: "device", browser: "Test browser", os: "Test OS", createdAt: "2026-09-01", lastSeenAt: "2026-09-01", ip: null, current: false }] })).mockResolvedValueOnce(Response.json({ ok: true, sessions: {} }));
+  const requests = stubFetch(fetchMock);
   render(<Account onBack={vi.fn()} onGoogle={vi.fn()} onX={vi.fn()} onSignedOut={vi.fn()} />, { wrapper: SessionBoundary });
-  await screen.findByText(/Test browser/);
+  await requests.settle();
+  expect(screen.getByText(/Test browser/)).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Revoke" }));
   fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
-  await screen.findByText(/Revoke failed/);
+  await requests.settle();
+  expect(screen.getByText(/Revoke failed/)).toBeTruthy();
   expect(screen.getByText(/Test browser/)).toBeTruthy();
   expect(fetchMock).toHaveBeenCalledTimes(2);
 });
