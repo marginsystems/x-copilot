@@ -22,10 +22,10 @@ export const LEARN_SOURCE_DATE_LABEL = formatLearnSourceDate(LEARN_SOURCE_DATE);
 export const LEARN_HUB_TITLE = "Learn the X algorithm — x-copilot";
 export const LEARN_HUB_HEADING = "Learn";
 export const LEARN_HUB_DESCRIPTION =
-  "Cited lessons on how X For You ranks posts. Weights multiply P(action), not raw likes. From xai-org/x-algorithm at d011592. Not affiliated with X Corp.";
+  "Cited lessons on how X For You ranks posts. Weights multiply P(action), not raw likes. From xai-org/x-algorithm at d011592 and b79b947. Not affiliated with X Corp.";
 export const LEARN_HUB_LEDE =
-  "Four cited lessons on how X For You ranks posts. Every number is a permalink into xai-org/x-algorithm at d011592. Weights multiply P(action), not raw likes. Not a blog.";
-export const LEARN_HUB_META = `Cited from xai-org/x-algorithm at d011592 (${LEARN_SOURCE_DATE_LABEL}). Defaults in this snapshot. Not affiliated with X Corp.`;
+  "Five cited lessons on how X For You ranks posts. Every number is a permalink into xai-org/x-algorithm, pinned to a commit. Weights multiply P(action), not raw likes. Not a blog.";
+export const LEARN_HUB_META = `Lessons 1–4 cite xai-org/x-algorithm at d011592 (${LEARN_SOURCE_DATE_LABEL}). Lesson 5 cites b79b947 (1 October 2026). Not affiliated with X Corp.`;
 
 export const LEARN_TITLE = "What a like is worth — x-copilot";
 export const LEARN_HEADING = "What a like is worth";
@@ -215,6 +215,24 @@ export const LEARN_GIVE_IMAGE_ALT =
 export const LEARN_GIVE_FIGURE_LIKEBOT = "/learn/give-likebot.png";
 export const LEARN_GIVE_FIGURE_FOLLOW = "/learn/give-follow-cap.png";
 
+export const LEARN_READ_SHA = "b79b947";
+export const LEARN_READ_DATE = "2026-10-01";
+export const LEARN_READ_DATE_LABEL = formatLearnSourceDate(LEARN_READ_DATE);
+export const LEARN_READ_CHANGE_SHA = "a707cc2";
+export const LEARN_READ_CHANGE_DATE = "2026-09-29";
+export const LEARN_READ_CHANGE_DATE_LABEL = formatLearnSourceDate(LEARN_READ_CHANGE_DATE);
+export const LEARN_READ_CHANGE_HREF = `${LEARN_SOURCE_REPO}/commit/${LEARN_READ_CHANGE_SHA}`;
+
+export const LEARN_READ_TITLE = "The read beats the tap — x-copilot";
+export const LEARN_READ_HEADING = "The read beats the tap";
+export const LEARN_READ_DESCRIPTION =
+  "X For You cut the click weight from 0.4 to 0.3 and added 0.4 on P(stay more than 10 seconds after the tap). Not interested went from -43.2 to -47.52. All three multiply P(action) for this viewer. Defaults from xai-org/x-algorithm at b79b947. Not affiliated with X Corp.";
+export const LEARN_READ_META = `Cited from xai-org/x-algorithm at ${LEARN_READ_SHA} (${LEARN_READ_DATE_LABEL}). Weights changed in ${LEARN_READ_CHANGE_SHA} (${LEARN_READ_CHANGE_DATE_LABEL}). Not affiliated with X Corp.`;
+export const LEARN_READ_PATH = "/learn/the-read-beats-the-tap";
+export const LEARN_READ_IMAGE = "/og-learn.png";
+export const LEARN_READ_IMAGE_ALT =
+  "x-copilot Learn — ranking weights on a dark field";
+
 export const LEARN_IMAGE = "/og-learn.png";
 export const LEARN_IMAGE_ALT =
   "x-copilot Learn — ranking weights on a dark field";
@@ -225,7 +243,8 @@ export type LearnLessonView =
   | "learnWeights"
   | "learnReply"
   | "learnVolume"
-  | "learnGive";
+  | "learnGive"
+  | "learnRead";
 
 export type LearnLesson = {
   view: LearnLessonView;
@@ -266,6 +285,13 @@ export const LEARN_LESSONS: readonly LearnLesson[] = [
     number: "04",
     heading: LEARN_GIVE_HEADING,
     lede: "Eight spam heads, not For You. Reply-only is ReplySpamBot. Ramp and decay stay theory. Do not like or auto-follow who you reply to. Fire lines stay redacted. A like you give is not a For You debit.",
+  },
+  {
+    view: "learnRead",
+    href: LEARN_READ_PATH,
+    number: "05",
+    heading: LEARN_READ_HEADING,
+    lede: "The tap fell from 0.4 to 0.3. Staying past 10 seconds after it is a new 0.4. Not interested is now −47.52.",
   },
 ];
 
@@ -376,15 +402,24 @@ export const LEARN_WEIGHTS: LearnWeight[] = [
   { action: "Report", weight: -234.0, param: "ReportWeight", startLine: 474, endLine: 474 },
 ];
 
+export function algorithmPermalinkAt(
+  sha: string,
+  path: string,
+  startLine?: number,
+  endLine?: number,
+): string {
+  const base = `${LEARN_SOURCE_REPO}/blob/${sha}/${path}`;
+  if (startLine == null) return base;
+  if (endLine == null || endLine === startLine) return `${base}#L${startLine}`;
+  return `${base}#L${startLine}-L${endLine}`;
+}
+
 export function algorithmPermalink(
   path: string,
   startLine?: number,
   endLine?: number,
 ): string {
-  const base = `${LEARN_SOURCE_REPO}/blob/${LEARN_SOURCE_SHA}/${path}`;
-  if (startLine == null) return base;
-  if (endLine == null || endLine === startLine) return `${base}#L${startLine}`;
-  return `${base}#L${startLine}-L${endLine}`;
+  return algorithmPermalinkAt(LEARN_SOURCE_SHA, path, startLine, endLine);
 }
 
 export const LEARN_PARAM_COMMENT_HREF = algorithmPermalink(
@@ -554,3 +589,147 @@ export function formatLearnWeight(weight: number): string {
 export function weightPermalink(row: LearnWeight): string {
   return algorithmPermalink("home-mixer/params/param.rs", row.startLine, row.endLine);
 }
+
+export function readPermalink(path: string, startLine?: number, endLine?: number): string {
+  return algorithmPermalinkAt(LEARN_READ_SHA, path, startLine, endLine);
+}
+
+export const LEARN_READ_CLICK_HREF = readPermalink("home-mixer/params/param.rs", 329, 329);
+export const LEARN_READ_CLICK_DWELL_HREF = readPermalink("home-mixer/params/param.rs", 383, 388);
+export const LEARN_READ_NOT_INTERESTED_HREF = readPermalink(
+  "home-mixer/params/param.rs",
+  390,
+  395,
+);
+export const LEARN_READ_LABEL_HREF = readPermalink("phoenix/xrex/configs/xrecsys.py", 691, 698);
+export const LEARN_READ_LABEL_ON_HREF = readPermalink("phoenix/xrex/configs/xrecsys.py", 268, 268);
+export const LEARN_READ_LOSS_HREF = readPermalink("phoenix/xrex/models/loss_recsys.py", 225, 247);
+export const LEARN_READ_SECONDS_HREF = readPermalink("phoenix/reference/world.py", 73, 74);
+export const LEARN_READ_APPLY_HREF = readPermalink("xai-value-model/scoring.rs", 108, 108);
+export const LEARN_READ_BDSM_DWELL_HREF = readPermalink("bdsm/runtime/model.py", 154, 155);
+
+export const LEARN_READ_CHANGE_SNIPPET = `-param!(ClickWeight, f64, "rust_home_mixer_click_weight", 0.4);
++param!(ClickWeight, f64, "rust_home_mixer_click_weight", 0.3);
+
+     ContClickDwellTimeWeight,
+     f64,
+     "rust_home_mixer_cont_click_dwell_time_weight",
+-    0.0
++    0.4
+
+     NotInterestedWeight,
+     f64,
+     "rust_home_mixer_not_interested_weight",
+-    -43.2
++    -47.52`;
+
+export const LEARN_READ_LABEL_SNIPPET = `ContinuousActionLossConfig(
+    action_index=recsys_pb2.ContinuousActionName.CLICK_DWELL_TIME,
+    metric_name="click-dwell-binary",
+    loss_weight=mparams.get("click_dwell_loss_weight", 0.0),
+    loss_type="binary",
+    binary_threshold=10.0,
+    norm_config=NormConfig(norm_scale=60.0),
+),`;
+
+export const LEARN_READ_LOSS_SNIPPET = `gt_binary = (gt_raw.astype(jnp.float32) > threshold).astype(jnp.float32)`;
+
+export const LEARN_READ_APPLY_SNIPPET = `apply(scores.click_dwell_time, weights.cont_click_dwell_time),`;
+
+export type LearnReadChange = {
+  action: string;
+  param: string;
+  before: number;
+  after: number;
+  changed: string;
+  beforeHref: string;
+  afterHref: string;
+};
+
+export const LEARN_READ_CHANGES: readonly LearnReadChange[] = [
+  {
+    action: "Click (tap into the post)",
+    param: "ClickWeight",
+    before: 0.4,
+    after: 0.3,
+    changed: LEARN_READ_CHANGE_DATE,
+    beforeHref: algorithmPermalink("home-mixer/params/param.rs", 341, 341),
+    afterHref: LEARN_READ_CLICK_HREF,
+  },
+  {
+    action: "Stays past 10 s after the tap",
+    param: "ContClickDwellTimeWeight",
+    before: 0.0,
+    after: 0.4,
+    changed: LEARN_READ_CHANGE_DATE,
+    beforeHref: algorithmPermalink("home-mixer/params/param.rs", 413, 418),
+    afterHref: LEARN_READ_CLICK_DWELL_HREF,
+  },
+  {
+    action: "Not interested",
+    param: "NotInterestedWeight",
+    before: -43.2,
+    after: -47.52,
+    changed: LEARN_READ_CHANGE_DATE,
+    beforeHref: algorithmPermalink("home-mixer/params/param.rs", 456, 461),
+    afterHref: LEARN_READ_NOT_INTERESTED_HREF,
+  },
+  {
+    action: "Video open",
+    param: "VideoOpenWeight",
+    before: 0.05,
+    after: 0.07,
+    changed: "2026-08-25",
+    beforeHref: algorithmPermalink("home-mixer/params/param.rs", 335, 340),
+    afterHref: readPermalink("home-mixer/params/param.rs", 323, 328),
+  },
+  {
+    action: "Video quality view (the watch)",
+    param: "VqvWeight",
+    before: 0.05,
+    after: 0.0,
+    changed: "2026-08-25",
+    beforeHref: algorithmPermalink("home-mixer/params/param.rs", 349, 349),
+    afterHref: readPermalink("home-mixer/params/param.rs", 337, 337),
+  },
+  {
+    action: "Dwell in the feed (no tap)",
+    param: "DwellWeight",
+    before: 0.0,
+    after: 0.05,
+    changed: "2026-08-25",
+    beforeHref: algorithmPermalink("home-mixer/params/param.rs", 363, 363),
+    afterHref: readPermalink("home-mixer/params/param.rs", 351, 351),
+  },
+];
+
+export function formatLearnChange(weight: number): string {
+  const sign = weight > 0 ? "+" : "";
+  return `${sign}${weight}`;
+}
+
+export const LEARN_READ_INSULT_RULE_HREF = readPermalink(
+  "visibility-filtering/rules/tweet_rules.rs",
+  592,
+  608,
+);
+export const LEARN_READ_INSULT_LEVEL_HREF = readPermalink(
+  "visibility-filtering/rules/registry.rs",
+  174,
+  177,
+);
+export const LEARN_READ_INSULT_CORPUS_HREF = readPermalink(
+  "visibility-filtering/rules/golden_corpus/oon_tweet_label.rs",
+  208,
+  208,
+);
+export const LEARN_READ_COLD_POOL_HREF = readPermalink("phoenix/xrex/data/cold_pool_filter.py", 16, 31);
+export const LEARN_READ_MOE_SWITCH_HREF = readPermalink("home-mixer/params/param.rs", 164, 169);
+export const LEARN_READ_COLD_START_SLOT_HREF = readPermalink("home-mixer/params/param.rs", 466, 476);
+export const LEARN_READ_COLD_START_CAP_HREF = readPermalink("home-mixer/params/param.rs", 478, 488);
+export const LEARN_READ_COLD_START_ELIGIBLE_HREF = readPermalink(
+  "home-mixer/scorers/author_cold_start.rs",
+  176,
+  181,
+);
+export const LEARN_READ_COLD_START_CHANGE_HREF = `${LEARN_SOURCE_REPO}/commit/77d431a`;

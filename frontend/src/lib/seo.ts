@@ -38,6 +38,15 @@ import {
   LEARN_GIVE_IMAGE_ALT,
   LEARN_GIVE_PATH,
   LEARN_GIVE_TITLE,
+  LEARN_READ_CLICK_DWELL_HREF,
+  LEARN_READ_DATE,
+  LEARN_READ_DESCRIPTION,
+  LEARN_READ_HEADING,
+  LEARN_READ_IMAGE,
+  LEARN_READ_IMAGE_ALT,
+  LEARN_READ_PATH,
+  LEARN_READ_SHA,
+  LEARN_READ_TITLE,
   LEARN_DIVERSITY_FN_HREF,
   LEARN_SOURCE_DATE,
   LEARN_SOURCE_REPO,
@@ -80,6 +89,8 @@ export {
   LEARN_VOLUME_TITLE,
   LEARN_GIVE_DESCRIPTION,
   LEARN_GIVE_TITLE,
+  LEARN_READ_DESCRIPTION,
+  LEARN_READ_TITLE,
 };
 
 export const PRIVACY_TITLE = "Privacy Policy — x-copilot";
@@ -199,6 +210,15 @@ export function seoForView(view: AppView): SeoMeta {
       imageAlt: LEARN_GIVE_IMAGE_ALT,
     };
   }
+  if (view === "learnRead") {
+    return {
+      title: LEARN_READ_TITLE,
+      description: LEARN_READ_DESCRIPTION,
+      robots,
+      image: LEARN_READ_IMAGE,
+      imageAlt: LEARN_READ_IMAGE_ALT,
+    };
+  }
   if (view === "learnFollow") {
     return {
       title: LEARN_FOLLOW_TITLE,
@@ -228,6 +248,7 @@ export function ogTypeForView(view: AppView): "website" | "article" {
     case "learnReply":
     case "learnVolume":
     case "learnGive":
+    case "learnRead":
     case "learnFollow":
       return "article";
     default:
@@ -402,7 +423,7 @@ export function learnJsonLd() {
         image: absoluteSeoUrl(LEARN_IMAGE),
         inLanguage: "en-US",
         educationalUse: "instruction",
-        dateModified: LEARN_SOURCE_DATE,
+        dateModified: LEARN_READ_DATE,
         mainEntity: { "@id": listId },
         hasPart: LEARN_LESSONS.map((lesson) => ({
           "@type": "LearningResource" as const,
@@ -463,6 +484,8 @@ type LessonJsonLdMetadata = {
   citation: string;
   appImage: string;
   teaches: string;
+  sourceSha?: string;
+  sourceDate?: string;
 };
 
 function lessonJsonLd({
@@ -474,6 +497,8 @@ function lessonJsonLd({
   citation,
   appImage,
   teaches,
+  sourceSha = LEARN_SOURCE_SHA,
+  sourceDate = LEARN_SOURCE_DATE,
 }: LessonJsonLdMetadata) {
   const pageUrl = `${SITE_ORIGIN}${path}`;
   const learnUrl = `${SITE_ORIGIN}/learn`;
@@ -527,13 +552,13 @@ function lessonJsonLd({
         about: { "@id": appId },
         image: absoluteSeoUrl(articleImage),
         inLanguage: "en-US",
-        datePublished: LEARN_SOURCE_DATE,
-        dateModified: LEARN_SOURCE_DATE,
+        datePublished: sourceDate,
+        dateModified: sourceDate,
         citation,
         author: { "@id": orgId },
         publisher: { "@id": orgId },
         breadcrumb: { "@id": `${pageUrl}#breadcrumb` },
-        sameAs: `${LEARN_SOURCE_REPO}/tree/${LEARN_SOURCE_SHA}`,
+        sameAs: `${LEARN_SOURCE_REPO}/tree/${sourceSha}`,
       },
       {
         "@type": "BreadcrumbList" as const,
@@ -631,6 +656,22 @@ export function learnGiveJsonLd() {
   });
 }
 
+export function learnReadJsonLd() {
+  return lessonJsonLd({
+    path: LEARN_READ_PATH,
+    title: LEARN_READ_TITLE,
+    heading: LEARN_READ_HEADING,
+    description: LEARN_READ_DESCRIPTION,
+    articleImage: LEARN_READ_IMAGE,
+    citation: LEARN_READ_CLICK_DWELL_HREF,
+    appImage: LEARN_IMAGE,
+    teaches:
+      "X For You now weights P(stay more than 10 seconds after the tap) above the tap itself",
+    sourceSha: LEARN_READ_SHA,
+    sourceDate: LEARN_READ_DATE,
+  });
+}
+
 export function jsonLdForView(view: AppView): Record<string, unknown> {
   if (view === "changelog") return changelogJsonLd();
   if (view === "learn") return learnJsonLd();
@@ -638,6 +679,7 @@ export function jsonLdForView(view: AppView): Record<string, unknown> {
   if (view === "learnReply") return learnReplyJsonLd();
   if (view === "learnVolume") return learnVolumeJsonLd();
   if (view === "learnGive") return learnGiveJsonLd();
+  if (view === "learnRead") return learnReadJsonLd();
   if (view === "learnFollow") return learnFollowJsonLd();
   return softwareApplicationJsonLd();
 }
