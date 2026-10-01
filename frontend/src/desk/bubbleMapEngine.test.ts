@@ -322,6 +322,36 @@ await describe("bubbleMapEngine", () => {
     assert.equal(engine.positions().length, memberLimit(false) + 1);
   }).catch(assert.fail);
 
+  it("morphs departing members into the smaller compact box", () => {
+    const { engine, host, canvas } = setup(40, true);
+    const data = payload(40);
+    data.members = data.members.map((member, i) => ({
+      ...member,
+      name: `${String.fromCharCode(65 + i)} friend`,
+    }));
+    engine.setData(data, new Map());
+    host.clientWidth = 525;
+    host.clientHeight = 400;
+    for (const callback of resizeCallbacks) callback();
+    pump(30);
+    canvas.contextCalls.length = 0;
+    frames = [];
+    host.clientWidth = BOX.width;
+    host.clientHeight = BOX.height;
+    engine.setExpanded(false);
+    assert.equal(canvas.width, BOX.width);
+    assert.equal(canvas.height, BOX.height);
+    assert.ok(frames.length > 0);
+    for (const body of engine.positions()) {
+      assert.ok(body.x - body.r >= -0.5 && body.x + body.r <= BOX.width + 0.5);
+      assert.ok(body.y - body.r >= -0.5 && body.y + body.r <= BOX.height + 0.5);
+    }
+    const leaverInitial = String.fromCharCode(65 + memberLimit(false));
+    assert.ok(
+      canvas.contextCalls.some(([name, args]) => name === "fillText" && args[0] === leaverInitial),
+    );
+  }).catch(assert.fail);
+
   it("redraws synchronously when the box changes so no stale bitmap is painted", () => {
     const { engine, host, canvas } = setup(40);
     frames = [];
