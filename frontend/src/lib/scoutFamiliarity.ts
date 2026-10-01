@@ -7,8 +7,8 @@
  * missing/null/invalid value never invalidates the surrounding boot payload.
  * No gamification data lives here and none of this feeds XP.
  */
-import type { ThreadKind } from "../desk/types";
-import { isOneOf } from "./typeGuards";
+import type { ThreadKind } from "../../../shared/src/deskTypes";
+import { isOneOf } from "../../../shared/src/typeGuards";
 import { apiFetch } from "./apiBase";
 
 export type ScoutFamiliarityState = "empty" | "learning" | "supported";

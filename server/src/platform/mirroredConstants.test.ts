@@ -6,8 +6,8 @@ import {
   normalizeTcoKey as spaNormalizeTcoKey,
   stripMediaShortlinksFromText as spaStripMediaShortlinksFromText,
 } from "../../../frontend/src/lib/mediaText.ts";
-import { NEXT_ACTION_KINDS as spaNextActionKinds } from "../../../frontend/src/lib/coaching.ts";
-import { emptyDeskBeats as spaEmptyDeskBeats } from "../../../frontend/src/lib/deskPhase.ts";
+import { NEXT_ACTION_KINDS as spaNextActionKinds } from "../../../shared/src/coaching.ts";
+import { emptyDeskBeats as spaEmptyDeskBeats } from "../../../shared/src/deskPhase.ts";
 import {
   normalizeTcoKey as apiNormalizeTcoKey,
   stripMediaShortlinksFromText as apiStripMediaShortlinksFromText,

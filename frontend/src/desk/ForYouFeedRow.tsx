@@ -7,8 +7,8 @@ import {
   FYP_WAIT_COPY,
   X_FOR_YOU_URL,
   X_INSPIRATION_URL,
-} from "../lib/forYou";
-import type { OwnActivity } from "../lib/coaching";
+} from "../../../shared/src/forYou";
+import type { OwnActivity } from "../../../shared/src/coaching";
 import { ApproachDetectingMark } from "./ApproachFrame";
 import { DeskRow } from "./DeskRow";
 import type { OpenPace } from "./RowOpen";

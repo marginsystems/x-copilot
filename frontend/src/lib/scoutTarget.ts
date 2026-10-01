@@ -2,7 +2,7 @@
  * Approach compose lands on the conversation root.
  * Leftover last-scout leaves retarget when we have OP text; otherwise they drop.
  */
-import type { ThreadCard } from "../desk/types.ts";
+import type { ThreadCard } from "../../../shared/src/deskTypes.ts";
 import { sortThreadsByAudience } from "./threadSort.ts";
 
 export function isLeafReply(

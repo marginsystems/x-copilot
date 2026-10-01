@@ -7,7 +7,7 @@ import {
   forYouOpenUrl,
   forYouTargetId,
   type ForYouSuggestion,
-} from "../lib/forYou";
+} from "../../../shared/src/forYou";
 import { ApproachDetectingMark } from "./ApproachFrame";
 import { DeskRow } from "./DeskRow";
 import type { OpenPace } from "./RowOpen";

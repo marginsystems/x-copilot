@@ -1,4 +1,4 @@
-import type { DeskPhase } from "./deskPhase";
+import type { DeskPhase } from "../../../shared/src/deskPhase";
 
 /** Start a background takeoff when the last scouted card is on the desk or gone. */
 export const SCOUT_TANK_LOW = 1;

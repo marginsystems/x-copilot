@@ -1,4 +1,4 @@
-import { isRecord } from "../lib/typeGuards";
+import { isRecord } from "../../../shared/src/typeGuards";
 import { useState } from "react";
 import type { AdminTenantRow } from "../AdminPanel";
 import { apiFetch } from "../lib/apiBase";

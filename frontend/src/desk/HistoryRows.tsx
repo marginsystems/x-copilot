@@ -7,7 +7,7 @@ import {
   type InteractionHistoryEntry,
   type ReplyStatSnapshot,
   type SkipHistoryEntry,
-} from "./types";
+} from "../../../shared/src/deskTypes";
 
 export function formatStatChip(
   label: string,

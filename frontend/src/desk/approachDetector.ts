@@ -1,4 +1,4 @@
-import { parseOwnActivity, type OwnActivity } from "../lib/coaching";
+import { parseOwnActivity, type OwnActivity } from "../../../shared/src/coaching";
 
 export type DeskDetector = "for_you" | "scout";
 

@@ -1,6 +1,6 @@
 import { useId } from "react";
 import type { ScoutFamiliarity as ScoutFamiliarityData } from "../lib/scoutFamiliarity";
-import type { ThreadKind } from "./types";
+import type { ThreadKind } from "../../../shared/src/deskTypes";
 
 type ScoutFamiliarityProps = {
   familiarity: ScoutFamiliarityData | null;

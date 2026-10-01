@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { CoachingState } from "../lib/coaching";
+import type { CoachingState } from "../../../shared/src/coaching";
 import { deskGaugeSpecs } from "../lib/deskGaugeSpecs";
 import {
   dailyPostCap,
@@ -10,7 +10,7 @@ import {
 import type { GamificationStats } from "../lib/gamification";
 import { DialGauge } from "./DialGauge";
 import { readReplyPaceUntil } from "./replyPaceStore";
-import type { RetainedInteractionEntry } from "./types";
+import type { RetainedInteractionEntry } from "../../../shared/src/deskTypes";
 
 type InstrumentsPanelProps = {
   interactedHistory: RetainedInteractionEntry[];

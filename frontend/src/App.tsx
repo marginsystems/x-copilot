@@ -20,7 +20,7 @@ import {
 } from "./lib/onboarding";
 import { OnboardingPreviewBar } from "./OnboardingPreview";
 import { useDeskHistory } from "./desk/useDeskHistory";
-import type { ThreadCard, ThreadsTab } from "./desk/types";
+import type { ThreadCard, ThreadsTab } from "../../shared/src/deskTypes";
 import { ensureActivitySubscribe } from "./desk/watch";
 import { DismissModal } from "./desk/DismissModal";
 import { useAgendaPersist } from "./desk/useAgendaPersist";

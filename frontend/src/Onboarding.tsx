@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { isRecord } from "./lib/typeGuards";
+import { isRecord } from "../../shared/src/typeGuards";
 import { apiFetch } from "./lib/apiBase";
 import {
   AUDIENCE_OPTIONS,

@@ -6,6 +6,7 @@ on:
     types: [opened, synchronize, reopened]
     paths:
       - "frontend/src/**"
+      - "shared/src/**"
       - "server/src/**"
       - "webhook/src/**"
       - "analytics/src/**"
@@ -15,6 +16,7 @@ on:
     branches: [main]
     paths:
       - "frontend/src/**"
+      - "shared/src/**"
       - "server/src/**"
       - "webhook/src/**"
       - "analytics/src/**"

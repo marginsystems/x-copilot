@@ -4,12 +4,12 @@ import {
   presentApproach,
   type ApproachCardInput,
   type ApproachPresentation,
-} from "./approachPresenter";
+} from "../../../shared/src/approachPresenter";
 import { ForYouFeedRow } from "./ForYouFeedRow";
 import type { OpenPace } from "./RowOpen";
 import { SuggestedRow } from "./SuggestedRow";
 import { ThreadRow } from "./ThreadRow";
-import type { ThreadCard } from "./types";
+import type { ThreadCard } from "../../../shared/src/deskTypes";
 import { watchDeskThreads } from "./watch";
 
 export { pickApproachSuggestion } from "../lib/approachCard";

@@ -1,7 +1,6 @@
 import { isRecord, isOneOf } from "./typeGuards";
 /** Client types + fetch for GET /api/coaching. */
 
-import { apiFetch } from "./apiBase";
 import { emptyDeskBeats, type DeskBeats } from "./deskPhase";
 
 export const NEXT_ACTION_KINDS = [
@@ -216,16 +215,4 @@ export function nextActionDayMatches(
   next: CoachingState,
 ): boolean {
   return !current || current.dayUtc === next.dayUtc;
-}
-
-export async function fetchCoaching(
-  opts?: CoachingFetchOptions,
-): Promise<CoachingState | null> {
-  try {
-    const res = await apiFetch(coachingPath(opts));
-    if (!res.ok) return null;
-    return parseCoachingPayload(await res.json());
-  } catch {
-    return null;
-  }
 }

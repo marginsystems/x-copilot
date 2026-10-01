@@ -1,5 +1,5 @@
 import { apiFetch } from "../lib/apiBase";
-import type { ThreadCard } from "./types";
+import type { ThreadCard } from "../../../shared/src/deskTypes";
 
 export function watchPayloadsForThread(thread: ThreadCard): Array<{
   threadId: string;

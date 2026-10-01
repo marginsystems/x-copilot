@@ -13,7 +13,7 @@ import {
   type DrawCtx,
 } from "./flightShare";
 import { PRODUCT_NAME } from "./legal";
-import { isRecord } from "./typeGuards";
+import { isRecord } from "../../../shared/src/typeGuards";
 
 export type CircleMember = {
   handle: string;

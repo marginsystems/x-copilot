@@ -1,4 +1,4 @@
-import { isRecord } from "../lib/typeGuards";
+import { isRecord } from "../../../shared/src/typeGuards";
 import {
   useEffect,
   useLayoutEffect,
@@ -8,7 +8,7 @@ import {
   type SetStateAction,
 } from "react";
 import { apiFetch } from "../lib/apiBase";
-import type { CoachingFetchOptions } from "../lib/coaching";
+import type { CoachingFetchOptions } from "../../../shared/src/coaching";
 import { useSession } from "../auth/session";
 import type { AuthSessionUser } from "../auth/types";
 import { viewFromPath, type AppView } from "../lib/appView";

@@ -1,7 +1,7 @@
 import { useId, useState } from "react";
 import type { ActivityBucket, ActivityStats } from "../lib/activityStats";
 import { circleRefreshKey } from "../lib/circleShare";
-import type { CoachingState } from "../lib/coaching";
+import type { CoachingState } from "../../../shared/src/coaching";
 import type { GamificationStats } from "../lib/gamification";
 import type { ScoutFamiliarity as ScoutFamiliarityData } from "../lib/scoutFamiliarity";
 import { ActivityStrip } from "./ActivityStrip";
@@ -9,7 +9,7 @@ import { CirclePanel } from "./CirclePanel";
 import { FadeSwap } from "./FadeSwap";
 import { InstrumentsPanel } from "./InstrumentsPanel";
 import { ScoutFamiliarity } from "./ScoutFamiliarity";
-import type { RetainedInteractionEntry } from "./types";
+import type { RetainedInteractionEntry } from "../../../shared/src/deskTypes";
 
 type DeskTopProps = {
   open: boolean;

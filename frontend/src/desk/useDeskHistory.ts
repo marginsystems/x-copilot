@@ -8,7 +8,7 @@ import {
 import { useSession } from "../auth/session";
 import { apiFetch } from "../lib/apiBase";
 import type { DeskBootDeskPatch } from "../lib/deskBoot";
-import { isRecord } from "../lib/typeGuards";
+import { isRecord } from "../../../shared/src/typeGuards";
 import { parseDeskBoot, peekDeskBootCache } from "../lib/deskBoot";
 import {
   parseForYouExtra,
@@ -17,7 +17,7 @@ import {
   type ForYouExtraUsage,
   type ForYouProgress,
   type ForYouSuggestion,
-} from "../lib/forYou";
+} from "../../../shared/src/forYou";
 import type { AppSettings } from "../lib/settings";
 import { onDeskEvent, useDeskEventStream } from "./deskEventStream";
 import { armReplyPace } from "./replyPaceStore";
@@ -29,7 +29,7 @@ import {
   type RetainedInteractionEntry,
   type SkipHistoryEntry,
   type ThreadCard,
-} from "./types";
+} from "../../../shared/src/deskTypes";
 
 export const INTERACTED_PAGE_SIZE = 10;
 export const INTERACTED_FALLBACK_POLL_MS = 30_000;

@@ -1,5 +1,5 @@
-import type { DailyMission } from "./coaching";
-import type { ForYouSuggestion } from "./forYou";
+import type { DailyMission } from "../../../shared/src/coaching";
+import type { ForYouSuggestion } from "../../../shared/src/forYou";
 
 /** A post is earned after a scouted reply today, while original_1 is still open. */
 export function canServeApproachOriginal(opts: {

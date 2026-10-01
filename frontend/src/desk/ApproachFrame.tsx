@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { FYP_DETECTING_COPY } from "../lib/forYou";
+import { FYP_DETECTING_COPY } from "../../../shared/src/forYou";
 import { DeskRow } from "./DeskRow";
 import { FadeSwap } from "./FadeSwap";
 import { ScoutTankMark } from "./ScoutTankMark";

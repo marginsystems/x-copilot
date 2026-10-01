@@ -1,4 +1,4 @@
-import { isRecord } from "./typeGuards";
+import { isRecord } from "../../../shared/src/typeGuards";
 
 export const X_CREDITS_ADMIN_PATH = "/api/admin/x-credits";
 export const X_CREDITS_POLL_MS = 15 * 60_000;

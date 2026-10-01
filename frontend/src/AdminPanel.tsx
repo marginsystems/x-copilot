@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { apiFetch } from "./lib/apiBase";
-import { isOneOf, isRecord } from "./lib/typeGuards";
+import { isOneOf, isRecord } from "../../shared/src/typeGuards";
 
 export type AdminTenantRow = {
   tenantId: string;

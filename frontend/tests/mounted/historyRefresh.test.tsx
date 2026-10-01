@@ -11,7 +11,7 @@ import { parseDeskBoot } from "../../src/lib/deskBoot";
 import { markFromHistory } from "../../src/lib/deskInstruments";
 import { useActivityStrip } from "../../src/desk/useActivityStrip";
 import { useSkipDismiss } from "../../src/desk/useSkipDismiss";
-import type { ThreadCard } from "../../src/desk/types";
+import type { ThreadCard } from "../../../shared/src/deskTypes";
 import { DEFAULT_SETTINGS } from "../../src/lib/settings";
 import { emptyActivityStats } from "../../src/lib/activityStats";
 import { emptyGamificationStats } from "../../src/lib/gamification";
