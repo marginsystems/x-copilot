@@ -3,6 +3,7 @@
  */
 export type SessionListRow = {
   id: string;
+  kind: "browser" | "extension";
   createdAt: string;
   lastSeenAt: string;
   createdIp: string | null;
@@ -13,6 +14,7 @@ export type SessionListRow = {
 
 export type PublicSession = {
   id: string;
+  kind: "browser" | "extension";
   createdAt: string;
   lastSeenAt: string;
   ip: string | null;
@@ -56,6 +58,7 @@ export function toPublicSession(
   const parsed = parseUserAgent(ua);
   return {
     id: row.id,
+    kind: row.kind,
     createdAt: row.createdAt,
     lastSeenAt: row.lastSeenAt,
     ip: row.lastSeenIp ?? row.createdIp,

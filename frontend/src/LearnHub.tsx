@@ -27,6 +27,15 @@ export function LearnHubPage(props: {
               className="learn-card"
               onNavigate={() => props.onOpenLesson(lesson.view)}
             >
+              <img
+                className="learn-card-thumb"
+                src={lesson.image}
+                width={1200}
+                height={630}
+                alt=""
+                loading="lazy"
+                decoding="async"
+              />
               <span className="learn-card-num">{lesson.number}</span>
               <span className="learn-card-body">
                 <strong>{lesson.heading}</strong>

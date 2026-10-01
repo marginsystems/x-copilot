@@ -63,6 +63,7 @@ import {
   LEARN_BDSM_TWEET_HEAD_HREF,
   LEARN_BDSM_TWEET_HEAD_SNIPPET,
   learnAdjacentLessons,
+  learnChangeDirection,
   learnDiversityMultiplier,
   LEARN_WEIGHTS_PATH,
   LEARN_OON_SNIPPET,
@@ -342,6 +343,15 @@ await describe("learn citations", () => {
     assert.match(LEARN_READ_DESCRIPTION, /10 seconds/);
     assert.match(LEARN_READ_DESCRIPTION, /P\(action\)/);
     assert.match(LEARN_READ_DESCRIPTION, /not affiliated/i);
+    assert.equal(LEARN_LESSONS[4]!.image, "/og-learn-read.png");
+    for (const lesson of LEARN_LESSONS) {
+      assert.match(lesson.image, /^\/og-learn-[a-z]+\.png$/);
+      assert.ok(lesson.imageAlt.length > 0);
+    }
+    assert.equal(learnChangeDirection(0.4, 0.3), "down");
+    assert.equal(learnChangeDirection(0, 0.4), "up");
+    assert.equal(learnChangeDirection(-43.2, -47.52), "down");
+    assert.equal(learnChangeDirection(5, 5), "same");
     assert.equal(
       LEARN_LESSONS[4]!.lede,
       "The tap fell from 0.4 to 0.3. Staying past 10 seconds after it is a new 0.4. Not interested is now −47.52.",
