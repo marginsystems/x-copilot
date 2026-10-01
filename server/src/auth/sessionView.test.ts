@@ -57,6 +57,7 @@ await describe("parseUserAgent", async () => {
 await describe("toPublicSession", async () => {
   const row: SessionListRow = {
     id: "sess-1",
+    kind: "browser",
     createdAt: "2026-08-01T00:00:00.000Z",
     lastSeenAt: "2026-08-17T00:00:00.000Z",
     createdIp: "1.1.1.1",

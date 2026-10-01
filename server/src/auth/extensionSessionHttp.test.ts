@@ -14,7 +14,7 @@ import { upsertOauthUser } from "./oauthAccountStore.ts";
 import { createSession, getSessionForToken, listSessionsForUser } from "./sessionStore.ts";
 import { resetRateLimiterForTests } from "./authGuard.ts";
 import { tryHandleAuth } from "./authHttp.ts";
-import { getRequestSession, SESSION_COOKIE } from "./sessionCookie.ts";
+import { getRequestSession, isSessionStillLive, SESSION_COOKIE } from "./sessionCookie.ts";
 import { EXTENSION_PAIR_RATE, EXTENSION_SESSION_PATH } from "./extensionSessionHttp.ts";
 
 const LOCAL_ORIGIN = "http://127.0.0.1:5173";
@@ -86,6 +86,19 @@ await describe("extension session pairing", async () => {
     assert.equal(viaBearer?.kind, "extension");
     assert.equal(getRequestSession(request({ method: "GET", cookie: token })), null);
     assert.equal(getRequestSession(request({ method: "GET", bearer: desk.token })), null);
+  });
+
+  await it("does not refresh the desk owner hint for an extension bearer", async () => {
+    const alice = user("owner-hint");
+    const extension = createSession(alice.id, undefined, "extension");
+    const req = request({ method: "GET", bearer: extension.token });
+    assert.equal(isSessionStillLive(req, extension.id), true);
+    const { res, captured } = testResponse(req);
+    await tryHandleAuth(req, res, new URL("http://localhost/api/auth/me"));
+    const body = captured.raw ? expectRecord(JSON.parse(captured.raw)) : {};
+    assert.equal(captured.status, 200);
+    assert.equal(body.ownerHint, null);
+    assert.equal("Set-Cookie" in captured.headers, false);
   });
 
   await it("lists the extension session with its kind", async () => {

@@ -191,8 +191,9 @@ export function ownerHintClearCookie(req: IncomingMessage): string | null {
 
 export function ownerHintRefresh(
   req: IncomingMessage,
-  session: { sessionId: string; expiresAt: string },
+  session: { sessionId: string; expiresAt: string; kind: SessionKind },
 ): { ownerHint: string | null; cookies: string[] } {
+  if (session.kind === "extension") return { ownerHint: null, cookies: [] };
   const cookie = ownerHintSetCookie(
     req,
     session.sessionId,
@@ -217,12 +218,17 @@ export function isSessionStillLive(
   req: IncomingMessage,
   sessionId: string,
 ): boolean {
-  const token = requestCookies(req)[SESSION_COOKIE];
+  const bearer = requestBearerToken(req);
+  const token = bearer ?? requestCookies(req)[SESSION_COOKIE];
   if (!token) return false;
-  return getSessionForToken(token)?.sessionId === sessionId;
+  return (
+    getSessionForToken(token, bearer ? "extension" : "browser")?.sessionId ===
+    sessionId
+  );
 }
 
 export function ownerHintClearCookies(req: IncomingMessage): string[] {
+  if (requestBearerToken(req)) return [];
   const cookie = ownerHintClearCookie(req);
   return cookie ? [cookie] : [];
 }
