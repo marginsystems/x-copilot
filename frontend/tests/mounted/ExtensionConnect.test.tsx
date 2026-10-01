@@ -12,9 +12,9 @@ import {
 
 const EXPIRES = "2026-11-01T00:00:00.000Z";
 
-function fromPage(data: unknown, origin = window.location.origin) {
+function fromPage(data: unknown, origin = window.location.origin, source: MessageEventSource | null = window) {
   act(() => {
-    window.dispatchEvent(new MessageEvent("message", { data, origin, source: window }));
+    window.dispatchEvent(new MessageEvent("message", { data, origin, source }));
   });
 }
 
@@ -44,6 +44,13 @@ test("ignores hello messages from another origin", () => {
   capturePosts();
   render(<ExtensionConnect />);
   fromPage({ type: EXTENSION_HELLO, version: "0.1.0", paired: false }, "https://evil.example");
+  expect(screen.queryByRole("button")).toBeNull();
+});
+
+test("ignores hello messages from another window on this origin", () => {
+  capturePosts();
+  render(<ExtensionConnect />);
+  fromPage({ type: EXTENSION_HELLO, version: "0.1.0", paired: false }, window.location.origin, null);
   expect(screen.queryByRole("button")).toBeNull();
 });
 
@@ -89,6 +96,28 @@ test("reports an extension-rejected pairing separately from a missing ack", asyn
   await vi.waitFor(() => expect(posts.some((message) => parseExtensionPair(message))).toBe(true));
   fromPage({ type: EXTENSION_PAIRED, ok: false });
   expect(await screen.findByText("The extension rejected the sign-in. Check the extension and try again.")).toBeTruthy();
+});
+
+test("ignores pairing acknowledgements from another window on this origin", async () => {
+  const { posts } = capturePosts();
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ ok: true, token: "t", expiresAt: EXPIRES }, { status: 201 })));
+  render(<ExtensionConnect />);
+  fromPage({ type: EXTENSION_HELLO, version: "0.1.0", paired: false });
+  fireEvent.click(screen.getByRole("button", { name: "Connect extension" }));
+  await vi.waitFor(() => expect(posts.some((message) => parseExtensionPair(message))).toBe(true));
+
+  fromPage({ type: EXTENSION_PAIRED, ok: true }, window.location.origin, null);
+  expect(screen.getByRole("status").textContent).toBe("Connecting…");
+  fromPage({ type: EXTENSION_PAIRED, ok: true });
+  expect(await screen.findByText("Connected. The side panel on x.com uses this account.")).toBeTruthy();
+});
+
+test("shows the rejection message when creating an extension sign-in fails", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("Network unavailable")));
+  render(<ExtensionConnect />);
+  fromPage({ type: EXTENSION_HELLO, version: "0.1.0", paired: false });
+  fireEvent.click(screen.getByRole("button", { name: "Connect extension" }));
+  expect(await screen.findByText("Network unavailable")).toBeTruthy();
 });
 
 test("reports a refused pairing request without posting a token", async () => {
