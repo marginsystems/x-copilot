@@ -107,7 +107,8 @@ test("failed auth leaves the public route painted and protected routes gated", a
 test.each([
   "/privacy", "/terms", "/changelog", "/learn",
   "/learn/what-a-like-is-worth", "/learn/posts-that-get-a-reply",
-  "/learn/how-many-replies", "/learn/likes-and-follows-you-give", "/learn/follow",
+  "/learn/how-many-replies", "/learn/likes-and-follows-you-give",
+  "/learn/the-read-beats-the-tap", "/learn/follow",
 ])("public chunk %s paints without waiting for auth", async (path) => {
   window.history.replaceState({}, "", path);
   const pending = deferred<Response>();

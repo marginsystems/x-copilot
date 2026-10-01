@@ -10,6 +10,7 @@ const LearnHubPage = lazyRoute(() => import("../LearnHub").then((m) => ({ defaul
 const LearnReplyPage = lazyRoute(() => import("../LearnReply").then((m) => ({ default: m.LearnReplyPage })));
 const LearnVolumePage = lazyRoute(() => import("../LearnVolume").then((m) => ({ default: m.LearnVolumePage })));
 const LearnGivePage = lazyRoute(() => import("../LearnGive").then((m) => ({ default: m.LearnGivePage })));
+const LearnReadPage = lazyRoute(() => import("../LearnRead").then((m) => ({ default: m.LearnReadPage })));
 const LearnFollowPage = lazyRoute(() => import("../LearnFollow").then((m) => ({ default: m.LearnFollowPage })));
 
 type PublicPagesProps = {
@@ -75,6 +76,8 @@ export function PublicPages({
     />
   ) : view === "learnGive" ? (
     <LearnGivePage goToView={goToView} />
+  ) : view === "learnRead" ? (
+    <LearnReadPage goToView={goToView} />
   ) : view === "learnFollow" ? (
     <LearnFollowPage
       onHome={onHome}

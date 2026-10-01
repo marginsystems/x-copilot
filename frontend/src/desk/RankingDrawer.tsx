@@ -7,6 +7,7 @@ import {
   LEARN_FOLLOW_HEADING,
   LEARN_GIVE_HEADING,
   LEARN_HEADING,
+  LEARN_READ_HEADING,
   LEARN_REPLY_HEADING,
   LEARN_VOLUME_HEADING,
 } from "../lib/learn";
@@ -48,6 +49,7 @@ export function RankingDrawer() {
           <a href="/learn/posts-that-get-a-reply">{LEARN_REPLY_HEADING}</a>
           <a href="/learn/how-many-replies">{LEARN_VOLUME_HEADING}</a>
           <a href="/learn/likes-and-follows-you-give">{LEARN_GIVE_HEADING}</a>
+          <a href="/learn/the-read-beats-the-tap">{LEARN_READ_HEADING}</a>
           <a href="/learn/follow">{LEARN_FOLLOW_HEADING}</a>
         </p>
       </div>
