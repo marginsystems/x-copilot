@@ -1,16 +1,22 @@
 import {
   BUBBLE_MAX_MEMBERS,
+  BUBBLE_MORPH_MS,
   adoptRest,
   hitBody,
   isSettled,
+  isStill,
+  memberLimit,
+  morphPose,
   packBubbles,
+  planMorph,
   rescaleBodies,
-  retargetBodies,
   shouldRepack,
   snapToHome,
   stepBodies,
   type Body,
   type BubbleBox,
+  type KeyedPose,
+  type MorphEntry,
 } from "../lib/bubbleLayout";
 import {
   GHOST_SCORES,
@@ -29,6 +35,7 @@ export type BubbleMapHooks = {
 export type BubbleMapEngine = {
   setData: (payload: CircleSharePayload | null, images: BubbleImages | null) => void;
   setHighlight: (handle: string | null) => void;
+  setExpanded: (expanded: boolean) => void;
   positions: () => Array<{ x: number; y: number; r: number }>;
   destroy: () => void;
 };
@@ -40,6 +47,18 @@ type Person = {
   image: CanvasImageSource | null;
   initial: string;
   self: boolean;
+};
+
+type Morph = {
+  entries: MorphEntry[];
+  persons: Array<Person | null>;
+  progress: number;
+  start: number | null;
+};
+
+type Snapshot = {
+  box: BubbleBox;
+  items: Array<KeyedPose & { person: Person | null }>;
 };
 
 type Colors = {
@@ -67,6 +86,8 @@ const MAX_STEPS_PER_FRAME = 4;
 const JAM_DISTANCE = 1.5;
 const TIP_GAP = 8;
 const TIP_MARGIN = 4;
+const PACK_CACHE_SIZE = 6;
+const VISIBLE_ALPHA = 0.02;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), Math.max(min, max));
@@ -144,8 +165,14 @@ export function createBubbleMap(
   host.appendChild(tip);
 
   let colors = readColors(canvas);
+  let roster: Person[] = [];
+  let rosterScores: number[] = [];
   let people: Person[] = [];
   let scores: number[] = [];
+  let keys: string[] = [];
+  let expanded = false;
+  let morph: Morph | null = null;
+  const packCache = new Map<string, Body[]>();
   let bodies: Body[] = [];
   let ghost = true;
   let box: BubbleBox = { width: 0, height: 0 };
@@ -156,7 +183,6 @@ export function createBubbleMap(
   let running = false;
   let raf = 0;
   let drawRaf = 0;
-  let measureRaf = 0;
   let lastTime = 0;
   let accumulator = 0;
   let lastFastest = Infinity;
@@ -174,6 +200,57 @@ export function createBubbleMap(
   const hasBox = () => box.width > 0 && box.height > 0;
   const canRun = () => !destroyed && ctx !== null && docVisible && onscreen && hasBox();
   const dragging = () => drag !== null && drag.moved;
+
+  function personKey(person: Person, index: number): string {
+    return person.self ? "self" : (person.handle ?? `#${index}`);
+  }
+
+  function derive(): void {
+    const limit = memberLimit(expanded);
+    people = roster.slice(0, limit + 1);
+    scores = rosterScores.slice(0, limit);
+    keys = people.map(personKey);
+  }
+
+  function packCached(source: readonly number[]): Body[] {
+    const id = `${box.width}x${box.height}:${source.join(",")}`;
+    const hit = packCache.get(id);
+    if (hit) return hit.map((body) => ({ ...body }));
+    const packed = packBubbles(source, box);
+    packCache.set(id, packed.map((body) => ({ ...body })));
+    if (packCache.size > PACK_CACHE_SIZE) {
+      for (const oldest of packCache.keys()) {
+        packCache.delete(oldest);
+        break;
+      }
+    }
+    return packed;
+  }
+
+  function snapshot(): Snapshot | null {
+    if (ghost || !hasBox()) return null;
+    const frozen = { width: box.width, height: box.height };
+    if (morph) {
+      const live = morph;
+      const items = live.entries
+        .map((entry, i) => ({
+          key: entry.key,
+          pose: morphPose(entry, live.progress),
+          person: live.persons[i] ?? null,
+        }))
+        .filter((item) => item.pose.a > VISIBLE_ALPHA);
+      return { box: frozen, items };
+    }
+    if (bodies.length === 0 || bodies.length !== people.length) return null;
+    return {
+      box: frozen,
+      items: bodies.map((body, i) => ({
+        key: keys[i]!,
+        pose: { x: body.x, y: body.y, r: body.r, a: 1 },
+        person: people[i] ?? null,
+      })),
+    };
+  }
 
   function indexOfHandle(handle: string | null): number {
     if (!handle || ghost) return -1;
@@ -213,46 +290,76 @@ export function createBubbleMap(
     placeTip();
   }
 
+  type DrawItem = { x: number; y: number; r: number; a: number; person: Person | null };
+
+  function drawItems(): DrawItem[] {
+    if (morph) {
+      const live = morph;
+      return live.entries.map((entry, i) => {
+        const pose = morphPose(entry, live.progress);
+        return { ...pose, person: live.persons[i] ?? null };
+      });
+    }
+    return bodies.map((body, i) => ({
+      x: body.x,
+      y: body.y,
+      r: body.r,
+      a: 1,
+      person: ghost ? null : (people[i] ?? null),
+    }));
+  }
+
   function draw(): void {
     if (!ctx || !hasBox()) return;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, box.width, box.height);
-    const order = bodies.map((_, i) => i).sort((a, b) => bodies[b]!.r - bodies[a]!.r);
-    for (const i of order) {
-      const body = bodies[i]!;
-      if (ghost) {
-        ctx.globalAlpha = 0.45;
+    const items = drawItems().sort((p, q) => q.r - p.r);
+    for (const item of items) {
+      if (item.a <= 0 || item.r <= 0) continue;
+      const { x, y, r, person } = item;
+      if (!person) {
+        ctx.globalAlpha = 0.45 * item.a;
         ctx.beginPath();
-        ctx.arc(body.x, body.y, body.r, 0, Math.PI * 2);
+        ctx.arc(x, y, r, 0, Math.PI * 2);
         ctx.fillStyle = colors.border;
         ctx.fill();
         ctx.globalAlpha = 1;
         continue;
       }
-      const person = people[i];
-      if (!person) continue;
+      ctx.globalAlpha = item.a;
       ctx.beginPath();
-      ctx.arc(body.x, body.y, body.r, 0, Math.PI * 2);
+      ctx.arc(x, y, r, 0, Math.PI * 2);
       ctx.fillStyle = person.image ? colors.panel : colors.borderStrong;
       ctx.fill();
       if (person.image) {
         ctx.save();
         ctx.clip();
-        drawSource(ctx, person.image, body.x, body.y, body.r);
+        drawSource(ctx, person.image, x, y, r);
         ctx.restore();
       } else {
         ctx.fillStyle = colors.text;
-        ctx.font = `600 ${Math.max(8, Math.round(body.r * 0.85))}px ${colors.fontHead}`;
+        ctx.font = `600 ${Math.max(8, Math.round(r * 0.85))}px ${colors.fontHead}`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        ctx.fillText(person.initial, body.x, body.y + body.r * 0.04);
+        ctx.fillText(person.initial, x, y + r * 0.04);
+      }
+      if (person.self) {
+        ctx.globalAlpha = item.a * 0.35;
+        ctx.beginPath();
+        ctx.arc(x, y, r + 3.5, 0, Math.PI * 2);
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = colors.accent;
+        ctx.stroke();
+        ctx.globalAlpha = item.a;
       }
       ctx.beginPath();
-      ctx.arc(body.x, body.y, Math.max(0, body.r - 0.5), 0, Math.PI * 2);
-      ctx.lineWidth = person.self ? 2 : 1;
+      ctx.arc(x, y, Math.max(0, r - 0.5), 0, Math.PI * 2);
+      ctx.lineWidth = person.self ? 2.5 : 1;
       ctx.strokeStyle = person.self ? colors.accent : colors.borderStrong;
       ctx.stroke();
+      ctx.globalAlpha = 1;
     }
+    if (morph) return;
     const rings = new Set([hovered, linked, drag?.moved ? drag.index : -1]);
     for (const i of rings) {
       const body = bodies[i];
@@ -278,6 +385,19 @@ export function createBubbleMap(
     raf = 0;
     if (!canRun()) {
       running = false;
+      return;
+    }
+    if (morph) {
+      if (morph.start === null) morph.start = time;
+      morph.progress = Math.min(1, (time - morph.start) / BUBBLE_MORPH_MS);
+      draw();
+      if (morph.progress >= 1) {
+        morph = null;
+        running = false;
+        draw();
+        return;
+      }
+      raf = requestAnimationFrame(frame);
       return;
     }
     accumulator += Math.min(64, time - lastTime);
@@ -319,49 +439,69 @@ export function createBubbleMap(
 
   function halt(): void {
     running = false;
+    morph = null;
     if (raf) cancelAnimationFrame(raf);
     raf = 0;
     if (drawRaf) cancelAnimationFrame(drawRaf);
     drawRaf = 0;
   }
 
-  function layout(previous: BubbleBox | null, membersChanged: boolean): void {
-    if (!hasBox()) return;
-    const source = ghost ? GHOST_SCORES : scores;
-    const count = source.length + 1;
-    const reuse = previous !== null && previous.width > 0 && bodies.length === count;
-    if (reuse && !membersChanged && !shouldRepack(previous, box)) {
-      rescaleBodies(bodies, previous, box);
-    } else {
-      bodies = reuse ? retargetBodies(bodies, source, previous, box) : packBubbles(source, box);
-    }
-    if (!reuse || reduced()) snapToHome(bodies);
-    else wake();
-    if (hovered >= bodies.length) hovered = -1;
-    if (linked >= bodies.length) linked = -1;
-    scheduleDraw();
+  function startMorph(snap: Snapshot, next: Body[]): boolean {
+    const to = next.map((body, i) => ({
+      key: keys[i]!,
+      pose: { x: body.x, y: body.y, r: body.r, a: 1 },
+    }));
+    const entries = planMorph(snap.items, snap.box, to, box);
+    if (isStill(entries)) return false;
+    const persons = entries.map((entry) =>
+      entry.toIndex >= 0 ? (people[entry.toIndex] ?? null) : (snap.items[entry.fromIndex]?.person ?? null),
+    );
+    morph = { entries, persons, progress: 0, start: null };
+    return true;
   }
 
-  function sync(): { changed: boolean; previous: BubbleBox | null } {
+  function layout(snap: Snapshot | null, repack: boolean): void {
+    if (!hasBox()) return;
+    const source = ghost ? GHOST_SCORES : scores;
+    const sameKeys =
+      snap !== null &&
+      !ghost &&
+      snap.items.length === keys.length &&
+      snap.items.every((item, i) => item.key === keys[i]);
+    if (snap && sameKeys && !repack && !shouldRepack(snap.box, box)) {
+      morph = null;
+      rescaleBodies(bodies, snap.box, box);
+      if (reduced()) snapToHome(bodies);
+      draw();
+      if (!reduced()) wake();
+      return;
+    }
+    bodies = packCached(source);
+    morph = null;
+    if (snap && !ghost && !reduced() && canRun()) startMorph(snap, bodies);
+    if (hovered >= bodies.length) hovered = -1;
+    if (linked >= bodies.length) linked = -1;
+    draw();
+    if (morph) wake();
+  }
+
+  function sync(): boolean {
     const width = host.clientWidth;
     const height = host.clientHeight;
-    if (width === box.width && height === box.height) return { changed: false, previous: null };
-    const previous = hasBox() ? box : null;
+    if (width === box.width && height === box.height) return false;
     box = { width, height };
     dpr = window.devicePixelRatio || 1;
     canvas.width = Math.max(1, Math.round(width * dpr));
     canvas.height = Math.max(1, Math.round(height * dpr));
-    return { changed: true, previous };
+    return true;
   }
 
   function measure(): void {
-    measureRaf = 0;
-    const { changed, previous } = sync();
-    if (changed) layout(previous, false);
-  }
-
-  function queueMeasure(): void {
-    if (!measureRaf && !destroyed) measureRaf = requestAnimationFrame(measure);
+    if (destroyed) return;
+    if (host.clientWidth === box.width && host.clientHeight === box.height) return;
+    const snap = snapshot();
+    sync();
+    layout(snap, false);
   }
 
   function cancelDrag(): void {
@@ -391,7 +531,7 @@ export function createBubbleMap(
   }
 
   function onPointerDown(event: PointerEvent): void {
-    if (ghost || (event.pointerType === "mouse" && event.button !== 0)) return;
+    if (ghost || morph || (event.pointerType === "mouse" && event.button !== 0)) return;
     const { x, y } = local(event);
     const index = hitBody(bodies, x, y, event.pointerType === "mouse" ? 0 : 4);
     if (index < 0) return;
@@ -411,7 +551,7 @@ export function createBubbleMap(
   }
 
   function onPointerMove(event: PointerEvent): void {
-    if (ghost) return;
+    if (ghost || morph) return;
     const { x, y } = local(event);
     if (drag && drag.id === event.pointerId) {
       if (!drag.moved && Math.hypot(x - drag.startX, y - drag.startY) > drag.threshold) {
@@ -494,7 +634,7 @@ export function createBubbleMap(
   schemeQuery?.addEventListener("change", applyTheme);
 
   const resizeObserver =
-    typeof ResizeObserver === "function" ? new ResizeObserver(queueMeasure) : null;
+    typeof ResizeObserver === "function" ? new ResizeObserver(measure) : null;
   resizeObserver?.observe(host);
 
   const intersection =
@@ -523,6 +663,7 @@ export function createBubbleMap(
   return {
     setData(payload, images) {
       if (destroyed) return;
+      const snap = snapshot();
       const previousCount = bodies.length;
       const wasGhost = ghost;
       cancelDrag();
@@ -532,20 +673,34 @@ export function createBubbleMap(
       tip.hidden = true;
       if (!payload) {
         ghost = true;
-        people = [];
-        scores = [];
+        roster = [];
+        rosterScores = [];
       } else {
         ghost = false;
         const built = buildPeople(payload, images);
-        people = built.people;
-        scores = built.scores;
+        roster = built.people;
+        rosterScores = built.scores;
       }
-      const { changed, previous } = sync();
+      derive();
+      const changed = sync();
       if (!hasBox()) return;
       if (ghost && wasGhost && previousCount > 0 && !changed) return;
-      const expected = (ghost ? GHOST_SCORES.length : scores.length) + 1;
-      const same = previousCount === expected && ghost === wasGhost;
-      layout(same ? (changed ? previous : { ...box }) : null, !ghost);
+      layout(snap, !ghost);
+    },
+    setExpanded(next) {
+      if (destroyed || next === expanded) return;
+      const snap = snapshot();
+      const linkedHandle = linked >= 0 ? (people[linked]?.handle ?? null) : null;
+      cancelDrag();
+      if (hovered >= 0) hooks.onHover(null);
+      hovered = -1;
+      tip.hidden = true;
+      expanded = next;
+      derive();
+      sync();
+      linked = indexOfHandle(linkedHandle);
+      if (ghost || roster.length === 0) return;
+      layout(snap, true);
     },
     positions() {
       return bodies.map((b) => ({ x: b.x, y: b.y, r: b.r }));
@@ -559,7 +714,6 @@ export function createBubbleMap(
     destroy() {
       destroyed = true;
       halt();
-      if (measureRaf) cancelAnimationFrame(measureRaf);
       canvas.removeEventListener("pointerdown", onPointerDown);
       canvas.removeEventListener("pointermove", onPointerMove);
       canvas.removeEventListener("pointerup", onPointerUp);

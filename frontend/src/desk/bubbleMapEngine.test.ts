@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { packBubbles } from "../lib/bubbleLayout.ts";
+import { memberLimit, packBubbles } from "../lib/bubbleLayout.ts";
 import { memberScore } from "../lib/circleLeaderboard.ts";
 import type { CircleSharePayload } from "../lib/circleShare.ts";
 import { createBubbleMap } from "./bubbleMapEngine.ts";
@@ -154,7 +154,7 @@ afterEach(() => {
   }
 });
 
-function setup(count: number) {
+function setup(count: number, expanded = false) {
   const canvas = fakeElement();
   const host = fakeElement();
   const hovers: Array<string | null> = [];
@@ -162,9 +162,10 @@ function setup(count: number) {
     onHover: (handle) => hovers.push(handle),
   });
   const data = payload(count);
+  engine.setExpanded(expanded);
   engine.setData(data, new Map());
   const scores = data.members.map((m) => Math.max(1, memberScore(m)));
-  const bodies = packBubbles(scores, BOX);
+  const bodies = packBubbles(scores.slice(0, memberLimit(expanded)), BOX);
   const fire = (type: string, x: number, y: number, pointerType = "mouse") =>
     canvas.listeners.get(type)?.({ pointerId: 1, pointerType, button: 0, clientX: x, clientY: y });
   return { engine, bodies, fire, hovers, canvas, host };
@@ -274,7 +275,7 @@ await describe("bubbleMapEngine", () => {
   }).catch(assert.fail);
 
   it("cancels a live drag when a smaller payload re-packs to fewer bodies", () => {
-    const { engine, bodies, fire, hovers, canvas } = setup(40);
+    const { engine, bodies, fire, hovers, canvas } = setup(40, true);
     const target = bodies[30]!;
     fire("pointerdown", target.x, target.y);
     fire("pointermove", target.x + 20, target.y + 20);
@@ -305,5 +306,63 @@ await describe("bubbleMapEngine", () => {
     const after = engine.positions();
     assert.ok(Math.hypot(after[2]!.x - before[2]!.x, after[2]!.y - before[2]!.y) > 0.5);
     assert.notDeepEqual(after[1], before[1]);
+  }).catch(assert.fail);
+
+  it("draws only the compact member count and the top forty when expanded", () => {
+    const { engine } = setup(40);
+    assert.equal(engine.positions().length, memberLimit(false) + 1);
+    engine.setExpanded(true);
+    assert.equal(engine.positions().length, memberLimit(true) + 1);
+    engine.setExpanded(false);
+    assert.equal(engine.positions().length, memberLimit(false) + 1);
+  }).catch(assert.fail);
+
+  it("redraws synchronously when the box changes so no stale bitmap is painted", () => {
+    const { engine, host, canvas } = setup(40);
+    frames = [];
+    host.clientWidth = 525;
+    host.clientHeight = 232;
+    engine.setExpanded(true);
+    assert.equal(canvas.width, 525);
+    assert.equal(canvas.height, 232);
+    const first = engine.positions();
+    for (const body of first) {
+      assert.ok(body.x - body.r >= -0.5 && body.x + body.r <= 525.5);
+      assert.ok(body.y - body.r >= -0.5 && body.y + body.r <= 232.5);
+    }
+  }).catch(assert.fail);
+
+  it("runs the morph for about 300ms and then stops scheduling frames", () => {
+    const { engine, host } = setup(40);
+    host.clientWidth = 525;
+    host.clientHeight = 232;
+    engine.setExpanded(true);
+    assert.ok(frames.length > 0);
+    let elapsed = 0;
+    let guard = 0;
+    while (frames.length > 0 && guard < 100) {
+      const due = frames;
+      frames = [];
+      elapsed += 17;
+      for (const cb of due) cb(1000 + elapsed);
+      guard += 1;
+    }
+    assert.ok(elapsed >= 250 && elapsed <= 400, `elapsed ${elapsed}`);
+    assert.equal(frames.length, 0);
+  }).catch(assert.fail);
+
+  it("swaps instantly with no morph frames under reduced motion", () => {
+    (globalThis as Record<string, unknown>).matchMedia = (query: string) => ({
+      matches: query.includes("reduced-motion"),
+      addEventListener() {},
+      removeEventListener() {},
+    });
+    const { engine, host } = setup(40);
+    frames = [];
+    host.clientWidth = 525;
+    host.clientHeight = 232;
+    engine.setExpanded(true);
+    assert.equal(frames.length, 0);
+    assert.equal(engine.positions().length, memberLimit(true) + 1);
   }).catch(assert.fail);
 });

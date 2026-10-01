@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useLayoutEffect, useRef } from "react";
 import type { CircleSharePayload } from "../lib/circleShare";
 import { createBubbleMap, type BubbleImages, type BubbleMapEngine } from "./bubbleMapEngine";
 
@@ -29,7 +29,7 @@ export const CircleBubbleMap = forwardRef<BubbleMapHandle, Props>(function Circl
     hoverRef.current = onHover;
   }, [onHover]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const canvas = canvasRef.current;
     const host = hostRef.current;
     if (!canvas || !host) return undefined;
@@ -42,6 +42,10 @@ export const CircleBubbleMap = forwardRef<BubbleMapHandle, Props>(function Circl
       engineRef.current = null;
     };
   }, []);
+
+  useLayoutEffect(() => {
+    engineRef.current?.setExpanded(expanded);
+  }, [expanded]);
 
   useEffect(() => {
     engineRef.current?.setData(payload, images);

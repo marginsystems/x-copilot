@@ -2,14 +2,21 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   adoptRest,
+  BUBBLE_COMPACT_MEMBERS,
+  BUBBLE_ENTER_SCALE,
   BUBBLE_MAX_MEMBERS,
+  bubbleGap,
+  containScale,
+  isStill,
+  memberLimit,
+  morphPose,
+  planMorph,
   bubbleMinRadius,
   bubbleRadii,
   hitBody,
   overlapDepth,
   packBubbles,
   rescaleBodies,
-  retargetBodies,
   shouldRepack,
   settleSteps,
   snapToHome,
@@ -108,27 +115,6 @@ await describe("bubbleLayout", () => {
     assert.ok(settleSteps(bodies, box, 50) < 50);
   }).catch(assert.fail);
 
-  it("eases toward new radii and homes after a resize and then settles", () => {
-    const from = BOXES[0]!;
-    const to = BOXES[3]!;
-    const s = scores(14);
-    const bodies = retargetBodies(packBubbles(s, from), s, from, to);
-    assert.ok(bodies[0]!.tr !== bodies[0]!.r);
-    const steps = settleSteps(bodies, to, 600);
-    assert.ok(steps < 600);
-    assert.ok(overlapDepth(bodies) < 0.6);
-  }).catch(assert.fail);
-
-  it("snaps straight to rest positions when asked", () => {
-    const from = BOXES[0]!;
-    const to = BOXES[3]!;
-    const s = scores(8);
-    const bodies = retargetBodies(packBubbles(s, from), s, from, to);
-    snapToHome(bodies);
-    assert.ok(bodies.every((b) => b.x === b.hx && b.r === b.tr));
-    assert.ok(overlapDepth(bodies) < 0.6);
-  }).catch(assert.fail);
-
   it("hits the topmost bubble under a point and nothing in empty space", () => {
     const bodies = packBubbles(scores(6), BOXES[0]!);
     const target = bodies[2]!;
@@ -154,5 +140,102 @@ await describe("bubbleLayout", () => {
       assert.ok(b.x - b.r >= -0.6 && b.x + b.r <= to.width + 0.6);
       assert.ok(b.y - b.r >= -0.6 && b.y + b.r <= to.height + 0.6);
     }
+  }).catch(assert.fail);
+
+  it("shows fewer people when compact than when expanded", () => {
+    assert.equal(memberLimit(false), BUBBLE_COMPACT_MEMBERS);
+    assert.equal(memberLimit(true), BUBBLE_MAX_MEMBERS);
+    assert.ok(BUBBLE_COMPACT_MEMBERS >= 18 && BUBBLE_COMPACT_MEMBERS <= 24);
+    assert.ok(BUBBLE_COMPACT_MEMBERS < BUBBLE_MAX_MEMBERS);
+  }).catch(assert.fail);
+
+  it("leaves a visible gap between every pair of bubbles", () => {
+    for (const box of BOXES) {
+      const gap = bubbleGap(box);
+      assert.ok(gap >= 2.5);
+      const bodies = packBubbles(scores(BUBBLE_COMPACT_MEMBERS), box);
+      let tightest = Infinity;
+      for (let i = 0; i < bodies.length; i++) {
+        for (let j = i + 1; j < bodies.length; j++) {
+          const a = bodies[i]!;
+          const b = bodies[j]!;
+          tightest = Math.min(tightest, Math.hypot(a.x - b.x, a.y - b.y) - a.r - b.r);
+        }
+      }
+      assert.ok(tightest >= gap - 0.6, `${box.width}x${box.height} tightest ${tightest}`);
+    }
+  }).catch(assert.fail);
+
+  it("makes the compact self bubble the largest and the cluster fill the box", () => {
+    const box = BOXES[0]!;
+    const bodies = packBubbles(scores(BUBBLE_COMPACT_MEMBERS), box);
+    const biggest = Math.max(...bodies.slice(1).map((b) => b.r));
+    assert.ok(bodies[0]!.r >= biggest * 1.3);
+    const left = Math.min(...bodies.map((b) => b.x - b.r));
+    const right = Math.max(...bodies.map((b) => b.x + b.r));
+    const top = Math.min(...bodies.map((b) => b.y - b.r));
+    const bottom = Math.max(...bodies.map((b) => b.y + b.r));
+    assert.ok((right - left) / box.width > 0.85);
+    assert.ok((bottom - top) / box.height > 0.8);
+  }).catch(assert.fail);
+
+  it("morphs matched people from their old pose, fades arrivals in and leavers out", () => {
+    const small = { width: 222, height: 278 };
+    const wide = { width: 525, height: 232 };
+    const from = [
+      { key: "self", pose: { x: 111, y: 139, r: 30, a: 1 } },
+      { key: "a", pose: { x: 60, y: 80, r: 20, a: 1 } },
+      { key: "gone", pose: { x: 150, y: 200, r: 15, a: 1 } },
+    ];
+    const to = [
+      { key: "self", pose: { x: 262, y: 116, r: 36, a: 1 } },
+      { key: "a", pose: { x: 200, y: 90, r: 25, a: 1 } },
+      { key: "new", pose: { x: 400, y: 120, r: 18, a: 1 } },
+    ];
+    const entries = planMorph(from, small, to, wide);
+    const byKey = new Map(entries.map((e) => [e.key, e]));
+    assert.equal(entries.length, 4);
+    const k = containScale(small, wide);
+    assert.ok(k < 1);
+    assert.deepEqual(morphPose(byKey.get("self")!, 0), {
+      x: 262.5,
+      y: 116,
+      r: 30 * k,
+      a: 1,
+    });
+    assert.deepEqual(morphPose(byKey.get("a")!, 1), to[1]!.pose);
+    const arriving = byKey.get("new")!;
+    assert.equal(morphPose(arriving, 0).a, 0);
+    assert.equal(morphPose(arriving, 0).r, 18 * BUBBLE_ENTER_SCALE);
+    assert.deepEqual(morphPose(arriving, 1), to[2]!.pose);
+    const leaving = byKey.get("gone")!;
+    assert.equal(morphPose(leaving, 0).a, 1);
+    assert.equal(morphPose(leaving, 1).a, 0);
+    assert.ok(morphPose(leaving, 1).r < morphPose(leaving, 0).r);
+    const mid = morphPose(byKey.get("a")!, 0.5);
+    const start = byKey.get("a")!.from.x;
+    assert.ok(mid.x > Math.min(start, 200) && mid.x < Math.max(start, 200));
+    for (const e of entries) {
+      for (const t of [0, 0.25, 0.5, 0.75, 1]) {
+        const p = morphPose(e, t);
+        assert.ok(p.a >= 0 && p.a <= 1 && p.r > 0);
+      }
+    }
+  }).catch(assert.fail);
+
+  it("keeps a contained start inside the new box and detects a no-op morph", () => {
+    const big = { width: 525, height: 232 };
+    const small = { width: 222, height: 278 };
+    const from = packBubbles(scores(20), big).map((b, i) => ({
+      key: String(i),
+      pose: { x: b.x, y: b.y, r: b.r, a: 1 },
+    }));
+    for (const e of planMorph(from, big, from, small)) {
+      assert.ok(e.from.x - e.from.r >= -0.01 && e.from.x + e.from.r <= small.width + 0.01);
+      assert.ok(e.from.y - e.from.r >= -0.01 && e.from.y + e.from.r <= small.height + 0.01);
+    }
+    assert.equal(containScale(small, small), 1);
+    assert.equal(isStill(planMorph(from, big, from, big)), true);
+    assert.equal(isStill(planMorph(from, big, from.slice(1), big)), false);
   }).catch(assert.fail);
 });
