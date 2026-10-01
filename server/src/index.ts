@@ -9,8 +9,8 @@ import { getXApiCredsFromEnv } from "./x-api/xApi.js";
 import { tryHandleAuth } from "./auth/authHttp.js";
 import { tryHandleAgenda } from "./desk/agendaHttp.js";
 import { tryHandleOnboarding } from "./auth/onboardingHttp.js";
-import { isOriginAllowed, requestOrigin } from "./http/cors.js";
-import { authRequired, bindHost, isPublicApiPath } from "./auth/authGuard.js";
+import { bindHost } from "./auth/authGuard.js";
+import { apiGateRefusal } from "./auth/apiGate.js";
 import { getSessionUser, ownerHintClearCookies } from "./auth/sessionCookie.js";
 import { tryHandleAdmin } from "./billing/adminHttp.js";
 import { ensureUserTenant } from "./billing/billingStore.js";
@@ -93,41 +93,17 @@ async function handleRequest(
 
     if (await tryHandleOwnPostCatchUpBeforeAuth(req, res, url)) return;
 
-    if (authRequired() && !isPublicApiPath(url.pathname)) {
-      if (
-        !isOriginAllowed(
-          typeof req.headers.origin === "string" ? req.headers.origin : undefined,
-        )
-      ) {
-        return send(req, res, 403, {
-          error: "forbidden",
-          message: "Origin not allowed",
-        });
-      }
-      if (!getSessionUser(req)) {
-        const clearCookies = ownerHintClearCookies(req);
-        return send(
-          req,
-          res,
-          401,
-          {
-            error: "unauthenticated",
-            message: "Sign in required",
-          },
-          clearCookies.length > 0 ? { "Set-Cookie": clearCookies } : undefined,
-        );
-      }
-      // State-changing requests with a session must come from an allowed origin;
-      // otherwise a cross-site fetch would ride the same-site-session cookie.
-      if (
-        (req.method === "POST" || req.method === "PUT") &&
-        !isOriginAllowed(requestOrigin(req))
-      ) {
-        return send(req, res, 403, {
-          error: "forbidden",
-          message: "Origin not allowed",
-        });
-      }
+    const refusal = apiGateRefusal(req, url.pathname);
+    if (refusal) {
+      const { status, ...body } = refusal;
+      const clearCookies = status === 401 ? ownerHintClearCookies(req) : [];
+      return send(
+        req,
+        res,
+        status,
+        body,
+        clearCookies.length > 0 ? { "Set-Cookie": clearCookies } : undefined,
+      );
     }
 
     if (tryHandleDeskEvents(req, res, url)) return;

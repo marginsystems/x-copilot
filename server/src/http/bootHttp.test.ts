@@ -35,6 +35,7 @@ async function get(
   cookie?: string,
   deps?: BootHttpDeps,
   host?: string,
+  bearer?: string,
 ): Promise<{
   handled: boolean;
   status: number;
@@ -44,7 +45,11 @@ async function get(
   const req = testRequest();
   Object.assign(req, {
     method: "GET",
-    headers: { ...(cookie ? { cookie } : {}), ...(host ? { host } : {}) },
+    headers: {
+      ...(cookie ? { cookie } : {}),
+      ...(host ? { host } : {}),
+      ...(bearer ? { authorization: `Bearer ${bearer}` } : {}),
+    },
     socket: { remoteAddress: "127.0.0.1" },
   });
   const { res, captured } = testResponse(req);
@@ -208,6 +213,26 @@ await describe("GET /api/boot", async () => {
     const maxAge = Number(/Max-Age=(\d+)/.exec(owner)?.[1]);
     assert.ok(maxAge > 0 && maxAge <= remaining);
     assert.doesNotMatch(owner, /HttpOnly/);
+  });
+
+  await it("extension bearer boot preserves the browser owner hint cookie", async () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-boot-extension",
+      email: "boot-extension@example.com",
+      emailVerified: true,
+    });
+    const extension = createSession(user.id, undefined, "extension");
+    const { status, headers, body } = await get(
+      "/api/boot",
+      undefined,
+      undefined,
+      "127.0.0.1:8787",
+      extension.token,
+    );
+    assert.equal(status, 200);
+    assert.equal(body.ownerHint, null);
+    assert.equal("Set-Cookie" in headers, false);
   });
 
   await it("boot 200 has a null hint and no cookie when the host cannot carry it", async () => {

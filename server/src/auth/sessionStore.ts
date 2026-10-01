@@ -6,6 +6,13 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { getUserById, type AuthUser } from "./authStore.js";
 import { getPlatformDb } from "../db.js";
 
+export const SESSION_KINDS = ["browser", "extension"] as const;
+export type SessionKind = (typeof SESSION_KINDS)[number];
+
+export function isSessionKind(value: unknown): value is SessionKind {
+  return SESSION_KINDS.some((kind) => kind === value);
+}
+
 export type AuthSession = {
   id: string;
   userId: string;
@@ -27,6 +34,7 @@ export type SessionClientMeta = {
 
 export type SessionListRow = {
   id: string;
+  kind: SessionKind;
   createdAt: string;
   lastSeenAt: string;
   createdIp: string | null;
@@ -62,6 +70,7 @@ export function newSessionToken(): string {
 export function createSession(
   userId: string,
   meta?: SessionClientMeta,
+  kind: SessionKind = "browser",
 ): { token: string; expiresAt: string; id: string } {
   const token = newSessionToken();
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS).toISOString();
@@ -76,10 +85,10 @@ export function createSession(
       .run(nowIso());
     database
       .prepare(
-        `INSERT INTO sessions (id, user_id, token_hash, expires_at, created_at, revoked_at)
-         VALUES (?, ?, ?, ?, ?, NULL)`,
+        `INSERT INTO sessions (id, user_id, token_hash, expires_at, created_at, revoked_at, kind)
+         VALUES (?, ?, ?, ?, ?, NULL, ?)`,
       )
-      .run(id, userId, hashSessionToken(token), expiresAt, createdAt);
+      .run(id, userId, hashSessionToken(token), expiresAt, createdAt, kind);
     database
       .prepare(
         `INSERT INTO session_meta (
@@ -95,19 +104,20 @@ export function createSession(
 
 export function getSessionForToken(
   token: string,
-): { user: AuthUser; sessionId: string; expiresAt: string } | null {
+  kind: SessionKind = "browser",
+): { user: AuthUser; sessionId: string; expiresAt: string; kind: SessionKind } | null {
   const hash = hashSessionToken(token);
   const row = readSessionForTokenRowOrUndefined(getPlatformDb()
     .prepare(
       `SELECT s.id, s.user_id, s.expires_at, s.revoked_at
-       FROM sessions s WHERE s.token_hash = ?`,
+       FROM sessions s WHERE s.token_hash = ? AND s.kind = ?`,
     )
-    .get(hash));
+    .get(hash, kind));
   if (!row || row.revoked_at) return null;
   if (Date.parse(row.expires_at) <= Date.now()) return null;
   const user = getUserById(row.user_id);
   if (!user) return null;
-  return { user, sessionId: row.id, expiresAt: row.expires_at };
+  return { user, sessionId: row.id, expiresAt: row.expires_at, kind };
 }
 
 export function getUserForSessionToken(token: string): AuthUser | null {
@@ -156,6 +166,7 @@ export function listSessionsForUser(userId: string): SessionListRow[] {
   const rows = getPlatformDb()
     .prepare(
       `SELECT s.id AS id,
+              s.kind AS kind,
               s.created_at AS created_at,
               COALESCE(m.last_seen_at, s.created_at) AS last_seen_at,
               m.created_ip AS created_ip,
@@ -173,6 +184,7 @@ export function listSessionsForUser(userId: string): SessionListRow[] {
     .all(userId, nowIso()).map(readSessionsForUserRow);
   return rows.map((row) => ({
     id: row.id,
+    kind: row.kind,
     createdAt: row.created_at,
     lastSeenAt: row.last_seen_at,
     createdIp: row.created_ip,
@@ -226,8 +238,9 @@ function readSessionForTokenRowOrUndefined(value: unknown) {
 
 function readSessionsForUserRow(value: unknown) {
   if (!(
-    hasStrings(value, "id", "created_at", "last_seen_at") &&
-    hasNullableStrings(value, "created_ip", "last_seen_ip", "created_user_agent", "last_seen_user_agent")
+    hasStrings(value, "id", "kind", "created_at", "last_seen_at") &&
+    hasNullableStrings(value, "created_ip", "last_seen_ip", "created_user_agent", "last_seen_user_agent") &&
+    isSessionKind(value.kind)
   )) throw new TypeError("Invalid database row");
-  return value;
+  return { ...value, kind: value.kind };
 }
