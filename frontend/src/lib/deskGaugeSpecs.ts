@@ -8,7 +8,7 @@ import {
   type InstrumentDelta,
 } from "./deskInstruments";
 import { niceCeil, type GaugeTone, type GaugeZone } from "./gaugeGeometry";
-import { REPLY_PACE_MS } from "./replyPace";
+import { REPLY_PACE_MS } from "../../../shared/src/replyPace";
 
 export const REPLY_RATE_CEILING_PER_HOUR = 3_600_000 / REPLY_PACE_MS;
 export const REPLY_HOUR_BUSY = 20;

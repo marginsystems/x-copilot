@@ -2,7 +2,7 @@ import { useState } from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, test, vi } from "vitest";
-import type { ThreadsTab } from "../../src/desk/types";
+import type { ThreadsTab } from "../../../shared/src/deskTypes";
 
 vi.mock("../../src/desk/useApproachTask", () => ({
   // ready:false keeps the Approach loading branch; cardInput/actions are unread.

@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { InteractedRow } from "./HistoryRows";
-import type { InteractionHistoryEntry } from "./types";
+import type { InteractionHistoryEntry } from "../../../shared/src/deskTypes";
 
 function entry(
   memory?: InteractionHistoryEntry["memory"],

@@ -1,12 +1,12 @@
-import { isRecord } from "./typeGuards";
+import { isRecord } from "../../../shared/src/typeGuards";
 /**
  * The For You wait belongs to one presented task. Detection reads one activity
  * cursor — the newest own post or attributed reply the desk already knows.
  * Scout still matches a specific card; this cursor only answers "anything new?"
  */
 
-import type { OwnActivity } from "./coaching";
-import type { InteractionHistoryEntry } from "../desk/types";
+import type { OwnActivity } from "../../../shared/src/coaching";
+import type { InteractionHistoryEntry } from "../../../shared/src/deskTypes";
 
 export const FOR_YOU_WAIT_STORAGE_KEY = "x-copilot-fyp-wait-v2";
 

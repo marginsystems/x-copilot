@@ -1,4 +1,4 @@
-import { isRecord } from "../lib/typeGuards";
+import { isRecord } from "../../../shared/src/typeGuards";
 import { useSession } from "../auth/session";
 import { parseBilling, payloadError } from "../lib/routePayloads";
 import { useEffect, useState } from "react";

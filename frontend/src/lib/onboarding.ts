@@ -1,4 +1,4 @@
-import { isRecord } from "./typeGuards";
+import { isRecord } from "../../../shared/src/typeGuards";
 /** First-run questionnaire options and local completion flag. */
 
 export const ONBOARDING_STORAGE_KEY = "xc-onboarding-complete";

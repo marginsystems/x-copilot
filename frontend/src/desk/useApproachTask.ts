@@ -7,7 +7,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { AuthSessionUser } from "../auth/types";
 import { useSession } from "../auth/session";
-import type { ScoutStageId } from "../lib/scoutStages";
+import type { ScoutStageId } from "../../../shared/src/scoutStages";
 import { AGENDA_MIN_CHARS } from "../lib/agendaPersist";
 import {
   canServeApproachOriginal,
@@ -22,17 +22,17 @@ import {
   type ApproachNormalizeContext,
   type ApproachTaskState,
 } from "../lib/approachTask";
-import type { CoachingState, OwnActivity } from "../lib/coaching";
+import type { CoachingState, OwnActivity } from "../../../shared/src/coaching";
 import { deskNeedsXLink } from "../lib/deskGate";
 import {
   approachGate,
   isForYouTask,
   type ApproachEvent,
   type ApproachInventory,
-} from "../lib/deskPhase";
+} from "../../../shared/src/deskPhase";
 import { eligibleScoutCards } from "../lib/deskRefuel";
-import { forYouTargetId, type ForYouSuggestion } from "../lib/forYou";
-import { replyPaceSeedIso } from "../lib/replyPace";
+import { forYouTargetId, type ForYouSuggestion } from "../../../shared/src/forYou";
+import { replyPaceSeedIso } from "../../../shared/src/replyPace";
 import {
   clearForYouWait,
   forYouDetectedActivity,
@@ -45,7 +45,7 @@ import {
 } from "../lib/forYouTask";
 import { vanishEvent } from "../lib/vanishEvent";
 import { apiFetch } from "../lib/apiBase";
-import { presentApproach, type ApproachCardInput } from "./approachPresenter";
+import { presentApproach, type ApproachCardInput } from "../../../shared/src/approachPresenter";
 import {
   clearRetainedScout,
   clearRetainedSuggestion,
@@ -62,7 +62,7 @@ import type {
   DismissalHistoryEntry,
   RetainedInteractionEntry,
   ThreadCard,
-} from "./types";
+} from "../../../shared/src/deskTypes";
 import { useDeskRowExit } from "./useDeskRowExit";
 import { useReplyPace } from "./useReplyPace";
 import { watchDeskThreads } from "./watch";

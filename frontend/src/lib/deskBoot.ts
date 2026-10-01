@@ -10,7 +10,7 @@ import {
   type RetainedInteractionEntry,
   type SkipHistoryEntry,
   type ThreadCard,
-} from "../desk/types";
+} from "../../../shared/src/deskTypes";
 import {
   emptyActivityStats,
   parseActivityStats,
@@ -19,7 +19,7 @@ import {
 import { viewFromPath } from "./appView";
 import { apiFetch } from "./apiBase";
 import { isOwnerHint, readOwnerHint } from "./ownerHint";
-import { parseCoachingPayload, type CoachingState } from "./coaching";
+import { parseCoachingPayload, type CoachingState } from "../../../shared/src/coaching";
 import {
   parseForYouExtra,
   parseForYouProgress,
@@ -27,7 +27,7 @@ import {
   type ForYouExtraUsage,
   type ForYouProgress,
   type ForYouSuggestion,
-} from "./forYou";
+} from "../../../shared/src/forYou";
 import {
   emptyGamificationStats,
   parseGamificationPayload,

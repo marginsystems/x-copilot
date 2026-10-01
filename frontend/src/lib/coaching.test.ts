@@ -9,7 +9,7 @@ import {
   parseCoachingPayload,
   parseDeskBeats,
   parseNextAction,
-} from "./coaching.ts";
+} from "../../../shared/src/coaching.ts";
 
 await describe("coaching request sequences", () => {
   it("keeps a pending lite activity response when a full refresh starts", () => {

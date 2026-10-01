@@ -4,7 +4,7 @@ import {
   REPLY_PACE_EVENT,
   replyPaceLocked,
   replyPaceRemainingMs,
-} from "../lib/replyPace";
+} from "../../../shared/src/replyPace";
 import {
   armReplyPaceOverlay,
   clearReplyPace,

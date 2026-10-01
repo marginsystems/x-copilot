@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { OwnActivity } from "../lib/coaching.ts";
+import type { OwnActivity } from "../../../shared/src/coaching.ts";
 import {
   approachDetector,
   DESK_DETECTOR_FALLBACK_MS,

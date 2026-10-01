@@ -1,4 +1,4 @@
-import { isRecord } from "./typeGuards";
+import { isRecord } from "../../../shared/src/typeGuards";
 /** Client types + fetch for GET /api/gamification. */
 
 import { apiFetch } from "./apiBase";

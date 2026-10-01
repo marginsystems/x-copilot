@@ -1,4 +1,4 @@
-import { isRecord } from "../lib/typeGuards";
+import { isRecord } from "../../../shared/src/typeGuards";
 import { parseDeskBoot } from "../lib/deskBoot";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import { useState } from "react";
@@ -8,7 +8,7 @@ import type {
   DismissalHistoryEntry,
   SkipHistoryEntry,
   ThreadCard,
-} from "./types";
+} from "../../../shared/src/deskTypes";
 
 type UseSkipDismissDeps = {
   setActionBusy: (busy: boolean) => void;

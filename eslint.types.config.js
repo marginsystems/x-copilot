@@ -63,7 +63,7 @@ export default [
     ],
   },
   typed(
-    ["frontend/src/**/*.{ts,tsx,mts,cts}"],
+    ["frontend/src/**/*.{ts,tsx,mts,cts}", "shared/src/**/*.{ts,tsx,mts,cts}"],
     ["./tsconfig.json"],
   ),
   typed(

@@ -5,7 +5,7 @@ import {
   type SetStateAction,
 } from "react";
 import { apiFetch, apiUrl } from "../lib/apiBase";
-import { isRecord } from "../lib/typeGuards";
+import { isRecord } from "../../../shared/src/typeGuards";
 import { parseAuthSessionUser } from "../lib/deskBoot";
 import { useSession } from "./session";
 import type { AuthSessionUser } from "./types";

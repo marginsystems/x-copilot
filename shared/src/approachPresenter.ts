@@ -2,21 +2,21 @@
  * One presenter for the Approach card. Verb, why, buttons, badge, and detector
  * ownership derive from the locked task; searching updates the Collecting row.
  */
-import type { CoachingState, OwnActivity } from "../lib/coaching";
-import type { ApproachGate, ApproachLock, DeskPhase } from "../lib/deskPhase";
+import type { CoachingState, OwnActivity } from "./coaching";
+import type { ApproachGate, ApproachLock, DeskPhase } from "./deskPhase";
 import {
   FYP_DETECTED_COPY,
   FYP_DETECTING_COPY,
   FYP_WAIT_COPY,
   type ForYouSuggestion,
-} from "../lib/forYou";
+} from "./forYou";
 import {
   approachCollectingCopy,
   approachCollectingVerb,
-} from "../lib/phaseWhy";
-import { forYouTargetId } from "../lib/forYou";
-import type { ScoutStageId } from "../lib/scoutStages";
-import type { ThreadCard } from "./types";
+} from "./phaseWhy";
+import { forYouTargetId } from "./forYou";
+import type { ScoutStageId } from "./scoutStages";
+import type { ThreadCard } from "./deskTypes";
 
 export const GATE_LINK_X_WHY = "Link X so the desk can see what you post.";
 export const GATE_SETTINGS_WHY =

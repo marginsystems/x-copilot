@@ -1,4 +1,4 @@
-import type { ThreadCard } from "./types";
+import type { ThreadCard } from "../../../shared/src/deskTypes";
 
 export function normalizeAuthorKey(author: string): string {
   return author.trim().replace(/^@+/, "").toLowerCase();

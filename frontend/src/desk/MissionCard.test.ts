@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { advanceApproach, type ApproachLock } from "../lib/deskPhase";
+import { advanceApproach, type ApproachLock } from "../../../shared/src/deskPhase";
 import { pickApproachScout } from "./approachScout";
 import { ApproachLoadingCard, MissionCard } from "./MissionCard";
 import { ForYouFeedRow } from "./ForYouFeedRow";
@@ -12,9 +12,9 @@ import {
   FYP_DETECTING_COPY,
   X_COMPOSE_URL,
   type ForYouSuggestion,
-} from "../lib/forYou";
-import { approachCollectingCopy, SCOUT_DETECTED_COPY } from "../lib/phaseWhy";
-import type { ThreadCard } from "./types";
+} from "../../../shared/src/forYou";
+import { approachCollectingCopy, SCOUT_DETECTED_COPY } from "../../../shared/src/phaseWhy";
+import type { ThreadCard } from "../../../shared/src/deskTypes";
 
 function thread(id: string, views: number): ThreadCard {
   return {

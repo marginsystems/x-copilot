@@ -1,7 +1,7 @@
 import {
   replyPaceLocked,
   replyPaceRemainingMs,
-} from "./replyPace";
+} from "../../../shared/src/replyPace";
 
 export const DESK_GAUGE_LABEL = "desk gauge";
 export const POST_DAILY_CAP_MIN = 5;

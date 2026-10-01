@@ -1,5 +1,5 @@
-import { isRecord } from "../lib/typeGuards";
-import type { ScoutStageId } from "../lib/scoutStages";
+import { isRecord } from "./typeGuards";
+import type { ScoutStageId } from "./scoutStages";
 
 /** Closed preference category from triage (mirrors server THREAD_KINDS). */
 export type ThreadKind =

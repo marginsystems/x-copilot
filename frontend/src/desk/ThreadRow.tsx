@@ -1,4 +1,4 @@
-import { FYP_NEXT_TIP } from "../lib/forYou";
+import { FYP_NEXT_TIP } from "../../../shared/src/forYou";
 import { stripMediaShortlinksFromText } from "../lib/mediaText";
 import { formatAbsoluteTime, formatTimeAgo } from "../lib/timeAgo";
 import { ApproachDetectingMark } from "./ApproachFrame";
@@ -6,7 +6,7 @@ import { DeskRow } from "./DeskRow";
 import type { OpenPace } from "./RowOpen";
 import { ScoutTankMark } from "./ScoutTankMark";
 import { baitClass, baitRisk } from "./threadHelpers";
-import type { ThreadCard } from "./types";
+import type { ThreadCard } from "../../../shared/src/deskTypes";
 
 export function ThreadRow({
   thread,

@@ -7,7 +7,7 @@ import {
   FYP_DETECTING_COPY,
   X_FOR_YOU_URL,
   X_INSPIRATION_URL,
-} from "../lib/forYou";
+} from "../../../shared/src/forYou";
 
 await describe("ForYouFeedRow outbound doors", async () => {
   await it("offers For You and Inspiration while waiting", () => {

@@ -1,6 +1,6 @@
 import type { KeyboardEvent } from "react";
 import type { AuthSessionUser } from "../auth/types";
-import { APPROACH_TAB_LABEL, type ForYouSuggestion } from "../lib/forYou";
+import { APPROACH_TAB_LABEL, type ForYouSuggestion } from "../../../shared/src/forYou";
 import {
   DismissedRow,
   ExpiredRow,
@@ -9,8 +9,8 @@ import {
 } from "./HistoryRows";
 import { RankingDrawer } from "./RankingDrawer";
 import { ApproachLoadingCard, MissionCard } from "./MissionCard";
-import type { CoachingState } from "../lib/coaching";
-import type { ScoutStageId } from "../lib/scoutStages";
+import type { CoachingState } from "../../../shared/src/coaching";
+import type { ScoutStageId } from "../../../shared/src/scoutStages";
 import { ThreadsTabCount } from "./ThreadsTabCount";
 import { useApproachTask } from "./useApproachTask";
 import type {
@@ -21,7 +21,7 @@ import type {
   SkipHistoryEntry,
   ThreadCard,
   ThreadsTab,
-} from "./types";
+} from "../../../shared/src/deskTypes";
 
 type ThreadsTabsProps = {
   threadsTab: ThreadsTab;

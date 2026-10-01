@@ -8,14 +8,14 @@ import {
 import { useSession } from "../auth/session";
 import { parseDeskBoot, type LastScoutPayload } from "../lib/deskBoot";
 import { apiFetch } from "../lib/apiBase";
-import { isRecord } from "../lib/typeGuards";
+import { isRecord } from "../../../shared/src/typeGuards";
 import {
   isScoutStageId,
   scoutStageMessage,
   type ScoutStageId,
-} from "../lib/scoutStages";
+} from "../../../shared/src/scoutStages";
 import type { AppSettings } from "../lib/settings";
-import type { ThreadCard } from "./types";
+import type { ThreadCard } from "../../../shared/src/deskTypes";
 import { watchDeskThreads } from "./watch";
 
 const SCOUT_INFRA_STATUS = "Scout hit an infra error.";

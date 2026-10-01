@@ -1,8 +1,8 @@
-import { isRecord, isOneOf } from "./typeGuards";
+import { isRecord, isOneOf } from "../../../shared/src/typeGuards";
 import {
   DESK_PHASES,
   type ApproachLock,
-} from "./deskPhase";
+} from "../../../shared/src/deskPhase";
 
 export const APPROACH_LOCK_STORAGE_KEY = "x-copilot-approach-lock";
 

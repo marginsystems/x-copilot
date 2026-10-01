@@ -5,7 +5,7 @@ import {
   readApproachLock,
   writeApproachLock,
 } from "./approachLock.ts";
-import type { ApproachLock } from "./deskPhase.ts";
+import type { ApproachLock } from "../../../shared/src/deskPhase.ts";
 
 const store = new Map<string, string>();
 

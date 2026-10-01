@@ -4,8 +4,8 @@
  * lets the desk keep showing the same card with its detected mark until Next.
  */
 import { parseDeskBoot } from "../lib/deskBoot";
-import type { ThreadCard } from "./types";
-import { parseForYouSuggestion, type ForYouSuggestion } from "../lib/forYou";
+import type { ThreadCard } from "../../../shared/src/deskTypes";
+import { parseForYouSuggestion, type ForYouSuggestion } from "../../../shared/src/forYou";
 
 export const APPROACH_RETAINED_STORAGE_KEY = "x-copilot-approach-card";
 const APPROACH_RETAINED_SUGGESTION_STORAGE_KEY = "x-copilot-approach-suggestion";

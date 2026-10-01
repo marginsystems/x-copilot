@@ -1,4 +1,4 @@
-import { isRecord, isOneOf } from "./typeGuards";
+import { isRecord, isOneOf } from "../../../shared/src/typeGuards";
 /** Client-side Scout filter prefs (persisted in localStorage). */
 
 export const SETTINGS_STORAGE_KEY = "x-copilot-settings";

@@ -1,4 +1,4 @@
-import { REPLY_PACE_MS, replyPaceTip } from "../lib/replyPace";
+import { REPLY_PACE_MS, replyPaceTip } from "../../../shared/src/replyPace";
 import { HasTipButton, HasTipLink } from "./HasTip";
 
 export type OpenPace = { remainingMs: number; clock: string };

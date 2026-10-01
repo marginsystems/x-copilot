@@ -1,12 +1,12 @@
 import { useRef, useState } from "react";
+import { fetchCoaching } from "../lib/fetchCoaching";
 import {
-  fetchCoaching,
   mergeCoachingState,
   mergeNextAction,
   nextActionDayMatches,
   type CoachingFetchOptions,
   type CoachingState,
-} from "../lib/coaching";
+} from "../../../shared/src/coaching";
 import { peekDeskBootCache } from "../lib/deskBoot";
 import { useRehydrateOnVisible } from "./useDeskHistory";
 

@@ -4,7 +4,7 @@ import {
   appendThreadsById,
   baitClass,
 } from "./threadHelpers.ts";
-import type { ThreadCard } from "./types.ts";
+import type { ThreadCard } from "../../../shared/src/deskTypes.ts";
 
 function card(id: string, extra: Partial<ThreadCard> = {}): ThreadCard {
   return {

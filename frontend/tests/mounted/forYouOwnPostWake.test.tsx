@@ -6,8 +6,8 @@ import type { AuthSessionUser } from "../../src/auth/types";
 import { useApproachTask } from "../../src/desk/useApproachTask";
 import { useDeskHistory } from "../../src/desk/useDeskHistory";
 import { readApproachLock } from "../../src/lib/approachLock";
-import type { CoachingState, OwnActivity } from "../../src/lib/coaching";
-import { emptyDeskBeats } from "../../src/lib/deskPhase";
+import type { CoachingState, OwnActivity } from "../../../shared/src/coaching";
+import { emptyDeskBeats } from "../../../shared/src/deskPhase";
 import { DEFAULT_SETTINGS } from "../../src/lib/settings";
 
 const user: AuthSessionUser = {

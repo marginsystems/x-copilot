@@ -1,6 +1,6 @@
 import { useRef, type Dispatch, type SetStateAction } from "react";
 import { useDialogFocus } from "../useDialogFocus";
-import type { ThreadCard } from "./types";
+import type { ThreadCard } from "../../../shared/src/deskTypes";
 
 type DismissModalProps = {
   thread: ThreadCard | null;

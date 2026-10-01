@@ -5,7 +5,7 @@ import {
   REPLY_PACE_EVENT,
   REPLY_PACE_STORAGE_KEY,
   seedReplyPaceUntil,
-} from "../lib/replyPace";
+} from "../../../shared/src/replyPace";
 
 const REPLY_PACE_OVERLAY_KEY = "x-copilot-reply-pace-overlay";
 

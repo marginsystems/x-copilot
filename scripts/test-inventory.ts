@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { readdirSync } from "node:fs";
 import { join, relative } from "node:path";
 
-const UNIT_ROOTS = ["server/src", "frontend/src", "analytics/src", "webhook/src", "scripts"];
+const UNIT_ROOTS = ["server/src", "frontend/src", "shared/src", "analytics/src", "webhook/src", "scripts"];
 const UNIT_SUFFIXES = [".test.ts", ".test.tsx"];
 
 function collectTests(directory: string): string[] {
