@@ -6,7 +6,7 @@ import { createHash, randomBytes } from "node:crypto";
 import type { AuthUser } from "./authStore.js";
 import { clientIp, isCloudflarePeer } from "./authGuard.js";
 import { frontendOrigin } from "./authConfig.js";
-import { getSessionForToken, touchSessionMeta } from "./sessionStore.js";
+import { getSessionForToken, touchSessionMeta, type SessionKind } from "./sessionStore.js";
 
 export const SESSION_COOKIE = "xc_session";
 export const OAUTH_STATE_COOKIE = "xc_oauth_state";
@@ -251,12 +251,20 @@ export function newOauthState(): string {
   return randomBytes(24).toString("base64url");
 }
 
+export function requestBearerToken(req: IncomingMessage): string | null {
+  const raw = req.headers.authorization;
+  if (typeof raw !== "string") return null;
+  const match = /^Bearer\s+(\S+)\s*$/i.exec(raw.trim());
+  return match?.[1] ?? null;
+}
+
 export function getRequestSession(
   req: IncomingMessage,
-): { user: AuthUser; sessionId: string; expiresAt: string } | null {
-  const token = requestCookies(req)[SESSION_COOKIE];
+): { user: AuthUser; sessionId: string; expiresAt: string; kind: SessionKind } | null {
+  const bearer = requestBearerToken(req);
+  const token = bearer ?? requestCookies(req)[SESSION_COOKIE];
   if (!token) return null;
-  const session = getSessionForToken(token);
+  const session = getSessionForToken(token, bearer ? "extension" : "browser");
   if (!session) return null;
   const ua = req.headers["user-agent"];
   touchSessionMeta(session.sessionId, session.user.id, {
