@@ -189,6 +189,11 @@ await describe("learn schema", () => {
     assert.equal(list.itemListElement[0]?.item?.["@type"], "LearningResource");
     assert.equal(list.itemListElement[0]?.item?.learningResourceType, "Lesson");
     assert.equal(
+      list.itemListElement[4]?.item?.image,
+      "https://xcopilot.dev/og-learn-read.png",
+    );
+    assert.equal(page.hasPart?.[0]?.image, "https://xcopilot.dev/og-learn-weights.png");
+    assert.equal(
       list.itemListElement[0]?.url,
       "https://xcopilot.dev/learn/what-a-like-is-worth",
     );
@@ -611,6 +616,7 @@ await describe("public crawl files", () => {
       "og-learn-weights.png",
       "og-learn-reply.png",
       "og-learn-volume.png",
+      "og-learn-read.png",
     ]) {
       const size = pngSize(join(publicDir, name));
       assert.deepEqual(size, { width: OG_IMAGE_WIDTH, height: OG_IMAGE_HEIGHT });

@@ -230,9 +230,9 @@ export const LEARN_READ_DESCRIPTION =
   "X For You cut the click weight from 0.4 to 0.3 and added 0.4 on P(stay more than 10 seconds after the tap). Not interested went from -43.2 to -47.52. All three multiply P(action) for this viewer. Defaults from xai-org/x-algorithm at b79b947. Not affiliated with X Corp.";
 export const LEARN_READ_META = `Cited from xai-org/x-algorithm at ${LEARN_READ_SHA} (${LEARN_READ_DATE_LABEL}). Weights changed in ${LEARN_READ_CHANGE_SHA} (${LEARN_READ_CHANGE_DATE_LABEL}). Not affiliated with X Corp.`;
 export const LEARN_READ_PATH = "/learn/the-read-beats-the-tap";
-export const LEARN_READ_IMAGE = "/og-learn.png";
+export const LEARN_READ_IMAGE = "/og-learn-read.png";
 export const LEARN_READ_IMAGE_ALT =
-  "x-copilot Learn — ranking weights on a dark field";
+  "x-copilot Learn — the tap 0.4 to 0.3 beside the read 0 to 0.4 past 10 seconds";
 
 export const LEARN_IMAGE = "/og-learn.png";
 export const LEARN_IMAGE_ALT =
@@ -253,6 +253,8 @@ export type LearnLesson = {
   number: string;
   heading: string;
   lede: string;
+  image: string;
+  imageAlt: string;
 };
 
 export type LearnNavView = LearnLessonView | "learnFollow";
@@ -265,6 +267,8 @@ export const LEARN_LESSONS: readonly LearnLesson[] = [
     number: "01",
     heading: LEARN_HEADING,
     lede: "Weights multiply P(action), not raw likes or reports.",
+    image: LEARN_WEIGHTS_IMAGE,
+    imageAlt: LEARN_WEIGHTS_IMAGE_ALT,
   },
   {
     view: "learnReply",
@@ -272,6 +276,8 @@ export const LEARN_LESSONS: readonly LearnLesson[] = [
     number: "02",
     heading: LEARN_REPLY_HEADING,
     lede: "Reply is +5.0. Mutual-follow originals add +15.0. Then craft.",
+    image: LEARN_REPLY_IMAGE,
+    imageAlt: LEARN_REPLY_IMAGE_ALT,
   },
   {
     view: "learnVolume",
@@ -279,6 +285,8 @@ export const LEARN_LESSONS: readonly LearnLesson[] = [
     number: "03",
     heading: LEARN_VOLUME_HEADING,
     lede: "0.5 and 0.25 are this viewer's slate. Thunder's 30 is a fetch cap. ReplySpamBot scores sequences.",
+    image: LEARN_VOLUME_IMAGE,
+    imageAlt: LEARN_VOLUME_IMAGE_ALT,
   },
   {
     view: "learnGive",
@@ -286,6 +294,8 @@ export const LEARN_LESSONS: readonly LearnLesson[] = [
     number: "04",
     heading: LEARN_GIVE_HEADING,
     lede: "Eight spam heads, not For You. Reply-only is ReplySpamBot. Ramp and decay stay theory. Do not like or auto-follow who you reply to. Fire lines stay redacted. A like you give is not a For You debit.",
+    image: LEARN_GIVE_IMAGE,
+    imageAlt: LEARN_GIVE_IMAGE_ALT,
   },
   {
     view: "learnRead",
@@ -293,6 +303,8 @@ export const LEARN_LESSONS: readonly LearnLesson[] = [
     number: "05",
     heading: LEARN_READ_HEADING,
     lede: "The tap fell from 0.4 to 0.3. Staying past 10 seconds after it is a new 0.4. Not interested is now −47.52.",
+    image: LEARN_READ_IMAGE,
+    imageAlt: LEARN_READ_IMAGE_ALT,
   },
 ];
 
@@ -660,6 +672,14 @@ export const LEARN_READ_CHANGES: readonly LearnReadChange[] = [
     afterHref: readPermalink("home-mixer/params/param.rs", 351, 351),
   },
 ];
+
+export type LearnChangeDirection = "up" | "down" | "same";
+
+export function learnChangeDirection(before: number, after: number): LearnChangeDirection {
+  if (after > before) return "up";
+  if (after < before) return "down";
+  return "same";
+}
 
 export function formatLearnChange(weight: number): string {
   const sign = weight > 0 ? "+" : "";

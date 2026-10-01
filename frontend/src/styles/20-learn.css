@@ -139,8 +139,10 @@
     display: grid;
     grid-template-columns: 13.5rem minmax(0, 1fr);
     align-items: start;
-    max-width: 86rem;
-    width: min(86rem, 100%);
+    column-gap: 32px;
+    max-width: none;
+    width: 100%;
+    padding-inline: 32px;
   }
 
   .learn-toc {
@@ -173,7 +175,7 @@
 
 .learn-card {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto auto 1fr auto;
   align-items: center;
   gap: 16px;
   padding: 16px 18px;
@@ -190,6 +192,16 @@
 .learn-card:focus-visible {
   border-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 8%, var(--raised));
+}
+
+.learn-card-thumb {
+  display: block;
+  width: 8.5rem;
+  height: auto;
+  aspect-ratio: 1200 / 630;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  background: var(--panel);
 }
 
 .learn-card-num {
@@ -231,6 +243,11 @@
 @media (max-width: 640px) {
   .learn-card {
     grid-template-columns: auto 1fr;
+  }
+
+  .learn-card-thumb {
+    grid-column: 1 / -1;
+    width: 100%;
   }
 
   .learn-card-open {
@@ -276,9 +293,10 @@
 }
 
 @media (min-width: 1100px) {
-  .learn-layout {
+  .learn-layout.has-rail {
     grid-template-columns: minmax(0, 1fr) 20rem;
     align-items: start;
+    gap: 32px;
   }
 
   .learn-rail {
@@ -457,6 +475,40 @@
 .learn-page tbody tr:hover,
 .learn-page tbody tr.is-selected {
   background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.learn-change-table tbody tr {
+  cursor: default;
+}
+
+.learn-change-table tbody tr.is-up,
+.learn-change-table tbody tr.is-up:hover {
+  background: color-mix(in srgb, var(--gain) 13%, transparent);
+}
+
+.learn-change-table tbody tr.is-down,
+.learn-change-table tbody tr.is-down:hover {
+  background: color-mix(in srgb, var(--danger) 11%, transparent);
+}
+
+.learn-change-now {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.learn-change-arrow {
+  font-size: 0.7rem;
+}
+
+.is-up .learn-change-arrow {
+  color: var(--gain);
+}
+
+.is-down .learn-change-arrow {
+  color: var(--danger);
 }
 
 .learn-page tbody tr:focus-visible {
