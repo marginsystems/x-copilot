@@ -57,7 +57,7 @@ export function LearnChrome(props: {
         </p>
         <h1>{props.heading}</h1>
         <p className="legal-meta">{props.meta}</p>
-        <div className="learn-layout">
+        <div className={props.rail ? "learn-layout has-rail" : "learn-layout"}>
           <div className="learn-main">{props.children}</div>
           {props.rail ? <aside className="learn-rail">{props.rail}</aside> : null}
         </div>

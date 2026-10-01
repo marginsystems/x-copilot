@@ -156,14 +156,30 @@
 .legal-foot {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
   gap: 12px 18px;
   margin-top: 16px;
   padding-top: 14px;
   border-top: 1px solid var(--border);
 }
 
+.legal-foot .legal-links {
+  justify-content: flex-start;
+  margin: 0;
+}
+
 .legal-foot a {
-  font-size: 0.78rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-decoration: none;
+}
+
+.legal-foot a:hover,
+.legal-foot a:focus-visible {
+  color: var(--accent);
 }
 
 .changelog-page section {

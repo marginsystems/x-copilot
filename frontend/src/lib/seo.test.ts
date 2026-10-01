@@ -189,6 +189,11 @@ await describe("learn schema", () => {
     assert.equal(list.itemListElement[0]?.item?.["@type"], "LearningResource");
     assert.equal(list.itemListElement[0]?.item?.learningResourceType, "Lesson");
     assert.equal(
+      list.itemListElement[4]?.item?.image,
+      "https://xcopilot.dev/og-learn-read.png",
+    );
+    assert.equal(page.hasPart?.[0]?.image, "https://xcopilot.dev/og-learn-weights.png");
+    assert.equal(
       list.itemListElement[0]?.url,
       "https://xcopilot.dev/learn/what-a-like-is-worth",
     );
@@ -380,7 +385,7 @@ await describe("learn schema", () => {
           citation: resource?.citation,
           learningResourceType: resource?.learningResourceType,
           isAccessibleForFree: resource?.isAccessibleForFree,
-          images: [app?.image, resource?.image],
+          images: [app?.image, resource?.image, resource?.thumbnailUrl],
           breadcrumbItems: breadcrumbs?.itemListElement,
         },
         {
@@ -399,6 +404,7 @@ await describe("learn schema", () => {
           isAccessibleForFree: true,
           images: [
             `https://xcopilot.dev${lesson.appImage}`,
+            `https://xcopilot.dev${lesson.articleImage}`,
             `https://xcopilot.dev${lesson.articleImage}`,
           ],
           breadcrumbItems: [
@@ -611,6 +617,7 @@ await describe("public crawl files", () => {
       "og-learn-weights.png",
       "og-learn-reply.png",
       "og-learn-volume.png",
+      "og-learn-read.png",
     ]) {
       const size = pngSize(join(publicDir, name));
       assert.deepEqual(size, { width: OG_IMAGE_WIDTH, height: OG_IMAGE_HEIGHT });

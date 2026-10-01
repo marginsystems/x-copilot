@@ -29,6 +29,8 @@ import {
   LEARN_READ_MOE_SWITCH_HREF,
   LEARN_READ_DATE,
   LEARN_READ_HEADING,
+  LEARN_READ_IMAGE,
+  LEARN_READ_IMAGE_ALT,
   LEARN_READ_LABEL_HREF,
   LEARN_READ_LABEL_ON_HREF,
   LEARN_READ_LABEL_SNIPPET,
@@ -42,10 +44,49 @@ import {
   LEARN_PREVIOUS_SHA,
   LEARN_WEIGHTS_PATH,
   formatLearnChange,
+  learnChangeDirection,
+  type LearnChangeDirection,
   type LearnLessonView,
+  type LearnReadChange,
 } from "./lib/learn";
 import { PRODUCT_NAME } from "./lib/legal";
 import type { AppView } from "./lib/appView";
+
+const CHANGE_ARROWS: Record<LearnChangeDirection, { glyph: string; label: string }> = {
+  up: { glyph: "▲", label: "Went up" },
+  down: { glyph: "▼", label: "Went down" },
+  same: { glyph: "–", label: "Unchanged" },
+};
+
+function LearnChangeRow({ row }: { row: LearnReadChange }) {
+  const direction = learnChangeDirection(row.before, row.after);
+  const arrow = CHANGE_ARROWS[direction];
+  return (
+    <tr className={`is-${direction}`}>
+      <td>
+        {row.action}
+        <br />
+        <code>{row.param}</code>
+      </td>
+      <td>
+        <a href={row.beforeHref} rel="noreferrer">
+          {formatLearnChange(row.before)}
+        </a>
+      </td>
+      <td>
+        <span className="learn-change-now">
+          <span className="learn-change-arrow" role="img" aria-label={arrow.label}>
+            {arrow.glyph}
+          </span>
+          <a href={row.afterHref} rel="noreferrer">
+            {formatLearnChange(row.after)}
+          </a>
+        </span>
+      </td>
+      <td>{row.changed}</td>
+    </tr>
+  );
+}
 
 export function LearnReadPage(props: { goToView: (view: AppView) => void }) {
   const onHome = () => props.goToView("home");
@@ -80,6 +121,17 @@ export function LearnReadPage(props: { goToView: (view: AppView) => void }) {
         </>
       }
     >
+      <figure className="learn-figure">
+        <img
+          src={LEARN_READ_IMAGE}
+          width={1200}
+          height={630}
+          alt={LEARN_READ_IMAGE_ALT}
+        />
+        <figcaption>
+          The tap fell to 0.3. Staying past 10 seconds after it is a new 0.4.
+        </figcaption>
+      </figure>
       <p>
         On {LEARN_READ_CHANGE_DATE_LABEL} X changed three For You weights in
         one release. It was the first change to the action weights since 25
@@ -100,7 +152,7 @@ export function LearnReadPage(props: { goToView: (view: AppView) => void }) {
         action weights that changed in between.
       </p>
       <div className="learn-table-wrap">
-        <table>
+        <table className="learn-change-table">
           <caption>
             Action weights that changed between <code>{LEARN_PREVIOUS_SHA}</code>{" "}
             and <code>{LEARN_READ_SHA}</code>. Each number links to its line.
@@ -115,24 +167,7 @@ export function LearnReadPage(props: { goToView: (view: AppView) => void }) {
           </thead>
           <tbody>
             {LEARN_READ_CHANGES.map((row) => (
-              <tr key={row.param}>
-                <td>
-                  {row.action}
-                  <br />
-                  <code>{row.param}</code>
-                </td>
-                <td>
-                  <a href={row.beforeHref} rel="noreferrer">
-                    {formatLearnChange(row.before)}
-                  </a>
-                </td>
-                <td>
-                  <a href={row.afterHref} rel="noreferrer">
-                    {formatLearnChange(row.after)}
-                  </a>
-                </td>
-                <td>{row.changed}</td>
-              </tr>
+              <LearnChangeRow key={row.param} row={row} />
             ))}
           </tbody>
         </table>
