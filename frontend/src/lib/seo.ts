@@ -553,6 +553,7 @@ function lessonJsonLd({
         isPartOf: [{ "@id": siteId }, { "@id": collectionId }],
         about: { "@id": appId },
         image: absoluteSeoUrl(articleImage),
+        thumbnailUrl: absoluteSeoUrl(articleImage),
         inLanguage: "en-US",
         datePublished: sourceDate,
         dateModified: sourceDate,

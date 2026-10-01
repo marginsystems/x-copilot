@@ -23,7 +23,7 @@
   max-width: 72rem;
   width: min(72rem, 100%);
   gap: 16px;
-  padding: 16px 12px 40px;
+  padding: 16px 16px 40px;
 }
 
 .learn-page-col {
@@ -149,6 +149,8 @@
     display: block;
     position: sticky;
     top: 16px;
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
   }
 
   .learn-mobile-bar {
@@ -243,6 +245,12 @@
 @media (max-width: 640px) {
   .learn-card {
     grid-template-columns: auto 1fr;
+    align-items: start;
+    gap: 12px;
+  }
+
+  .learn-card-num {
+    padding-top: 0.35rem;
   }
 
   .learn-card-thumb {
@@ -265,6 +273,14 @@
   flex-direction: column;
   gap: 12px;
   min-width: 0;
+}
+
+.learn-main > p,
+.learn-main > ul,
+.learn-main > ol,
+.learn-main > h2,
+.learn-main > h3 {
+  max-width: 60rem;
 }
 
 .learn-rail {
@@ -302,6 +318,8 @@
   .learn-rail {
     position: sticky;
     top: 16px;
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
   }
 }
 
@@ -546,3 +564,9 @@
 .learn-page-col > *:nth-child(6) { animation-delay: 200ms; }
 .learn-page > *:nth-child(7),
 .learn-page-col > *:nth-child(7) { animation-delay: 240ms; }
+
+@media (max-width: 520px) {
+  .learn-pager {
+    grid-template-columns: 1fr;
+  }
+}
