@@ -6,11 +6,14 @@ import { DESK_BOOT_KEY, parseDeskBoot, writeDeskBootCache } from "../../src/lib/
 import { PRICING_TITLE } from "../../src/lib/seo";
 import { OWNER_HINT, setOwnerCookie } from "./support/ownerHint";
 import { deferred } from "./support/deferred";
+import { loadPublicChunks } from "./support/publicChunks";
 
 vi.mock("../../src/lib/apiBase", async (importOriginal) => ({
   ...await importOriginal<typeof import("../../src/lib/apiBase")>(),
   isLocalHostname: () => false,
 }));
+
+await loadPublicChunks();
 
 beforeEach(() => {
   vi.stubGlobal("matchMedia", vi.fn((query: string) => ({
@@ -44,9 +47,9 @@ test("a public deep link paints anonymously while boot is stalled", async () => 
   const fetchMock = vi.fn(() => pending.promise);
   vi.stubGlobal("fetch", fetchMock);
 
-  render(<App />);
+  await act(async () => { render(<App />); });
 
-  expect(await screen.findByRole("heading", { name: "Plans" })).toBeTruthy();
+  expect(screen.getByRole("heading", { name: "Plans" })).toBeTruthy();
   expect(screen.getByRole("button", { name: "Sign in to start Free" })).toBeTruthy();
   expect(screen.queryByText("Usage & Billing")).toBeNull();
   expect(screen.queryByText("Cached Owner")).toBeNull();
@@ -60,9 +63,9 @@ test("route changes and browser history preserve public boot independence", asyn
   const pending = deferred<Response>();
   const fetchMock = vi.fn(() => pending.promise);
   vi.stubGlobal("fetch", fetchMock);
-  render(<App />);
+  await act(async () => { render(<App />); });
 
-  expect(await screen.findByRole("heading", { name: "Plans" })).toBeTruthy();
+  expect(screen.getByRole("heading", { name: "Plans" })).toBeTruthy();
   act(() => {
     window.history.pushState({}, "", "/dashboard");
     window.dispatchEvent(new PopStateEvent("popstate"));
@@ -90,10 +93,10 @@ test("failed auth leaves the public route painted and protected routes gated", a
     { status: 401 },
   ));
   vi.stubGlobal("fetch", fetchMock);
-  render(<App />);
+  await act(async () => { render(<App />); });
 
   await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
-  expect(await screen.findByRole("heading", { name: "Plans" })).toBeTruthy();
+  expect(screen.getByRole("heading", { name: "Plans" })).toBeTruthy();
   expect(screen.getByRole("button", { name: "Sign in to start Free" })).toBeTruthy();
 
   act(() => {
@@ -112,10 +115,8 @@ test.each([
   window.history.replaceState({}, "", path);
   const pending = deferred<Response>();
   vi.stubGlobal("fetch", vi.fn(() => pending.promise));
-  render(<App />);
-  await waitFor(() => {
-    expect(document.querySelector("main h1, main h2")).not.toBeNull();
-  });
+  await act(async () => { render(<App />); });
+  expect(document.querySelector("main h1, main h2")).not.toBeNull();
   expect(screen.queryByText("Checking your session…")).toBeNull();
   expect(screen.queryByText("Loading page…")).toBeNull();
 });

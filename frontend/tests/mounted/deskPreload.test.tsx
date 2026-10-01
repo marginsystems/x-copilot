@@ -1,6 +1,7 @@
 /// <reference path="../../src/vite-env.d.ts" />
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import "../../src/App";
 import { deferred } from "./support/deferred";
 
 const deskViewLoaded = { count: 0 };
@@ -11,12 +12,23 @@ vi.mock("../../src/lib/apiBase", async (importOriginal) => ({
 }));
 
 beforeEach(() => {
-  vi.resetModules();
   deskViewLoaded.count = 0;
   vi.stubGlobal("matchMedia", vi.fn((query: string) => ({ matches: false, media: query, addEventListener: vi.fn(), removeEventListener: vi.fn() })));
 });
 
 afterEach(() => { window.history.replaceState({}, "", "/"); });
+
+type AppModule = typeof import("../../src/App");
+
+function isAppModule(module: unknown): module is AppModule {
+  return typeof module === "object" && module !== null && "default" in module && typeof module.default === "function";
+}
+
+async function evaluateAppAt(path: string): Promise<AppModule> {
+  const module: unknown = await import(`../../src/App?start=${encodeURIComponent(path)}`);
+  if (!isAppModule(module)) throw new Error("App module has no default component");
+  return module;
+}
 
 async function startApp(path: string) {
   window.history.replaceState({}, "", path);
@@ -27,9 +39,8 @@ async function startApp(path: string) {
     deskViewLoaded.count += 1;
     return { default: () => <h1>Desk</h1> };
   });
-  const { default: App } = await import("../../src/App");
-  render(<App />);
-  await new Promise((resolve) => setTimeout(resolve, 0));
+  const { default: App } = await evaluateAppAt(path);
+  await act(async () => { render(<App />); });
   return { fetchMock };
 }
 
