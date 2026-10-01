@@ -41,6 +41,7 @@ describe("x content attention polling", () => {
       setInterval: (callback: () => void) => {
         state.intervalCallback = callback;
       },
+      onInvalidated: () => undefined,
     } as unknown as NonNullable<Parameters<typeof contentScript.main>[0]>;
 
     contentScript.main(context);

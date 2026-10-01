@@ -1,8 +1,9 @@
 import { browser } from "wxt/browser";
 import { defineBackground } from "wxt/utils/define-background";
-import { parseStorePairingMessage } from "../lib/messages";
+import { parseReplySeenMessage, parseStorePairingMessage } from "../lib/messages";
 import { pairingFromDesk } from "../lib/pairing";
 import { writePairing } from "../lib/pairingStore";
+import { reportReply } from "../lib/reportReply";
 
 function senderOrigin(url: string | undefined): string | null {
   if (!url) return null;
@@ -19,6 +20,14 @@ export default defineBackground(() => {
   }
 
   browser.runtime.onMessage.addListener((raw, sender) => {
+    const seen = parseReplySeenMessage(raw);
+    if (seen) {
+      if (senderOrigin(sender.url) !== "https://x.com") return undefined;
+      return reportReply(seen.replyUrl, seen.pageStatusId).then(
+        () => ({ ok: true }),
+        () => ({ ok: false }),
+      );
+    }
     const message = parseStorePairingMessage(raw);
     if (!message) return undefined;
     const origin = senderOrigin(sender.url);

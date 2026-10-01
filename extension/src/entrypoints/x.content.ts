@@ -7,6 +7,8 @@ import {
   statusIdFromPath,
   tickAttention,
 } from "../lib/attention";
+import { REPLY_SEEN } from "../lib/messages";
+import { postedStatusUrl } from "../lib/replySeen";
 import { ATTENTION_GATE_KEY, parseAttentionGate } from "../lib/settings";
 import { readAttentionGate } from "../lib/settingsStore";
 import { X_SELECTORS, chipPosition, rectInViewport } from "../lib/xSelectors";
@@ -90,6 +92,21 @@ export default defineContentScript({
       chip.classList.toggle("ready", attentionReady(clock));
       chip.hidden = false;
     }
+
+    const reported = new Set<string>();
+    function reportSentPosts() {
+      for (const link of document.querySelectorAll<HTMLAnchorElement>(X_SELECTORS.sentToastLink)) {
+        const replyUrl = postedStatusUrl(link.getAttribute("href"));
+        if (!replyUrl || reported.has(replyUrl)) continue;
+        reported.add(replyUrl);
+        browser.runtime
+          .sendMessage({ type: REPLY_SEEN, replyUrl, pageStatusId: clock.statusId })
+          .catch(() => undefined);
+      }
+    }
+    const observer = new MutationObserver(reportSentPosts);
+    observer.observe(document.body, { childList: true, subtree: true });
+    ctx.onInvalidated(() => observer.disconnect());
 
     ctx.setInterval(() => {
       const statusId = statusIdFromPath(window.location.pathname);
