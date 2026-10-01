@@ -237,7 +237,7 @@ export function LearnGivePage(props: {
         <em>you</em> tap. That tap is not a term on your next original.
       </p>
       <LearnCode
-        file="home-mixer/scorers/ranking_scorer.rs"
+        file="xai-value-model/scoring.rs"
         href={LEARN_SCORER_HREF}
       >
         {LEARN_APPLY_SNIPPET}
@@ -480,8 +480,8 @@ export function LearnGivePage(props: {
           Under the Hood
         </a>
         {" "}
-        (<a href="https://x.com/i/under_the_hood" rel="noreferrer">
-          x.com/i/under_the_hood
+        (<a href="https://x.com/i/jf/under_the_hood" rel="noreferrer">
+          x.com/i/jf/under_the_hood
         </a>
         ). If X is not showing a lasting label there, do not invent one.
       </p>

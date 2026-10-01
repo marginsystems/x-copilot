@@ -13,6 +13,7 @@ import {
   LEARN_META,
   LEARN_REPLY_DESCRIPTION,
   LEARN_REPLY_PATH,
+  LEARN_REPLY_ELIGIBLE_SNIPPET,
   LEARN_REPLY_WEIGHT_SNIPPET,
   LEARN_VOLUME_DESCRIPTION,
   LEARN_VOLUME_PATH,
@@ -83,24 +84,24 @@ import {
 
 await describe("learn citations", () => {
   it("pins every permalink to the cited SHA", () => {
-    assert.equal(LEARN_SOURCE_SHA, "d011592");
-    assert.match(LEARN_PARAM_COMMENT_HREF, /\/blob\/d011592\/home-mixer\/params\/param\.rs/);
-    assert.match(LEARN_PARAM_COMMENT_HREF, /#L285-L313/);
+    assert.equal(LEARN_SOURCE_SHA, "b79b947");
+    assert.match(LEARN_PARAM_COMMENT_HREF, /\/blob\/b79b947\/home-mixer\/params\/param\.rs/);
+    assert.match(LEARN_PARAM_COMMENT_HREF, /#L273-L301/);
     assert.equal(
-      algorithmPermalink("home-mixer/scorers/ranking_scorer.rs", 447, 458),
-      "https://github.com/xai-org/x-algorithm/blob/d011592/home-mixer/scorers/ranking_scorer.rs#L447-L458",
+      algorithmPermalink("xai-value-model/scoring.rs", 57, 59),
+      "https://github.com/xai-org/x-algorithm/blob/b79b947/xai-value-model/scoring.rs#L57-L59",
     );
   }).catch(assert.fail);
 
   it("ties the on-page date to LEARN_SOURCE_DATE", () => {
-    assert.equal(LEARN_SOURCE_DATE, "2026-08-24");
-    assert.equal(formatLearnSourceDate(LEARN_SOURCE_DATE), "24 August 2026");
-    assert.match(LEARN_META, /24 August 2026/);
-    assert.match(LEARN_FOLLOW_META, /24 August 2026/);
+    assert.equal(LEARN_SOURCE_DATE, "2026-10-01");
+    assert.equal(formatLearnSourceDate(LEARN_SOURCE_DATE), "1 October 2026");
+    assert.match(LEARN_META, /1 October 2026/);
+    assert.match(LEARN_FOLLOW_META, /1 October 2026/);
   }).catch(assert.fail);
 
   it("keeps the published defaults and does not invent extras", () => {
-    assert.equal(LEARN_WEIGHTS.length, 14);
+    assert.equal(LEARN_WEIGHTS.length, 15);
     const byParam = Object.fromEntries(LEARN_WEIGHTS.map((row) => [row.param, row.weight]));
     assert.equal(byParam.FavoriteWeight, 0.5);
     assert.equal(byParam.RetweetWeight, 1.0);
@@ -110,31 +111,33 @@ await describe("learn citations", () => {
     assert.equal(byParam.ShareViaCopyLinkWeight, 20.0);
     assert.equal(byParam.ReportWeight, -234.0);
     assert.equal(byParam.MuteAuthorWeight, -58.8);
+    assert.equal(byParam.ClickWeight, 0.3);
+    assert.equal(byParam.ContClickDwellTimeWeight, 0.4);
+    assert.equal(byParam.NotInterestedWeight, -47.52);
     for (const row of LEARN_WEIGHTS) {
-      assert.match(weightPermalink(row), /\/blob\/d011592\/home-mixer\/params\/param\.rs#L/);
+      assert.match(weightPermalink(row), /\/blob\/b79b947\/home-mixer\/params\/param\.rs#L/);
     }
   }).catch(assert.fail);
 
   it("prints signed defaults and the official formula", () => {
     assert.equal(formatLearnWeight(0.5), "+0.5");
     assert.equal(formatLearnWeight(-234.0), "-234.0");
+    assert.equal(formatLearnWeight(-47.52), "-47.52");
+    assert.equal(formatLearnWeight(0.004), "+0.004");
     assert.equal(LEARN_FORMULA, "Final Score = Σ (weight_i × P(action_i))");
   }).catch(assert.fail);
 
   it("pins follow / OON citations to the same SHA", () => {
-    assert.match(LEARN_OON_HREF, /\/blob\/d011592\/home-mixer\/params\/param\.rs#L252-L257/);
-    assert.match(
-      LEARN_OON_SWITCH_HREF,
-      /EnableOonRescoreForInNetworkRepliesRetweets|#L266-L271/,
-    );
-    assert.match(LEARN_OON_SWITCH_HREF, /\/blob\/d011592\//);
+    assert.match(LEARN_OON_HREF, /\/blob\/b79b947\/vm-ranker\/params\.rs#L175-L180/);
+    assert.match(LEARN_OON_SWITCH_HREF, /\/vm-ranker\/params\.rs#L157-L162/);
+    assert.match(LEARN_OON_SWITCH_HREF, /\/blob\/b79b947\//);
   }).catch(assert.fail);
 
   it("keeps the Approach drawer to three cited sentences", () => {
     assert.match(LEARN_DRAWER_LEAD, /P\(action\)/);
     assert.doesNotMatch(LEARN_DRAWER_LEAD, /468 likes/);
     assert.match(LEARN_DRAWER_OON, /0\.75/);
-    assert.match(LEARN_DRAWER_SOURCE, /d011592/);
+    assert.match(LEARN_DRAWER_SOURCE, /b79b947/);
     assert.match(LEARN_DRAWER_SOURCE, /not affiliated/i);
   }).catch(assert.fail);
 
@@ -224,9 +227,9 @@ await describe("learn citations", () => {
   it("keeps official snippets verbatim", () => {
     assert.match(LEARN_APPLY_SNIPPET, /score\.unwrap_or\(0\.0\) \* weight/);
     assert.match(LEARN_PARAM_COMMENT_SNIPPET, /one report cancels 468 likes/);
-    assert.match(LEARN_OON_SNIPPET, /deboost_in_network_replies_retweets/);
+    assert.match(LEARN_OON_SNIPPET, /oon_rescore_in_network_replies_retweets/);
     assert.match(LEARN_REPLY_WEIGHT_SNIPPET, /reply_weight_for/);
-    assert.match(LEARN_REPLY_WEIGHT_SNIPPET, /is_mutual_follow_author/);
+    assert.match(LEARN_REPLY_ELIGIBLE_SNIPPET, /is_mutual_follow_author/);
     assert.match(LEARN_DIVERSITY_SNIPPET, /decay_factor\.powf\(exponent\)/);
     assert.match(LEARN_THUNDER_CAP_SNIPPET, /MAX_REPLY_POSTS_PER_AUTHOR: usize = 30/);
     assert.match(LEARN_THUNDER_CAP_SNIPPET, /MAX_ORIGINAL_POSTS_PER_AUTHOR: usize = 50/);
@@ -249,66 +252,66 @@ await describe("learn citations", () => {
   it("pins volume citations and does not invent a daily quota", () => {
     assert.match(
       LEARN_DIVERSITY_FN_HREF,
-      /\/blob\/d011592\/home-mixer\/scorers\/ranking_scorer\.rs#L643-L645/,
+      /\/blob\/b79b947\/xai-value-model\/scoring\.rs#L143-L145/,
     );
-    assert.match(LEARN_THUNDER_CAP_HREF, /\/blob\/d011592\/thunder\/config\.rs#L1-L6/);
-    assert.match(LEARN_BDSM_HEADS_HREF, /\/blob\/d011592\/bdsm\/README\.md#L30-L34/);
-    assert.match(LEARN_BDSM_ROPE_HREF, /\/blob\/d011592\/bdsm\/README\.md#L22-L24/);
-    assert.match(LEARN_BDSM_FEATURES_HREF, /\/blob\/d011592\/bdsm\/README\.md#L26-L29/);
-    assert.match(LEARN_BDSM_SEQ_HREF, /\/blob\/d011592\/bdsm\/README\.md#L102-L103/);
-    assert.match(LEARN_BDSM_REDACT_HREF, /\/blob\/d011592\/bdsm\/README\.md#L104-L115/);
-    assert.match(LEARN_BDSM_ACTION_HREF, /\/blob\/d011592\/bdsm\/README\.md#L63-L66/);
+    assert.match(LEARN_THUNDER_CAP_HREF, /\/blob\/b79b947\/thunder\/config\.rs#L1-L6/);
+    assert.match(LEARN_BDSM_HEADS_HREF, /\/blob\/b79b947\/bdsm\/README\.md#L30-L34/);
+    assert.match(LEARN_BDSM_ROPE_HREF, /\/blob\/b79b947\/bdsm\/README\.md#L22-L24/);
+    assert.match(LEARN_BDSM_FEATURES_HREF, /\/blob\/b79b947\/bdsm\/README\.md#L26-L29/);
+    assert.match(LEARN_BDSM_SEQ_HREF, /\/blob\/b79b947\/bdsm\/README\.md#L102-L103/);
+    assert.match(LEARN_BDSM_REDACT_HREF, /\/blob\/b79b947\/bdsm\/README\.md#L104-L115/);
+    assert.match(LEARN_BDSM_ACTION_HREF, /\/blob\/b79b947\/bdsm\/README\.md#L63-L66/);
     assert.match(
       LEARN_BDSM_REPLY_HEAD_HREF,
-      /\/blob\/d011592\/bdsm\/runtime\/heads\.py#L54-L63/,
+      /\/blob\/b79b947\/bdsm\/runtime\/heads\.py#L54-L63/,
     );
     assert.match(
       LEARN_BDSM_TWEET_HEAD_HREF,
-      /\/blob\/d011592\/bdsm\/runtime\/heads\.py#L64-L73/,
+      /\/blob\/b79b947\/bdsm\/runtime\/heads\.py#L64-L73/,
     );
     assert.match(
       LEARN_BDSM_FOLLOW_HEAD_HREF,
-      /\/blob\/d011592\/bdsm\/runtime\/heads\.py#L17-L28/,
+      /\/blob\/b79b947\/bdsm\/runtime\/heads\.py#L17-L28/,
     );
     assert.match(
       LEARN_BDSM_LIKE_HEAD_HREF,
-      /\/blob\/d011592\/bdsm\/runtime\/heads\.py#L29-L39/,
+      /\/blob\/b79b947\/bdsm\/runtime\/heads\.py#L29-L39/,
     );
     assert.match(
       LEARN_BDSM_AMPLIFIER_HEAD_HREF,
-      /\/blob\/d011592\/bdsm\/runtime\/heads\.py#L40-L53/,
+      /\/blob\/b79b947\/bdsm\/runtime\/heads\.py#L40-L53/,
     );
     assert.match(
       LEARN_BDSM_MULTI_HEAD_HREF,
-      /\/blob\/d011592\/bdsm\/runtime\/heads\.py#L83-L98/,
+      /\/blob\/b79b947\/bdsm\/runtime\/heads\.py#L83-L98/,
     );
     assert.match(
       LEARN_BDSM_SINK_ENFORCE_HREF,
-      /\/blob\/d011592\/bdsm\/runtime\/sink_policy\.yaml#L16-L20/,
+      /\/blob\/b79b947\/bdsm\/runtime\/sink_policy\.yaml#L16-L20/,
     );
     assert.match(
       LEARN_BDSM_SINK_LIVENESS_HREF,
-      /\/blob\/d011592\/bdsm\/runtime\/sink_policy\.yaml#L26-L28/,
+      /\/blob\/b79b947\/bdsm\/runtime\/sink_policy\.yaml#L26-L28/,
     );
     assert.match(
       LEARN_THUNDER_FOLLOW_TAKE_HREF,
-      /\/blob\/d011592\/thunder\/thunder_service\.rs#L232-L242/,
+      /\/blob\/b79b947\/thunder\/thunder_service\.rs#L232-L242/,
     );
     assert.match(
       LEARN_PHOENIX_FAV_HREF,
-      /\/blob\/d011592\/phoenix\/README\.md#L274-L275/,
+      /\/blob\/b79b947\/phoenix\/README\.md#L274-L275/,
     );
     assert.match(
       LEARN_BDSM_COOLDOWN_HREF,
-      /\/blob\/d011592\/bdsm\/runtime\/score_results_sink_focal\.py#L344-L357/,
+      /\/blob\/b79b947\/bdsm\/runtime\/score_results_sink_focal\.py#L344-L357/,
     );
     assert.match(
       LEARN_UTH_HREF,
-      /\/blob\/d011592\/README\.md#L438-L442/,
+      /\/blob\/b79b947\/README\.md#L446-L450/,
     );
     assert.match(
       LEARN_RANKING_VISIBILITY_HREF,
-      /\/blob\/d011592\/README\.md#L464-L466/,
+      /\/blob\/b79b947\/README\.md#L472-L474/,
     );
     assert.equal(learnDiversityMultiplier(0), 1);
     assert.equal(learnDiversityMultiplier(1), 0.625);

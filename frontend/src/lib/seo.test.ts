@@ -218,8 +218,8 @@ await describe("learn schema", () => {
     const crumbs = graph.find((node) => node["@type"] === "BreadcrumbList");
     assert.ok(page && crumbs);
     assert.equal(page.name, LEARN_TITLE);
-    assert.match(String(page.citation), /\/blob\/d011592\/home-mixer\/params\/param\.rs/);
-    assert.equal(page.sameAs, "https://github.com/xai-org/x-algorithm/tree/d011592");
+    assert.match(String(page.citation), /\/blob\/b79b947\/home-mixer\/params\/param\.rs/);
+    assert.equal(page.sameAs, "https://github.com/xai-org/x-algorithm/tree/b79b947");
     assert.equal(page.image, "https://xcopilot.dev/og-learn-weights.png");
     assert.equal(page.learningResourceType, "Lesson");
     assert.equal(page.isAccessibleForFree, true);
@@ -240,7 +240,7 @@ await describe("learn schema", () => {
     const crumbs = graph.find((node) => node["@type"] === "BreadcrumbList");
     assert.ok(page && crumbs);
     assert.equal(page.name, LEARN_REPLY_TITLE);
-    assert.match(String(page.citation), /\/blob\/d011592\/home-mixer\/params\/param\.rs#L315/);
+    assert.match(String(page.citation), /\/blob\/b79b947\/home-mixer\/params\/param\.rs#L303/);
     assert.equal(page.image, "https://xcopilot.dev/og-learn-reply.png");
     assert.equal(page.learningResourceType, "Lesson");
     assert.match(String(page.teaches), /Reply weight/);
@@ -259,7 +259,7 @@ await describe("learn schema", () => {
     assert.equal(page.name, LEARN_VOLUME_TITLE);
     assert.match(
       String(page.citation),
-      /\/blob\/d011592\/home-mixer\/scorers\/ranking_scorer\.rs#L643-L645/,
+      /\/blob\/b79b947\/xai-value-model\/scoring\.rs#L143-L145/,
     );
     assert.equal(page.image, "https://xcopilot.dev/og-learn-volume.png");
     assert.equal(
@@ -277,7 +277,7 @@ await describe("learn schema", () => {
     assert.equal(page.name, LEARN_GIVE_TITLE);
     assert.match(
       String(page.citation),
-      /\/blob\/d011592\/bdsm\/runtime\/heads\.py#L29-L39/,
+      /\/blob\/b79b947\/bdsm\/runtime\/heads\.py#L29-L39/,
     );
     assert.equal(page.image, "https://xcopilot.dev/og-learn-give.png");
     assert.equal(
@@ -293,7 +293,7 @@ await describe("learn schema", () => {
     const crumbs = graph.find((node) => node["@type"] === "BreadcrumbList");
     assert.ok(page && crumbs);
     assert.equal(page.name, LEARN_FOLLOW_TITLE);
-    assert.match(String(page.citation), /\/blob\/d011592\/home-mixer\/params\/param\.rs#L252-L257/);
+    assert.match(String(page.citation), /\/blob\/b79b947\/vm-ranker\/params\.rs#L175-L180/);
     assert.equal(crumbs.itemListElement[1]?.item, "https://xcopilot.dev/learn");
     assert.equal(crumbs.itemListElement[2]?.item, "https://xcopilot.dev/learn/follow");
   }).catch(assert.fail);
@@ -472,7 +472,7 @@ await describe("htmlWithSeo", () => {
     assert.match(html, /CollectionPage/);
     assert.match(html, /LearningResource/);
     assert.match(html, /og:type" content="website"/);
-    assert.match(html, /d011592/);
+    assert.match(html, /b79b947/);
     assert.doesNotMatch(html, /<title>x-copilot — the X copilot/);
   }).catch(assert.fail);
 
@@ -485,7 +485,7 @@ await describe("htmlWithSeo", () => {
     assert.match(html, /P\(action\)/);
     assert.match(html, /"@type":"LearningResource"/);
     assert.match(html, /og:type" content="article"/);
-    assert.match(html, /d011592/);
+    assert.match(html, /b79b947/);
     assert.doesNotMatch(html, /<title>x-copilot — the X copilot/);
   }).catch(assert.fail);
 
