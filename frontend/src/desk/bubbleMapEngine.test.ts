@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { packBubbles } from "../lib/bubbleLayout.ts";
+import { memberLimit, packBubbles } from "../lib/bubbleLayout.ts";
 import { memberScore } from "../lib/circleLeaderboard.ts";
 import type { CircleSharePayload } from "../lib/circleShare.ts";
 import { createBubbleMap } from "./bubbleMapEngine.ts";
@@ -30,6 +30,7 @@ function payload(count: number): CircleSharePayload {
 
 function fakeElement() {
   const listeners = new Map<string, Listener>();
+  const contextCalls: Array<[string, unknown[]]> = [];
   const element = {
     className: "",
     hidden: false,
@@ -42,6 +43,7 @@ function fakeElement() {
     height: 0,
     textContent: "",
     listeners,
+    contextCalls,
     setAttribute() {},
     appendChild() {},
     replaceChildren() {},
@@ -59,7 +61,10 @@ function fakeElement() {
     },
     hasPointerCapture: () => true,
     getBoundingClientRect: () => ({ left: 0, top: 0 }),
-    getContext: () => new Proxy({}, { get: () => () => undefined, set: () => true }),
+    getContext: () => new Proxy({}, {
+      get: (_, property) => (...args: unknown[]) => contextCalls.push([String(property), args]),
+      set: () => true,
+    }),
   };
   return element;
 }
@@ -154,7 +159,7 @@ afterEach(() => {
   }
 });
 
-function setup(count: number) {
+function setup(count: number, expanded = false) {
   const canvas = fakeElement();
   const host = fakeElement();
   const hovers: Array<string | null> = [];
@@ -162,9 +167,10 @@ function setup(count: number) {
     onHover: (handle) => hovers.push(handle),
   });
   const data = payload(count);
+  engine.setExpanded(expanded);
   engine.setData(data, new Map());
   const scores = data.members.map((m) => Math.max(1, memberScore(m)));
-  const bodies = packBubbles(scores, BOX);
+  const bodies = packBubbles(scores.slice(0, memberLimit(expanded)), BOX);
   const fire = (type: string, x: number, y: number, pointerType = "mouse") =>
     canvas.listeners.get(type)?.({ pointerId: 1, pointerType, button: 0, clientX: x, clientY: y });
   return { engine, bodies, fire, hovers, canvas, host };
@@ -274,7 +280,7 @@ await describe("bubbleMapEngine", () => {
   }).catch(assert.fail);
 
   it("cancels a live drag when a smaller payload re-packs to fewer bodies", () => {
-    const { engine, bodies, fire, hovers, canvas } = setup(40);
+    const { engine, bodies, fire, hovers, canvas } = setup(40, true);
     const target = bodies[30]!;
     fire("pointerdown", target.x, target.y);
     fire("pointermove", target.x + 20, target.y + 20);
@@ -305,5 +311,130 @@ await describe("bubbleMapEngine", () => {
     const after = engine.positions();
     assert.ok(Math.hypot(after[2]!.x - before[2]!.x, after[2]!.y - before[2]!.y) > 0.5);
     assert.notDeepEqual(after[1], before[1]);
+  }).catch(assert.fail);
+
+  it("draws only the compact member count and the top forty when expanded", () => {
+    const { engine } = setup(40);
+    assert.equal(engine.positions().length, memberLimit(false) + 1);
+    engine.setExpanded(true);
+    assert.equal(engine.positions().length, memberLimit(true) + 1);
+    engine.setExpanded(false);
+    assert.equal(engine.positions().length, memberLimit(false) + 1);
+  }).catch(assert.fail);
+
+  it("morphs departing members into the smaller compact box", () => {
+    const { engine, host, canvas } = setup(40, true);
+    const data = payload(40);
+    data.members = data.members.map((member, i) => ({
+      ...member,
+      name: `${String.fromCharCode(65 + i)} friend`,
+    }));
+    engine.setData(data, new Map());
+    host.clientWidth = 525;
+    host.clientHeight = 400;
+    for (const callback of resizeCallbacks) callback();
+    pump(30);
+    canvas.contextCalls.length = 0;
+    frames = [];
+    host.clientWidth = BOX.width;
+    host.clientHeight = BOX.height;
+    engine.setExpanded(false);
+    assert.equal(canvas.width, BOX.width);
+    assert.equal(canvas.height, BOX.height);
+    assert.ok(frames.length > 0);
+    for (const body of engine.positions()) {
+      assert.ok(body.x - body.r >= -0.5 && body.x + body.r <= BOX.width + 0.5);
+      assert.ok(body.y - body.r >= -0.5 && body.y + body.r <= BOX.height + 0.5);
+    }
+    const leaverInitial = String.fromCharCode(65 + memberLimit(false));
+    assert.ok(
+      canvas.contextCalls.some(([name, args]) => name === "fillText" && args[0] === leaverInitial),
+    );
+  }).catch(assert.fail);
+
+  it("redraws synchronously when the box changes so no stale bitmap is painted", () => {
+    const { engine, host, canvas } = setup(40);
+    frames = [];
+    host.clientWidth = 525;
+    host.clientHeight = 232;
+    engine.setExpanded(true);
+    assert.equal(canvas.width, 525);
+    assert.equal(canvas.height, 232);
+    const first = engine.positions();
+    for (const body of first) {
+      assert.ok(body.x - body.r >= -0.5 && body.x + body.r <= 525.5);
+      assert.ok(body.y - body.r >= -0.5 && body.y + body.r <= 232.5);
+    }
+  }).catch(assert.fail);
+
+  it("runs the morph for about 300ms and then stops scheduling frames", () => {
+    const { engine, host } = setup(40);
+    host.clientWidth = 525;
+    host.clientHeight = 232;
+    engine.setExpanded(true);
+    assert.ok(frames.length > 0);
+    let elapsed = 0;
+    let guard = 0;
+    while (frames.length > 0 && guard < 100) {
+      const due = frames;
+      frames = [];
+      elapsed += 17;
+      for (const cb of due) cb(1000 + elapsed);
+      guard += 1;
+    }
+    assert.ok(elapsed >= 250 && elapsed <= 400, `elapsed ${elapsed}`);
+    assert.equal(frames.length, 0);
+  }).catch(assert.fail);
+
+  it("continues drawing live morph poses when the host resizes", () => {
+    const { engine, host, canvas } = setup(40);
+    engine.setExpanded(true);
+    pump(2);
+    canvas.contextCalls.length = 0;
+    host.clientWidth = 240;
+    for (const callback of resizeCallbacks) callback();
+    const homes = engine.positions();
+    const arcs = canvas.contextCalls
+      .filter(([name]) => name === "arc")
+      .map(([, args]) => ({ x: Number(args[0]), y: Number(args[1]) }));
+    assert.ok(
+      arcs.some(
+        (arc) =>
+          !homes.some(
+            (home) => Math.abs(home.x - arc.x) < 0.01 && Math.abs(home.y - arc.y) < 0.01,
+          ),
+      ),
+    );
+  }).catch(assert.fail);
+
+  it("defers resizing a ghost canvas until data is repopulated", () => {
+    const { engine, host, canvas } = setup(12);
+    engine.setData(null, null);
+    const width = canvas.width;
+    const height = canvas.height;
+    const clears = canvas.contextCalls.filter(([name]) => name === "clearRect").length;
+    host.clientWidth = 240;
+    engine.setExpanded(true);
+    assert.equal(canvas.width, width);
+    assert.equal(canvas.height, height);
+    assert.equal(canvas.contextCalls.filter(([name]) => name === "clearRect").length, clears);
+    engine.setData(payload(12), new Map());
+    assert.equal(canvas.width, 240);
+    assert.equal(canvas.contextCalls.filter(([name]) => name === "clearRect").length, clears + 1);
+  }).catch(assert.fail);
+
+  it("swaps instantly with no morph frames under reduced motion", () => {
+    (globalThis as Record<string, unknown>).matchMedia = (query: string) => ({
+      matches: query.includes("reduced-motion"),
+      addEventListener() {},
+      removeEventListener() {},
+    });
+    const { engine, host } = setup(40);
+    frames = [];
+    host.clientWidth = 525;
+    host.clientHeight = 232;
+    engine.setExpanded(true);
+    assert.equal(frames.length, 0);
+    assert.equal(engine.positions().length, memberLimit(true) + 1);
   }).catch(assert.fail);
 });
