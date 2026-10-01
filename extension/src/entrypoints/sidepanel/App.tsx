@@ -7,6 +7,7 @@ import type { Pairing } from "../../lib/pairing";
 import { clearPairing, readPairing } from "../../lib/pairingStore";
 import { loadPanelData, signOutExtension, type PanelData } from "../../lib/panelData";
 import { panelCard, panelPace } from "../../lib/panelModel";
+import { readAttentionGate, writeAttentionGate } from "../../lib/settingsStore";
 
 const REFRESH_MS = 15_000;
 
@@ -37,7 +38,12 @@ function useNow(): number {
 
 export function App() {
   const [state, setState] = useState<PanelState>({ kind: "loading" });
+  const [attentionGate, setAttentionGate] = useState(true);
   const now = useNow();
+
+  useEffect(() => {
+    readAttentionGate().then(setAttentionGate, () => undefined);
+  }, []);
 
   const refresh = useCallback(async () => {
     const pairing = await readPairing();
@@ -144,6 +150,18 @@ export function App() {
           {card.openLabel}
         </button>
       </section>
+      <label className="toggle">
+        <input
+          type="checkbox"
+          checked={attentionGate}
+          onChange={(event) => {
+            const on = event.currentTarget.checked;
+            setAttentionGate(on);
+            writeAttentionGate(on).catch(() => undefined);
+          }}
+        />
+        <span>Reading timer on posts (10 s before you reply)</span>
+      </label>
       <p className="muted small">X Copilot never types or posts for you.</p>
     </main>
   );
