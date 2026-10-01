@@ -12,6 +12,8 @@ import { getSessionUser } from "../auth/sessionCookie.js";
 import { allowRate } from "../auth/authGuard.js";
 import { retainScoutContextForTarget } from "./scoutEvidenceContext.js";
 
+export const SCOUT_APPROACH_LOCK_PATH = "/api/scout-approach-lock";
+
 const SCOUT_APPROACH_LOCK_TTL_MS = 24 * 60 * 60 * 1000;
 
 export type ScoutApproachLock = {
@@ -103,14 +105,22 @@ export async function tryHandleScoutApproachLock(
   res: ServerResponse,
   url: URL,
 ): Promise<boolean> {
-  if (url.pathname !== "/api/scout-approach-lock") return false;
-  if (req.method !== "PUT") {
+  if (url.pathname !== SCOUT_APPROACH_LOCK_PATH) return false;
+  if (req.method !== "PUT" && req.method !== "GET") {
     send(req, res, 405, { error: "method_not_allowed" });
     return true;
   }
   const user = getSessionUser(req);
   if (!user) {
     send(req, res, 401, { error: "unauthenticated" });
+    return true;
+  }
+  if (req.method === "GET") {
+    if (!allowRate(`scout-approach-lock-read:${user.id}`, 120, 60_000)) {
+      send(req, res, 429, { error: "rate_limited" });
+      return true;
+    }
+    send(req, res, 200, { ok: true, card: getScoutApproachLock(user.id) });
     return true;
   }
   if (!allowRate(`scout-approach-lock:${user.id}`, 40, 60_000)) {
