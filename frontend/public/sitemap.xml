@@ -47,6 +47,12 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://xcopilot.dev/learn/the-read-beats-the-tap</loc>
+    <lastmod>2026-10-02</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
     <loc>https://xcopilot.dev/learn/follow</loc>
     <lastmod>2026-09-11</lastmod>
     <changefreq>monthly</changefreq>

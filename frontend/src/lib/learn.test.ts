@@ -26,6 +26,16 @@ import {
   LEARN_GIVE_DESCRIPTION,
   LEARN_GIVE_IMAGE,
   LEARN_GIVE_PATH,
+  LEARN_READ_CHANGES,
+  LEARN_READ_CHANGE_SNIPPET,
+  LEARN_READ_CLICK_DWELL_HREF,
+  LEARN_READ_CLICK_HREF,
+  LEARN_READ_DESCRIPTION,
+  LEARN_READ_LABEL_HREF,
+  LEARN_READ_LABEL_SNIPPET,
+  LEARN_READ_LOSS_SNIPPET,
+  LEARN_READ_NOT_INTERESTED_HREF,
+  LEARN_READ_PATH,
   LEARN_REPLY_IMAGE,
   LEARN_VOLUME_IMAGE,
   LEARN_WEIGHTS_IMAGE,
@@ -143,6 +153,10 @@ await describe("learn citations", () => {
     });
     assert.deepEqual(learnAdjacentLessons("learnGive"), {
       prev: LEARN_LESSONS[2],
+      next: LEARN_LESSONS[4],
+    });
+    assert.deepEqual(learnAdjacentLessons("learnRead"), {
+      prev: LEARN_LESSONS[3],
       next: null,
     });
     assert.deepEqual(learnAdjacentLessons("learnFollow"), {
@@ -151,8 +165,10 @@ await describe("learn citations", () => {
     });
   }).catch(assert.fail);
 
-  it("publishes four catalog lessons", () => {
-    assert.equal(LEARN_LESSONS.length, 4);
+  it("publishes five catalog lessons", () => {
+    assert.equal(LEARN_LESSONS.length, 5);
+    assert.equal(LEARN_LESSONS[4]!.href, LEARN_READ_PATH);
+    assert.equal(LEARN_READ_PATH, "/learn/the-read-beats-the-tap");
     assert.equal(LEARN_LESSONS[0]!.href, LEARN_WEIGHTS_PATH);
     assert.equal(LEARN_LESSONS[1]!.href, LEARN_REPLY_PATH);
     assert.equal(LEARN_LESSONS[2]!.href, LEARN_VOLUME_PATH);
@@ -171,7 +187,7 @@ await describe("learn citations", () => {
     assert.match(LEARN_HUB_DESCRIPTION, /Cited lessons/);
     assert.match(LEARN_HUB_DESCRIPTION, /P\(action\)/);
     assert.match(LEARN_HUB_DESCRIPTION, /not affiliated/i);
-    assert.match(LEARN_HUB_LEDE, /Four cited lessons/);
+    assert.match(LEARN_HUB_LEDE, /Five cited lessons/);
     assert.match(LEARN_HUB_LEDE, /Not a blog/);
     assert.match(LEARN_REPLY_DESCRIPTION, /P\(reply\)/);
     assert.match(LEARN_REPLY_DESCRIPTION, /not affiliated/i);
@@ -298,5 +314,34 @@ await describe("learn citations", () => {
     assert.equal(learnDiversityMultiplier(1), 0.625);
     assert.equal(learnDiversityMultiplier(2), 0.4375);
     assert.equal(learnDiversityMultiplier(3), 0.34375);
+  }).catch(assert.fail);
+
+  it("pins the read lesson to the commit that moved the weights", () => {
+    const byParam = Object.fromEntries(
+      LEARN_READ_CHANGES.map((row) => [row.param, [row.before, row.after]]),
+    );
+    assert.deepEqual(byParam.ClickWeight, [0.4, 0.3]);
+    assert.deepEqual(byParam.ContClickDwellTimeWeight, [0, 0.4]);
+    assert.deepEqual(byParam.NotInterestedWeight, [-43.2, -47.52]);
+    assert.deepEqual(byParam.VqvWeight, [0.05, 0]);
+    for (const row of LEARN_READ_CHANGES) {
+      assert.match(row.beforeHref, /\/blob\/d011592\/home-mixer\/params\/param\.rs#L/);
+      assert.match(row.afterHref, /\/blob\/b79b947\/home-mixer\/params\/param\.rs#L/);
+    }
+    assert.match(LEARN_READ_CLICK_HREF, /\/blob\/b79b947\/home-mixer\/params\/param\.rs#L329$/);
+    assert.match(LEARN_READ_CLICK_DWELL_HREF, /\/blob\/b79b947\/home-mixer\/params\/param\.rs#L383-L388$/);
+    assert.match(LEARN_READ_NOT_INTERESTED_HREF, /#L390-L395$/);
+    assert.match(LEARN_READ_LABEL_HREF, /\/blob\/b79b947\/phoenix\/xrex\/configs\/xrecsys\.py#L691-L698$/);
+    assert.match(LEARN_READ_LABEL_SNIPPET, /CLICK_DWELL_TIME/);
+    assert.match(LEARN_READ_LABEL_SNIPPET, /binary_threshold=10\.0/);
+    assert.match(LEARN_READ_LOSS_SNIPPET, /> threshold/);
+    assert.match(LEARN_READ_CHANGE_SNIPPET, /-    -43\.2\n\+    -47\.52/);
+    assert.match(LEARN_READ_DESCRIPTION, /10 seconds/);
+    assert.match(LEARN_READ_DESCRIPTION, /P\(action\)/);
+    assert.match(LEARN_READ_DESCRIPTION, /not affiliated/i);
+    assert.equal(
+      LEARN_LESSONS[4]!.lede,
+      "The tap fell from 0.4 to 0.3. Staying past 10 seconds after it is a new 0.4. Not interested is now −47.52.",
+    );
   }).catch(assert.fail);
 });
