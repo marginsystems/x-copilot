@@ -385,7 +385,7 @@ await describe("learn schema", () => {
           citation: resource?.citation,
           learningResourceType: resource?.learningResourceType,
           isAccessibleForFree: resource?.isAccessibleForFree,
-          images: [app?.image, resource?.image],
+          images: [app?.image, resource?.image, resource?.thumbnailUrl],
           breadcrumbItems: breadcrumbs?.itemListElement,
         },
         {
@@ -404,6 +404,7 @@ await describe("learn schema", () => {
           isAccessibleForFree: true,
           images: [
             `https://xcopilot.dev${lesson.appImage}`,
+            `https://xcopilot.dev${lesson.articleImage}`,
             `https://xcopilot.dev${lesson.articleImage}`,
           ],
           breadcrumbItems: [

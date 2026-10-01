@@ -277,7 +277,7 @@
 
 .learn-main > p,
 .learn-main > ul,
-.learn-main > ol,
+.learn-main > ol:not(.learn-catalog),
 .learn-main > h2,
 .learn-main > h3 {
   max-width: 60rem;
