@@ -3,9 +3,11 @@ import { parseAccount, payloadError, parseMail, parseSessions } from "./lib/rout
 import { useEffect, useState } from "react";
 import { apiFetch } from "./lib/apiBase";
 import { menuAvatarUrl, menuInitials } from "./lib/menuProfile";
+import { ExtensionConnect } from "./ExtensionConnect";
 
 export type PublicSession = {
   id: string;
+  kind?: "browser" | "extension";
   createdAt: string;
   lastSeenAt: string;
   ip: string | null;
@@ -324,6 +326,8 @@ export function Account(props: {
         </div>
       </div>
 
+      <ExtensionConnect />
+
       <h3 className="account-section-title">Sessions</h3>
       {busy && sessions.length === 0 ? (
         <p className="status">Loading sessions…</p>
@@ -336,6 +340,7 @@ export function Account(props: {
               <div className="account-session-top">
                 <div className="account-session-copy">
                   <p className="account-session-agent">
+                    {row.kind === "extension" ? "Extension · " : null}
                     {row.browser} · {row.os}
                     {row.current ? (
                       <span className="account-badge">This device</span>

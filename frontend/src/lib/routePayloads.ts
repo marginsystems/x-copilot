@@ -31,7 +31,8 @@ export function payloadError(v: unknown, fallback: string): string {
 }
 function session(v: unknown): v is PublicSession {
   return object(v) && fields(v, "id createdAt lastSeenAt browser os", string) &&
-    nullableString(v.ip) && boolean(v.current);
+    nullableString(v.ip) && boolean(v.current) &&
+    (v.kind === undefined || v.kind === "browser" || v.kind === "extension");
 }
 function isSessions(v: unknown): v is { sessions: PublicSession[]; signedOut?: boolean } {
   return envelope(v) && v.ok === true && rows(v.sessions, session) &&
