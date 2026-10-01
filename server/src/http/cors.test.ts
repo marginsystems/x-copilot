@@ -54,7 +54,7 @@ await describe("cors", async () => {
     assert.equal(headers["Access-Control-Allow-Credentials"], "true");
     assert.equal(
       headers["Access-Control-Allow-Headers"],
-      "Content-Type, X-Requested-With, Authorization",
+      "Content-Type, Authorization",
     );
     assert.ok(
       (headers["Access-Control-Allow-Methods"] ?? "").includes("DELETE"),
