@@ -39,7 +39,7 @@ import {
   LEARN_READ_SECONDS_HREF,
   LEARN_READ_SHA,
   LEARN_SOURCE_REPO,
-  LEARN_SOURCE_SHA,
+  LEARN_PREVIOUS_SHA,
   LEARN_WEIGHTS_PATH,
   formatLearnChange,
   type LearnLessonView,
@@ -93,16 +93,16 @@ export function LearnReadPage(props: { goToView: (view: AppView) => void }) {
         {LEARN_READ_CHANGE_SNIPPET}
       </LearnCode>
 
-      <h2>What moved since lessons 1–4</h2>
+      <h2>What moved since 24 August</h2>
       <p>
-        Lessons 1–4 cite <code>{LEARN_SOURCE_SHA}</code>. This lesson cites{" "}
-        <code>{LEARN_READ_SHA}</code>. Where a number below differs from an
-        older lesson, this table is the newer default.
+        Our first lessons were cited at <code>{LEARN_PREVIOUS_SHA}</code>.
+        Every lesson now cites <code>{LEARN_READ_SHA}</code>. These are the
+        action weights that changed in between.
       </p>
       <div className="learn-table-wrap">
         <table>
           <caption>
-            Action weights that changed between <code>{LEARN_SOURCE_SHA}</code>{" "}
+            Action weights that changed between <code>{LEARN_PREVIOUS_SHA}</code>{" "}
             and <code>{LEARN_READ_SHA}</code>. Each number links to its line.
           </caption>
           <thead>

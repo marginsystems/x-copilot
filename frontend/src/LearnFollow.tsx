@@ -78,7 +78,7 @@ export function LearnFollowPage(props: {
         is on. The default in this snapshot is true.
       </p>
       <LearnCode
-        file="home-mixer/scorers/ranking_scorer.rs"
+        file="xai-value-model/scoring.rs"
         href={LEARN_OON_APPLY_HREF}
       >
         {LEARN_OON_SNIPPET}
