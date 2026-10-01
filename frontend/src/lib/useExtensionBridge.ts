@@ -59,8 +59,8 @@ export function useExtensionBridge(): {
         setState({ kind: "failed", message: `Could not create an extension sign-in (${res.status}).` });
         return;
       }
-      const acked = new Promise<boolean>((resolve) => {
-        const timer = window.setTimeout(() => resolve(false), EXTENSION_PAIR_ACK_MS);
+      const acked = new Promise<boolean | null>((resolve) => {
+        const timer = window.setTimeout(() => resolve(null), EXTENSION_PAIR_ACK_MS);
         ackRef.current = (ok) => {
           window.clearTimeout(timer);
           ackRef.current = null;
@@ -74,11 +74,12 @@ export function useExtensionBridge(): {
         apiBase: apiBase(),
       };
       window.postMessage(message, window.location.origin);
-      setState(
-        (await acked)
-          ? { kind: "connected" }
-          : { kind: "failed", message: "The extension did not answer. Reload this page and try again." },
-      );
+      const ack = await acked;
+      setState(ack === true
+        ? { kind: "connected" }
+        : { kind: "failed", message: ack === false
+          ? "The extension rejected the sign-in. Check the extension and try again."
+          : "The extension did not answer. Reload this page and try again." });
     } catch (err) {
       setState({ kind: "failed", message: err instanceof Error ? err.message : String(err) });
     }

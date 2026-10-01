@@ -80,6 +80,17 @@ test("reports a missing ack after the timeout", async () => {
   expect(await screen.findByText("The extension did not answer. Reload this page and try again.")).toBeTruthy();
 });
 
+test("reports an extension-rejected pairing separately from a missing ack", async () => {
+  const { posts } = capturePosts();
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ ok: true, token: "t", expiresAt: EXPIRES }, { status: 201 })));
+  render(<ExtensionConnect />);
+  fromPage({ type: EXTENSION_HELLO, version: "0.1.0", paired: false });
+  fireEvent.click(screen.getByRole("button", { name: "Connect extension" }));
+  await vi.waitFor(() => expect(posts.some((message) => parseExtensionPair(message))).toBe(true));
+  fromPage({ type: EXTENSION_PAIRED, ok: false });
+  expect(await screen.findByText("The extension rejected the sign-in. Check the extension and try again.")).toBeTruthy();
+});
+
 test("reports a refused pairing request without posting a token", async () => {
   const { posts } = capturePosts();
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ error: "rate_limited" }, { status: 429 })));
