@@ -366,7 +366,7 @@ await describe("bubbleMapEngine", () => {
     const homes = engine.positions();
     const arcs = canvas.contextCalls
       .filter(([name]) => name === "arc")
-      .map(([, args]) => ({ x: args[0] as number, y: args[1] as number }));
+      .map(([, args]) => ({ x: Number(args[0]), y: Number(args[1]) }));
     assert.ok(
       arcs.some(
         (arc) =>
