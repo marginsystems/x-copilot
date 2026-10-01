@@ -6,6 +6,7 @@ import {
   LEARN_FORMULA,
   LEARN_HEADING,
   LEARN_MUTUAL_REPLY_APPLY_HREF,
+  LEARN_MUTUAL_REPLY_ELIGIBLE_HREF,
   LEARN_MUTUAL_REPLY_HREF,
   LEARN_REPLY_FIGURE_FIVE,
   LEARN_REPLY_FIGURE_MUTUAL,
@@ -14,6 +15,7 @@ import {
   LEARN_REPLY_IMAGE_ALT,
   LEARN_REPLY_META,
   LEARN_REPLY_WEIGHT_HREF,
+  LEARN_REPLY_ELIGIBLE_SNIPPET,
   LEARN_REPLY_WEIGHT_SNIPPET,
   LEARN_SOURCE_DATE,
   LEARN_VOLUME_HEADING,
@@ -118,7 +120,13 @@ export function LearnReplyPage(props: {
         . That is 5.0 + 15.0 on P(reply) — still not a raw count.
       </p>
       <LearnCode
-        file="home-mixer/scorers/ranking_scorer.rs"
+        file="xai-value-model/inputs.rs"
+        href={LEARN_MUTUAL_REPLY_ELIGIBLE_HREF}
+      >
+        {LEARN_REPLY_ELIGIBLE_SNIPPET}
+      </LearnCode>
+      <LearnCode
+        file="xai-value-model/weights.rs"
         href={LEARN_MUTUAL_REPLY_APPLY_HREF}
       >
         {LEARN_REPLY_WEIGHT_SNIPPET}

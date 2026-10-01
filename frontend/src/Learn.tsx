@@ -124,7 +124,7 @@ export function LearnPage(props: {
         as <code>{LEARN_FORMULA}</code>. The arithmetic is:
       </p>
       <LearnCode
-        file="home-mixer/scorers/ranking_scorer.rs"
+        file="xai-value-model/scoring.rs"
         href={LEARN_SCORER_HREF}
       >
         {LEARN_APPLY_SNIPPET}
@@ -168,7 +168,8 @@ export function LearnPage(props: {
         Like 0.5, retweet 1.0, reply 5.0, quote 5.0 is the relative value of
         those predicted actions — not “a reply is worth 10 likes on the post.”
         Copy-link share is the largest positive default (+20.0). Dwell weight
-        is 0.0; continuous dwell time is +0.004.
+        is +0.05; continuous dwell time is +0.004. A click is +0.3, and
+        staying past 10 seconds after it is +0.4.
       </p>
 
       <h2>Source</h2>
