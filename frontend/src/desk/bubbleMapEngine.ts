@@ -468,7 +468,7 @@ export function createBubbleMap(
       !ghost &&
       snap.items.length === keys.length &&
       snap.items.every((item, i) => item.key === keys[i]);
-    if (snap && sameKeys && !repack && !shouldRepack(snap.box, box)) {
+    if (snap && morph === null && sameKeys && !repack && !shouldRepack(snap.box, box)) {
       morph = null;
       rescaleBodies(bodies, snap.box, box);
       if (reduced()) snapToHome(bodies);
@@ -697,9 +697,9 @@ export function createBubbleMap(
       tip.hidden = true;
       expanded = next;
       derive();
-      sync();
       linked = indexOfHandle(linkedHandle);
       if (ghost || roster.length === 0) return;
+      sync();
       layout(snap, true);
     },
     positions() {

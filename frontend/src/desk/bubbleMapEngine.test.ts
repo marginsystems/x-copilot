@@ -30,6 +30,7 @@ function payload(count: number): CircleSharePayload {
 
 function fakeElement() {
   const listeners = new Map<string, Listener>();
+  const contextCalls: Array<[string, unknown[]]> = [];
   const element = {
     className: "",
     hidden: false,
@@ -42,6 +43,7 @@ function fakeElement() {
     height: 0,
     textContent: "",
     listeners,
+    contextCalls,
     setAttribute() {},
     appendChild() {},
     replaceChildren() {},
@@ -59,7 +61,10 @@ function fakeElement() {
     },
     hasPointerCapture: () => true,
     getBoundingClientRect: () => ({ left: 0, top: 0 }),
-    getContext: () => new Proxy({}, { get: () => () => undefined, set: () => true }),
+    getContext: () => new Proxy({}, {
+      get: (_, property) => (...args: unknown[]) => contextCalls.push([String(property), args]),
+      set: () => true,
+    }),
   };
   return element;
 }
@@ -349,6 +354,43 @@ await describe("bubbleMapEngine", () => {
     }
     assert.ok(elapsed >= 250 && elapsed <= 400, `elapsed ${elapsed}`);
     assert.equal(frames.length, 0);
+  }).catch(assert.fail);
+
+  it("continues drawing live morph poses when the host resizes", () => {
+    const { engine, host, canvas } = setup(40);
+    engine.setExpanded(true);
+    pump(2);
+    canvas.contextCalls.length = 0;
+    host.clientWidth = 240;
+    for (const callback of resizeCallbacks) callback();
+    const homes = engine.positions();
+    const arcs = canvas.contextCalls
+      .filter(([name]) => name === "arc")
+      .map(([, args]) => ({ x: args[0] as number, y: args[1] as number }));
+    assert.ok(
+      arcs.some(
+        (arc) =>
+          !homes.some(
+            (home) => Math.abs(home.x - arc.x) < 0.01 && Math.abs(home.y - arc.y) < 0.01,
+          ),
+      ),
+    );
+  }).catch(assert.fail);
+
+  it("defers resizing a ghost canvas until data is repopulated", () => {
+    const { engine, host, canvas } = setup(12);
+    engine.setData(null, null);
+    const width = canvas.width;
+    const height = canvas.height;
+    const clears = canvas.contextCalls.filter(([name]) => name === "clearRect").length;
+    host.clientWidth = 240;
+    engine.setExpanded(true);
+    assert.equal(canvas.width, width);
+    assert.equal(canvas.height, height);
+    assert.equal(canvas.contextCalls.filter(([name]) => name === "clearRect").length, clears);
+    engine.setData(payload(12), new Map());
+    assert.equal(canvas.width, 240);
+    assert.equal(canvas.contextCalls.filter(([name]) => name === "clearRect").length, clears + 1);
   }).catch(assert.fail);
 
   it("swaps instantly with no morph frames under reduced motion", () => {
