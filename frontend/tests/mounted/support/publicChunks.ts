@@ -8,6 +8,7 @@ export async function loadPublicChunks() {
     import("../../../src/LearnReply"),
     import("../../../src/LearnVolume"),
     import("../../../src/LearnGive"),
+    import("../../../src/LearnRead"),
     import("../../../src/LearnFollow"),
   ]);
 }
