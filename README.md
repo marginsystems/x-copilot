@@ -155,7 +155,7 @@ Reads use `GET /2/tweets/search/recent` and tweet lookup. Personal tooling only 
 |------|------|
 | `frontend/` | Vite dashboard (agenda, Scout, threads) |
 | `shared/src/` | Pure desk core shared by the dashboard and the browser extension: approach presenter, approach lock and task transitions, reply pace, copy, API payload types and parsers. Imports nothing outside itself and touches no browser storage or DOM (`boundary.test.ts`); desk storage lives in `frontend/src/lib/*Store.ts` |
-| `extension/` | WXT browser extension (Chrome side panel, Firefox sidebar) with its own `package.json` and lockfile. `npm ci`, `npm test`, `npm run build` / `build:firefox` inside `extension/`; load `extension/.output/chrome-mv3` unpacked. Pairs with the desk from Account → Browser extension |
+| `extension/` | WXT browser extension (Chrome side panel, Firefox sidebar) with its own `package.json` and lockfile. `npm ci`, `npm test`, `npm run build` / `build:firefox`, `npm run zip` / `zip:firefox` inside `extension/`; load `extension/.output/chrome-mv3` unpacked (Firefox: `about:debugging` → `.output/firefox-mv2/manifest.json`). CI uploads the Chrome, Firefox and sources zips as the `x-copilot-extension` artifact. Pairs with the desk from Account → Browser extension |
 | `server/src/` | TypeScript sidecar — 237 files in ownership folders (see Server source map) |
 | `server/dist/` | Compiled sidecar (gitignored; from `build:server`) |
 | `scripts/test-x-api.ts` | CLI X API bearer smoke test |
