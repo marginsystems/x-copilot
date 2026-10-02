@@ -18,6 +18,8 @@ import { ANALYTICS_EVENT_NAMES as sidecarAnalyticsEventNames } from "../../../an
 import { emptyDeskBeats as apiEmptyDeskBeats } from "../desk/deskBeats.ts";
 import { EXTENSION_SESSION_PATH as apiExtensionSessionPath } from "../auth/extensionSessionHttp.ts";
 import { EXTENSION_SESSION_PATH as sharedExtensionSessionPath } from "../../../shared/src/extensionBridge.ts";
+import { SCOUT_APPROACH_LOCK_PATH as sharedScoutApproachLockPath } from "../../../shared/src/scoutApproachLock.ts";
+import { SCOUT_APPROACH_LOCK_PATH as apiScoutApproachLockPath } from "../scout/scoutApproachLock.ts";
 
 const require = createRequire(import.meta.url);
 const ecosystem = expectRecord(require("../../../ecosystem.config.example.cjs"));
@@ -33,6 +35,10 @@ await describe("mirrored SPA/API constants", async () => {
 
   await it("keeps the extension pairing path equal on both sides", () => {
     assert.equal(sharedExtensionSessionPath, apiExtensionSessionPath);
+  });
+
+  await it("keeps the scout approach lock path equal on both sides", () => {
+    assert.equal(sharedScoutApproachLockPath, apiScoutApproachLockPath);
   });
 
   await it("keeps NEXT_ACTION_KINDS equal on both sides", () => {
