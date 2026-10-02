@@ -12,8 +12,8 @@ import { AGENDA_MIN_CHARS } from "../lib/agendaPersist";
 import {
   canServeApproachOriginal,
   pickApproachSuggestion,
-} from "../lib/approachCard";
-import { readApproachLock, writeApproachLock } from "../lib/approachLock";
+} from "../../../shared/src/approachCard";
+import { readApproachLock, writeApproachLock } from "../lib/approachLockStore";
 import {
   adoptEmptyScoutCollecting,
   reconcileApproachGate,
@@ -21,7 +21,7 @@ import {
   transitionApproachTask,
   type ApproachNormalizeContext,
   type ApproachTaskState,
-} from "../lib/approachTask";
+} from "../../../shared/src/approachTask";
 import type { CoachingState, OwnActivity } from "../../../shared/src/coaching";
 import { deskNeedsXLink } from "../lib/deskGate";
 import {
@@ -30,19 +30,17 @@ import {
   type ApproachEvent,
   type ApproachInventory,
 } from "../../../shared/src/deskPhase";
-import { eligibleScoutCards } from "../lib/deskRefuel";
+import { eligibleScoutCards } from "../../../shared/src/deskRefuel";
 import { forYouTargetId, type ForYouSuggestion } from "../../../shared/src/forYou";
 import { replyPaceSeedIso } from "../../../shared/src/replyPace";
 import {
-  clearForYouWait,
   forYouDetectedActivity,
   forYouWaitDetected,
   latestActivityCursor,
   newestOwnActivity,
-  readForYouWait,
   settleForYouWait,
-  writeForYouWait,
-} from "../lib/forYouTask";
+} from "../../../shared/src/forYouTask";
+import { clearForYouWait, readForYouWait, writeForYouWait } from "../lib/forYouWaitStore";
 import { vanishEvent } from "../lib/vanishEvent";
 import { apiFetch } from "../lib/apiBase";
 import { presentApproach, type ApproachCardInput } from "../../../shared/src/approachPresenter";
@@ -54,7 +52,7 @@ import {
   writeRetainedScout,
   writeRetainedSuggestion,
 } from "./approachRetained";
-import { pickApproachScout } from "./approachScout";
+import { pickApproachScout } from "../../../shared/src/approachScout";
 import { approachDetector } from "./approachDetector";
 import { routeDeskDetector } from "./deskEventStream";
 import { clearReplyPaceOverlay } from "./replyPaceStore";

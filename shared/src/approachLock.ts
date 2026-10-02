@@ -1,8 +1,8 @@
-import { isRecord, isOneOf } from "../../../shared/src/typeGuards";
+import { isRecord, isOneOf } from "./typeGuards";
 import {
   DESK_PHASES,
   type ApproachLock,
-} from "../../../shared/src/deskPhase";
+} from "./deskPhase";
 
 export const APPROACH_LOCK_STORAGE_KEY = "x-copilot-approach-lock";
 
@@ -35,32 +35,5 @@ export function parseApproachLock(raw: string | null): ApproachLock | null {
     };
   } catch {
     return null;
-  }
-}
-
-function storageKey(userId: string): string {
-  return `${APPROACH_LOCK_STORAGE_KEY}:${userId}`;
-}
-
-export function readApproachLock(
-  userId: string | null | undefined,
-): ApproachLock | null {
-  if (!userId) return null;
-  try {
-    return parseApproachLock(localStorage.getItem(storageKey(userId)));
-  } catch {
-    return null;
-  }
-}
-
-export function writeApproachLock(
-  userId: string | null | undefined,
-  lock: ApproachLock,
-): void {
-  if (!userId) return;
-  try {
-    localStorage.setItem(storageKey(userId), JSON.stringify(lock));
-  } catch {
-    /* private mode */
   }
 }

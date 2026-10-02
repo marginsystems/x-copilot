@@ -1,12 +1,12 @@
-import { isRecord } from "../../../shared/src/typeGuards";
+import { isRecord } from "./typeGuards";
 /**
  * The For You wait belongs to one presented task. Detection reads one activity
  * cursor — the newest own post or attributed reply the desk already knows.
  * Scout still matches a specific card; this cursor only answers "anything new?"
  */
 
-import type { OwnActivity } from "../../../shared/src/coaching";
-import type { InteractionHistoryEntry } from "../../../shared/src/deskTypes";
+import type { OwnActivity } from "./coaching";
+import type { InteractionHistoryEntry } from "./deskTypes";
 
 export const FOR_YOU_WAIT_STORAGE_KEY = "x-copilot-fyp-wait-v2";
 
@@ -188,10 +188,6 @@ export function settleForYouWait(
   return wait;
 }
 
-function storageKey(owner: string): string {
-  return `${FOR_YOU_WAIT_STORAGE_KEY}:${owner}`;
-}
-
 function parseSnapshot(raw: unknown): ForYouWaitSnapshot | null | undefined {
   if (raw === null) return null;
   if (!isRecord(raw)) return undefined;
@@ -257,29 +253,5 @@ export function parseForYouWait(
     };
   } catch {
     return null;
-  }
-}
-
-export function readForYouWait(owner: string): ForYouWait | null {
-  try {
-    return parseForYouWait(sessionStorage.getItem(storageKey(owner)), owner);
-  } catch {
-    return null;
-  }
-}
-
-export function writeForYouWait(wait: ForYouWait): void {
-  try {
-    sessionStorage.setItem(storageKey(wait.owner), JSON.stringify(wait));
-  } catch {
-    /* private mode */
-  }
-}
-
-export function clearForYouWait(owner: string): void {
-  try {
-    sessionStorage.removeItem(storageKey(owner));
-  } catch {
-    /* private mode */
   }
 }

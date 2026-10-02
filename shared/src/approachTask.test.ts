@@ -8,18 +8,18 @@ import {
   type ApproachTaskState,
 } from "./approachTask.ts";
 import { eligibleScoutCards, shouldArmScoutOnBoot, shouldBackgroundScout } from "./deskRefuel.ts";
-import { advanceApproach, type ApproachLock } from "../../../shared/src/deskPhase.ts";
+import { advanceApproach, type ApproachLock } from "./deskPhase.ts";
 import {
   forYouWaitDetected,
   openForYouWait,
   settleForYouWait,
 } from "./forYouTask.ts";
-import { presentApproach } from "../../../shared/src/approachPresenter.ts";
+import { presentApproach } from "./approachPresenter.ts";
 import {
   FYP_DETECTED_COPY,
   FYP_DETECTING_COPY,
   type ForYouSuggestion,
-} from "../../../shared/src/forYou.ts";
+} from "./forYou.ts";
 
 const OWNER = "operator-1";
 const T0 = Date.parse("2026-09-07T10:00:00.000Z");

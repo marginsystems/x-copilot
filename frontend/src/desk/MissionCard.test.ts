@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { advanceApproach, type ApproachLock } from "../../../shared/src/deskPhase";
-import { pickApproachScout } from "./approachScout";
+import { pickApproachScout } from "../../../shared/src/approachScout";
 import { ApproachLoadingCard, MissionCard } from "./MissionCard";
 import { ForYouFeedRow } from "./ForYouFeedRow";
 import {

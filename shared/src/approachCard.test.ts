@@ -4,7 +4,7 @@ import {
   canServeApproachOriginal,
   pickApproachSuggestion,
 } from "./approachCard.ts";
-import type { ForYouSuggestion } from "../../../shared/src/forYou.ts";
+import type { ForYouSuggestion } from "./forYou.ts";
 
 function row(
   kind: ForYouSuggestion["kind"],
