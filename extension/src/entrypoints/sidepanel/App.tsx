@@ -5,8 +5,9 @@ import { DEFAULT_DESK_ORIGIN } from "../../lib/desks";
 import { planOpenOnX } from "../../lib/openOnX";
 import type { Pairing } from "../../lib/pairing";
 import { clearPairing, readPairing } from "../../lib/pairingStore";
-import { loadPanelData, signOutExtension, type PanelData } from "../../lib/panelData";
-import { panelCard, panelPace } from "../../lib/panelModel";
+import { askDeskForNext, loadPanelData, signOutExtension, type PanelData } from "../../lib/panelData";
+import { panelCanAskNext, panelCard, panelNextNotice, panelPace } from "../../lib/panelModel";
+import { readRepliedCardId } from "../../lib/repliedCardStore";
 import { readAttentionGate, writeAttentionGate } from "../../lib/settingsStore";
 
 const REFRESH_MS = 15_000;
@@ -39,6 +40,9 @@ function useNow(): number {
 export function App() {
   const [state, setState] = useState<PanelState>({ kind: "loading" });
   const [attentionGate, setAttentionGate] = useState(true);
+  const [repliedCardId, setRepliedCardId] = useState<string | null>(null);
+  const [nextNotice, setNextNotice] = useState<string | null>(null);
+  const [askingNext, setAskingNext] = useState(false);
   const now = useNow();
 
   useEffect(() => {
@@ -51,9 +55,13 @@ export function App() {
       setState({ kind: "unpaired", notice: null });
       return;
     }
+    setRepliedCardId(await readRepliedCardId().catch(() => null));
     try {
       const data = await loadPanelData(pairing);
-      setState({ kind: "ready", pairing, data, error: null });
+      setState((prev) => {
+        if (prev.kind === "ready" && prev.data.lock?.id !== data.lock?.id) setNextNotice(null);
+        return { kind: "ready", pairing, data, error: null };
+      });
     } catch (err) {
       if (err instanceof UnpairedError) {
         await clearPairing();
@@ -113,6 +121,20 @@ export function App() {
   const card = panelCard(state.data.lock);
   const pace = panelPace(state.data.replyAt, now);
   const pairing = state.pairing;
+  const lock = state.data.lock;
+  const canAskNext = panelCanAskNext(lock, repliedCardId);
+
+  function askNext() {
+    if (!lock) return;
+    setAskingNext(true);
+    askDeskForNext(pairing, lock.id)
+      .then((delivered) => {
+        setNextNotice(panelNextNotice(delivered));
+        if (delivered) window.setTimeout(() => { refresh().catch(() => undefined); }, 1_500);
+      })
+      .catch((err: unknown) => setNextNotice(err instanceof Error ? err.message : String(err)))
+      .finally(() => setAskingNext(false));
+  }
 
   return (
     <main className="panel">
@@ -149,6 +171,12 @@ export function App() {
         >
           {card.openLabel}
         </button>
+        {canAskNext ? (
+          <button type="button" className="ghost" disabled={askingNext} onClick={askNext}>
+            Next card
+          </button>
+        ) : null}
+        {nextNotice ? <p className="muted small" role="status">{nextNotice}</p> : null}
       </section>
       <label className="toggle">
         <input

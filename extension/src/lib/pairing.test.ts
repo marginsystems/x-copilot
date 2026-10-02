@@ -10,9 +10,12 @@ describe("pairingFromDesk", () => {
     expect(
       pairingFromDesk({ type: EXTENSION_PAIR, token: "t", expiresAt: EXPIRES, apiBase: "https://api.xcopilot.dev" }, "https://xcopilot.dev"),
     ).toEqual({ token: "t", expiresAt: EXPIRES, apiBase: "https://api.xcopilot.dev", deskOrigin: "https://xcopilot.dev" });
+  });
+
+  it("refuses local desks outside development builds", () => {
     expect(
       pairingFromDesk({ type: EXTENSION_PAIR, token: "t", expiresAt: EXPIRES, apiBase: "http://localhost:8787" }, "http://localhost:5173"),
-    )?.not.toBeNull();
+    ).toBeNull();
   });
 
   it("refuses an API that does not belong to the sending desk", () => {

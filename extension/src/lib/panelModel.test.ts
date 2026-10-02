@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { X_FOR_YOU_URL } from "../../../shared/src/forYou";
 import { REPLY_PACE_MS } from "../../../shared/src/replyPace";
-import { panelCard, panelPace, scoutOpenUrl } from "./panelModel";
+import { panelCanAskNext, panelCard, panelNextNotice, panelPace, scoutOpenUrl } from "./panelModel";
 
 const lock = {
   id: "123",
@@ -48,5 +48,19 @@ describe("panelPace", () => {
     expect(panelPace([new Date(replied).toISOString()], replied + REPLY_PACE_MS)).toBeNull();
     expect(panelPace([], replied)).toBeNull();
     expect(panelPace(undefined, replied)).toBeNull();
+  });
+});
+
+describe("panel Next", () => {
+  it("is offered only for the Scout card the extension saw a reply to", () => {
+    expect(panelCanAskNext(lock, "123")).toBe(true);
+    expect(panelCanAskNext(lock, "999")).toBe(false);
+    expect(panelCanAskNext(lock, null)).toBe(false);
+    expect(panelCanAskNext(null, "123")).toBe(false);
+  });
+
+  it("explains when no desk tab is open to pick the next card", () => {
+    expect(panelNextNotice(true)).toBe("Asked the desk for the next card.");
+    expect(panelNextNotice(false)).toContain("Open the desk in a tab");
   });
 });

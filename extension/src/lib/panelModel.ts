@@ -56,3 +56,13 @@ export function panelPace(replyAt: readonly string[] | undefined, nowMs: number)
   const clock = formatReplyPaceClock(remainingMs);
   return { remainingMs, clock, tip: replyPaceTip(clock) };
 }
+
+export function panelCanAskNext(lock: ScoutApproachLockCard | null, repliedCardId: string | null): boolean {
+  return lock !== null && repliedCardId !== null && lock.id === repliedCardId;
+}
+
+export function panelNextNotice(delivered: boolean): string {
+  return delivered
+    ? "Asked the desk for the next card."
+    : "Open the desk in a tab, then press Next again. The desk picks the next card.";
+}

@@ -66,5 +66,6 @@ describe("reportReply", () => {
       }),
     });
     expect(state.set).toHaveBeenCalledTimes(1);
+    expect(state.set).toHaveBeenCalledWith(expect.objectContaining({ lastRepliedCardId: "123" }));
   });
 });

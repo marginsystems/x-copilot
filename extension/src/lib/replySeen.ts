@@ -2,6 +2,7 @@ import type { ScoutApproachLockCard } from "../../../shared/src/scoutApproachLoc
 import { statusIdFromPath } from "./attention";
 
 export const REPLY_SEEN_KEY = "lastReplySeenAt";
+export const REPLIED_CARD_KEY = "lastRepliedCardId";
 
 export type InteractedBody = {
   threadId: string;
