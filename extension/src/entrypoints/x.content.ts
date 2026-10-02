@@ -94,14 +94,40 @@ export default defineContentScript({
     }
 
     const reported = new Set<string>();
-    function reportSentPosts() {
-      for (const link of document.querySelectorAll<HTMLAnchorElement>(X_SELECTORS.sentToastLink)) {
+    const pending = new Map<string, HTMLAnchorElement>();
+    function reportSentPosts(records: MutationRecord[]) {
+      const links = new Set<HTMLAnchorElement>();
+      for (const record of records) {
+        for (const node of record.addedNodes) {
+          if (!(node instanceof Element)) continue;
+          if (node.matches(X_SELECTORS.sentToastLink)) links.add(node as HTMLAnchorElement);
+          for (const link of node.querySelectorAll<HTMLAnchorElement>(X_SELECTORS.sentToastLink)) {
+            links.add(link);
+          }
+        }
+      }
+      for (const [replyUrl, link] of pending) {
+        if (link.isConnected) links.add(link);
+        else pending.delete(replyUrl);
+      }
+      for (const link of links) {
         const replyUrl = postedStatusUrl(link.getAttribute("href"));
         if (!replyUrl || reported.has(replyUrl)) continue;
         reported.add(replyUrl);
         browser.runtime
           .sendMessage({ type: REPLY_SEEN, replyUrl, pageStatusId: clock.statusId })
-          .catch(() => undefined);
+          .then((response) => {
+            if (response?.ok) {
+              pending.delete(replyUrl);
+              return;
+            }
+            reported.delete(replyUrl);
+            pending.set(replyUrl, link);
+          })
+          .catch(() => {
+            reported.delete(replyUrl);
+            pending.set(replyUrl, link);
+          });
       }
     }
     const observer = new MutationObserver(reportSentPosts);

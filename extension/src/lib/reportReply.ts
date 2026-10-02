@@ -13,7 +13,8 @@ const OWN_POST_CATCH_UP_PATH = "/api/desk/own-posts/catch-up";
 export async function reportReply(rawReplyUrl: string, pageStatusId: string | null): Promise<void> {
   const replyUrl = postedStatusUrl(rawReplyUrl);
   const pairing = await readPairing();
-  if (!replyUrl || !pairing) return;
+  if (!replyUrl) return;
+  if (!pairing) throw new Error("The extension is not paired");
   const lock = parseScoutApproachLockResponse(await apiRequest(pairing, SCOUT_APPROACH_LOCK_PATH));
   const report = replyReport(lock?.card ?? null, pageStatusId, replyUrl);
   if (report.kind === "scout") {
