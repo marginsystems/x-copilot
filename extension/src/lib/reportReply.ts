@@ -26,5 +26,5 @@ export async function reportReply(rawReplyUrl: string, pageStatusId: string | nu
   } else {
     await apiRequest(pairing, OWN_POST_CATCH_UP_PATH, { method: "POST" });
   }
-  await browser.storage.local.set({ [REPLY_SEEN_KEY]: Date.now() });
+  await browser.storage.local.set({ [REPLY_SEEN_KEY]: Date.now() }).catch(() => undefined);
 }

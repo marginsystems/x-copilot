@@ -101,8 +101,8 @@ describe("x content attention polling", () => {
     expect(state.sendMessage).toHaveBeenCalledTimes(1);
   });
 
-  it("retries a failed toast report after a later page mutation", async () => {
-    state.sendMessage.mockResolvedValueOnce({ ok: false }).mockResolvedValueOnce({ ok: true });
+  it("retries a failed toast report only once across later page mutations", async () => {
+    state.sendMessage.mockResolvedValue({ ok: false });
     const context = {
       setInterval: (callback: () => void) => {
         state.intervalCallback = callback;
@@ -124,6 +124,15 @@ describe("x content attention polling", () => {
     expect(state.sendMessage).toHaveBeenCalledTimes(1);
 
     document.body.append(document.createElement("div"));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(state.sendMessage).toHaveBeenCalledTimes(2);
+
+    const replacementToast = document.createElement("div");
+    replacementToast.setAttribute("data-testid", "toast");
+    const replacementLink = document.createElement("a");
+    replacementLink.setAttribute("href", "/me/status/555");
+    replacementToast.append(replacementLink);
+    document.body.append(replacementToast);
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(state.sendMessage).toHaveBeenCalledTimes(2);
   });

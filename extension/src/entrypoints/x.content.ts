@@ -94,6 +94,7 @@ export default defineContentScript({
     }
 
     const reported = new Set<string>();
+    const attempts = new Map<string, number>();
     const pending = new Map<string, HTMLAnchorElement>();
     function reportSentPosts(records: MutationRecord[]) {
       const links = new Set<HTMLAnchorElement>();
@@ -112,7 +113,10 @@ export default defineContentScript({
       }
       for (const link of links) {
         const replyUrl = postedStatusUrl(link.getAttribute("href"));
-        if (!replyUrl || reported.has(replyUrl)) continue;
+        if (!replyUrl || reported.has(replyUrl) || (attempts.get(replyUrl) ?? 0) >= 2) continue;
+        const attempt = (attempts.get(replyUrl) ?? 0) + 1;
+        attempts.set(replyUrl, attempt);
+        pending.delete(replyUrl);
         reported.add(replyUrl);
         browser.runtime
           .sendMessage({ type: REPLY_SEEN, replyUrl, pageStatusId: clock.statusId })
@@ -122,11 +126,11 @@ export default defineContentScript({
               return;
             }
             reported.delete(replyUrl);
-            pending.set(replyUrl, link);
+            if (attempt < 2) pending.set(replyUrl, link);
           })
           .catch(() => {
             reported.delete(replyUrl);
-            pending.set(replyUrl, link);
+            if (attempt < 2) pending.set(replyUrl, link);
           });
       }
     }
