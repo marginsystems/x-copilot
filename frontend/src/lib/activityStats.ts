@@ -1,6 +1,6 @@
 /** Client types + fetch for GET /api/interacted/stats. */
 
-import { apiFetch } from "./apiBase";
+import { apiFetch } from "./apiBase.ts";
 
 export type ActivityBucket = "day" | "week";
 

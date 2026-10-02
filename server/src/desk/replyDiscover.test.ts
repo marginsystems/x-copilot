@@ -702,7 +702,7 @@ await describe("discoverOwnReplies", async () => {
       upsertMemory: false,
       session: { configured: true, bearerToken: "t" },
       resolveScreenName: async () => "me",
-      searchTimelinePages: async (opts) => ({
+      searchTimelinePages: async () => ({
         ok: true as const,
         threads: [
               card({
@@ -754,7 +754,7 @@ await describe("discoverOwnReplies", async () => {
       upsertMemory: false,
       session: { configured: true, bearerToken: "t" },
       resolveScreenName: async () => "me",
-      searchTimelinePages: async (opts) => ({
+      searchTimelinePages: async () => ({
         ok: true as const,
         threads: [
               card({
@@ -906,7 +906,7 @@ await describe("discoverOwnReplies", async () => {
       upsertMemory: false,
       session: { configured: true, bearerToken: "t" },
       resolveScreenName: async () => "me",
-      searchTimelinePages: async (opts) => ({
+      searchTimelinePages: async () => ({
         ok: true as const,
         threads: [
               card({
@@ -964,7 +964,7 @@ await describe("discoverOwnReplies", async () => {
       upsertMemory: false,
       session: { configured: true, bearerToken: "t" },
       resolveScreenName: async () => "me",
-      searchTimelinePages: async (opts) => ({
+      searchTimelinePages: async () => ({
         ok: true as const,
         threads: [
               card({
@@ -1033,7 +1033,7 @@ await describe("discoverOwnReplies", async () => {
       upsertMemory: false,
       session: { configured: true, bearerToken: "t" },
       resolveScreenName: async () => "me",
-      searchTimelinePages: async (opts) => ({
+      searchTimelinePages: async () => ({
         ok: true as const,
         threads: [
               card({
@@ -1347,7 +1347,7 @@ await describe("discoverOwnReplies", async () => {
       upsertMemory: false,
       session: { configured: true, bearerToken: "t" },
       resolveScreenName: async () => "me",
-      searchTimelinePages: async (opts) => ({
+      searchTimelinePages: async () => ({
         ok: true as const,
         threads: [
               card({
@@ -1406,7 +1406,7 @@ await describe("discoverOwnReplies", async () => {
         embedder: bad,
         session: { configured: true, bearerToken: "t" },
         resolveScreenName: async () => "me",
-        searchTimelinePages: async (opts) => ({
+        searchTimelinePages: async () => ({
           ok: true as const,
           threads: [
                 card({
@@ -1529,7 +1529,7 @@ await describe("discoverOwnReplies desk beats", async () => {
     const gamificationPath = join(dir, "gamification.json");
     watchThread({ userId: "u1", threadId: "scouted-parent", author: "@lead" });
 
-    const search = async (opts: { query: string }) => ({
+    const search = async () => ({
       ok: true as const,
       threads: [
             card({
@@ -1702,7 +1702,7 @@ await describe("foldDiscoveredOwnPosts", async () => {
   });
 
   await it("folds cards without a parseable createdAt via a repairable fallback timestamp", async () => {
-    const user = upsertOauthUser({
+    upsertOauthUser({
       provider: "x",
       providerUserId: "99",
       emailVerified: false,

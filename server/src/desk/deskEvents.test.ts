@@ -3,7 +3,7 @@ import { expectRecord } from "../http/http.testHelpers.js";
 import { afterEach, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
-import { type IncomingMessage, ServerResponse } from "node:http";
+import { ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {

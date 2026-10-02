@@ -3,7 +3,7 @@ import { testRequest } from "../http/http.testHelpers.js";
 import { expectRecord } from "../http/http.testHelpers.js";
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { type IncomingMessage, ServerResponse } from "node:http";
+import { ServerResponse } from "node:http";
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -509,7 +509,7 @@ function parseDismissalRow(value: unknown): { at: string; threadId: string } {
 
 function parseunknown(value: unknown): unknown[] {
   const valid = (row: unknown): row is unknown[] =>
-    (Array.isArray(row) && row.every((item: unknown) => true));
+    (Array.isArray(row) && row.every(() => true));
   if (!valid(value)) throw new TypeError("Invalid database row");
   return value;
 }

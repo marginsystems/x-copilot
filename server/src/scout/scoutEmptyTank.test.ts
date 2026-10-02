@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { setImmediate } from "node:timers/promises";
-import { type IncomingMessage, ServerResponse } from "node:http";
+import { ServerResponse } from "node:http";
 import { updateUserAgenda } from "../auth/authStore.ts";
 import { ensureUserTenant } from "../billing/billingStore.ts";
 import { defaultMigrationsDir, getPlatformDb, resetPlatformDbForTests } from "../db.ts";

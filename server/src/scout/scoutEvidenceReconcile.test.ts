@@ -44,7 +44,6 @@ function ownReply(overrides: Partial<ParsedPostCreate> & { postId: string }): Pa
   return {
     eventUuid: `evt-${overrides.postId}`,
     xUserId: X_USER,
-    postId: overrides.postId,
     kind: "reply",
     text: `reply body ${overrides.postId}`,
     postedAt: new Date(T0).toISOString(),
