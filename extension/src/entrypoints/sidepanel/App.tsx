@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { browser } from "wxt/browser";
 import { UnpairedError } from "../../lib/api";
-import { DEFAULT_DESK_ORIGIN } from "../../lib/desks";
 import { planOpenOnX } from "../../lib/openOnX";
 import type { Pairing } from "../../lib/pairing";
 import { clearPairing, readPairing } from "../../lib/pairingStore";
@@ -9,6 +8,7 @@ import { askDeskForNext, loadPanelData, signOutExtension, type PanelData } from 
 import { panelCanAskNext, panelCard, panelNextNotice, panelPace } from "../../lib/panelModel";
 import { readRepliedCardId } from "../../lib/repliedCardStore";
 import { readAttentionGate, writeAttentionGate } from "../../lib/settingsStore";
+import { DESK_LINKS, FOOTER_LINKS, openDeskPage, PanelLinks, PanelShell } from "./PanelParts";
 
 const REFRESH_MS = 15_000;
 
@@ -88,33 +88,53 @@ export function App() {
   }, [refresh]);
 
   if (state.kind === "loading") {
-    return <main className="panel"><p className="muted">Loading…</p></main>;
+    return (
+      <PanelShell connected={null}>
+        <section className="card" aria-busy="true" aria-label="Loading">
+          <p className="section-title">Loading</p>
+          <div className="skeleton skeleton-title" />
+          <div className="skeleton" />
+          <div className="skeleton skeleton-short" />
+        </section>
+      </PanelShell>
+    );
   }
 
   if (state.kind === "unpaired") {
     return (
-      <main className="panel">
-        <h1>X Copilot</h1>
-        {state.notice ? <p className="notice" role="status">{state.notice}</p> : null}
-        <p>Connect this extension to your desk account to see your approach card here.</p>
-        <button
-          type="button"
-          className="primary"
-          onClick={() => { browser.tabs.create({ url: `${DEFAULT_DESK_ORIGIN}/account` }).catch(() => undefined); }}
-        >
-          Connect on the desk
-        </button>
-      </main>
+      <PanelShell connected={false}>
+        {state.notice ? <p className="status-line" role="status">{state.notice}</p> : null}
+        <section className="card" aria-label="Connect your desk">
+          <p className="section-title">Connect your desk</p>
+          <p className="detail">Connect this extension to your desk account to see your approach card here.</p>
+          <ol className="steps">
+            <li>Open Account on xcopilot.dev.</li>
+            <li>Click Connect extension.</li>
+            <li>Come back here.</li>
+          </ol>
+          <button type="button" className="primary" onClick={() => openDeskPage("/account")}>
+            Open Account
+          </button>
+        </section>
+        <PanelLinks links={DESK_LINKS} />
+        <p className="footnote">X Copilot never types or posts for you.</p>
+      </PanelShell>
     );
   }
 
   if (state.kind === "error") {
     return (
-      <main className="panel">
-        <h1>X Copilot</h1>
-        <p className="notice" role="status">{state.notice}</p>
-        <p>Your extension is connected, but the approach card could not be loaded.</p>
-      </main>
+      <PanelShell connected>
+        <p className="status-line" role="status">{state.notice}</p>
+        <section className="card" aria-label="Approach card">
+          <p className="section-title">Approach</p>
+          <p className="detail">Your extension is connected, but the approach card could not be loaded.</p>
+          <button type="button" className="primary" onClick={() => { refresh().catch(() => undefined); }}>
+            Retry
+          </button>
+        </section>
+        <PanelLinks links={FOOTER_LINKS} />
+      </PanelShell>
     );
   }
 
@@ -136,47 +156,50 @@ export function App() {
       .finally(() => setAskingNext(false));
   }
 
+  const signOut = (
+    <button
+      type="button"
+      className="ghost small-btn"
+      onClick={() => {
+        signOutExtension(pairing)
+          .catch(() => undefined)
+          .then(() => clearPairing())
+          .then(() => setState({ kind: "unpaired", notice: "Signed out." }))
+          .catch(() => undefined);
+      }}
+    >
+      Sign out
+    </button>
+  );
+
   return (
-    <main className="panel">
-      <header className="panel-head">
-        <h1>X Copilot</h1>
-        <button
-          type="button"
-          className="ghost"
-          onClick={() => {
-            signOutExtension(pairing)
-              .catch(() => undefined)
-              .then(() => clearPairing())
-              .then(() => setState({ kind: "unpaired", notice: "Signed out." }))
-              .catch(() => undefined);
-          }}
-        >
-          Sign out
-        </button>
-      </header>
-      {state.error ? <p className="notice" role="status">{state.error}</p> : null}
+    <PanelShell connected headSide={signOut}>
+      {state.error ? <p className="status-line" role="status">{state.error}</p> : null}
       <section className={`card card-${card.kind}`} aria-label="Approach card">
         <p className="verb">{card.verb}</p>
         <h2>{card.title}</h2>
         <p className="detail">{card.detail}</p>
         {pace ? (
           <p className="pace" role="timer" aria-live="off" title={pace.tip}>
-            Next reply in {pace.clock}
+            <span className="pace-label">Next reply in</span>
+            <span className="pace-clock">{pace.clock}</span>
           </p>
         ) : null}
-        <button
-          type="button"
-          className="primary"
-          onClick={() => { openOnX(card.openUrl).catch(() => undefined); }}
-        >
-          {card.openLabel}
-        </button>
-        {canAskNext ? (
-          <button type="button" className="ghost" disabled={askingNext} onClick={askNext}>
-            Next card
+        <div className="actions">
+          <button
+            type="button"
+            className="primary"
+            onClick={() => { openOnX(card.openUrl).catch(() => undefined); }}
+          >
+            {card.openLabel}
           </button>
-        ) : null}
-        {nextNotice ? <p className="muted small" role="status">{nextNotice}</p> : null}
+          {canAskNext ? (
+            <button type="button" className="ghost" disabled={askingNext} onClick={askNext}>
+              Next card
+            </button>
+          ) : null}
+        </div>
+        {nextNotice ? <p className="settings-help" role="status">{nextNotice}</p> : null}
       </section>
       <label className="toggle">
         <input
@@ -190,7 +213,8 @@ export function App() {
         />
         <span>Reading timer on posts (10 s before you reply)</span>
       </label>
-      <p className="muted small">X Copilot never types or posts for you.</p>
-    </main>
+      <PanelLinks links={FOOTER_LINKS} />
+      <p className="footnote">X Copilot never types or posts for you.</p>
+    </PanelShell>
   );
 }
