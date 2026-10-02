@@ -2,10 +2,6 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { runScoutCollect } from "./scoutCollect.ts";
 import { card, fillBucket } from "./scoutCollect.testHelpers.ts";
-import type { ScoutCollectEvent } from "./scoutTypes.ts";
-import { normalizeAuthorKey } from "../desk/interactionCooldown.ts";
-import type { PlanQueriesOpts } from "./queryPlan.ts";
-import type { ThreadCard } from "./threadCard.ts";
 
 await describe("runScoutCollect bucket loop", async () => {
   const session = {
@@ -28,7 +24,7 @@ await describe("runScoutCollect bucket loop", async () => {
       deps: {
         sleep: async () => {},
         getCooledAuthorKeys: async () => new Set(),
-        saveScoutCache: async () => {},
+        saveScoutCache: async (snapshot) => snapshot,
         searchTimeline: async (opts) => {
           seen.push({
             query: opts.query,
@@ -72,7 +68,7 @@ await describe("runScoutCollect bucket loop", async () => {
       deps: {
         sleep: async () => {},
         getCooledAuthorKeys: async () => new Set(),
-        saveScoutCache: async () => {},
+        saveScoutCache: async (snapshot) => snapshot,
         searchTimeline: async () => ({
           ok: true as const,
           queryId: "test",
@@ -121,7 +117,7 @@ await describe("runScoutCollect bucket loop", async () => {
       deps: {
         sleep: async () => {},
         getCooledAuthorKeys: async () => new Set(),
-        saveScoutCache: async () => {},
+        saveScoutCache: async (snapshot) => snapshot,
         searchTimeline: async () => {
           searchCalls += 1;
           // 3 survivors per search → need 2 searches to fill K=5
@@ -171,7 +167,7 @@ await describe("runScoutCollect bucket loop", async () => {
       deps: {
         sleep: async () => {},
         getCooledAuthorKeys: async () => new Set(),
-        saveScoutCache: async () => {},
+        saveScoutCache: async (snapshot) => snapshot,
         searchTimeline: async () => {
           searchCalls += 1;
           return {
@@ -227,7 +223,7 @@ await describe("runScoutCollect bucket loop", async () => {
       deps: {
         sleep: async () => {},
         getCooledAuthorKeys: async () => new Set(),
-        saveScoutCache: async () => {},
+        saveScoutCache: async (snapshot) => snapshot,
         searchTimeline: async () => {
           searchCalls += 1;
           return {
@@ -293,7 +289,7 @@ await describe("runScoutCollect bucket loop", async () => {
       deps: {
         sleep: async () => {},
         getCooledAuthorKeys: async () => new Set(),
-        saveScoutCache: async () => {},
+        saveScoutCache: async (snapshot) => snapshot,
         searchTimeline: async () => {
           searchCalls += 1;
           return {
@@ -341,7 +337,7 @@ await describe("runScoutCollect bucket loop", async () => {
       deps: {
         sleep: async () => {},
         getCooledAuthorKeys: async () => new Set(),
-        saveScoutCache: async () => {},
+        saveScoutCache: async (snapshot) => snapshot,
         searchTimeline: async () => {
           if (id.n >= 5) {
             return {
@@ -395,7 +391,7 @@ await describe("runScoutCollect bucket loop", async () => {
       deps: {
         sleep: async () => {},
         getCooledAuthorKeys: async () => new Set(),
-        saveScoutCache: async () => {},
+        saveScoutCache: async (snapshot) => snapshot,
         // First search yields 3 unique authors; further searches add nothing.
         searchTimeline: async () => {
           if (id.n >= 3) {
@@ -457,7 +453,7 @@ await describe("runScoutCollect bucket loop", async () => {
       deps: {
         sleep: async () => {},
         getCooledAuthorKeys: async () => new Set(),
-        saveScoutCache: async () => {},
+        saveScoutCache: async (snapshot) => snapshot,
         searchTimeline: async () => ({
           ok: true as const,
           queryId: "test",
@@ -495,7 +491,7 @@ await describe("runScoutCollect bucket loop", async () => {
       deps: {
         sleep: async () => {},
         getCooledAuthorKeys: async () => new Set(),
-        saveScoutCache: async () => {},
+        saveScoutCache: async (snapshot) => snapshot,
         searchTimeline: async () => {
           searchCalls += 1;
           return {

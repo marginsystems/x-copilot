@@ -24,6 +24,7 @@ function ix(
 ): Interaction {
   return {
     author: "@u",
+    userId: "u1",
     authorKey: "u",
     source: "manual",
     ...partial,

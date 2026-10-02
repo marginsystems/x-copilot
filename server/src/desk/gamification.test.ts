@@ -780,7 +780,7 @@ await describe("recordMarkGamification / getGamification", async () => {
       ["a", "ra", d1],
       ["b", "rb", d2],
       ["c", "rc", d3],
-    ]) {
+    ] as const) {
       await markInteracted({
         threadId,
         author: "@x",
@@ -841,7 +841,6 @@ await describe("recordMarkGamification / getGamification", async () => {
   });
 
   await it("adopts the legacy ledger once onto the first user file", async () => {
-    const now = Date.parse("2026-08-06T12:00:00.000Z");
     const cwd = process.cwd();
     process.chdir(dir);
     try {

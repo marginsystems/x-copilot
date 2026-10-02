@@ -102,7 +102,7 @@ function stubDeps(
   return {
     sleep: async () => {},
     getCooledAuthorKeys: async () => new Set(),
-    saveScoutCache: async () => {},
+    saveScoutCache: async (snapshot) => snapshot,
     saveScoutRunRecord: () => {},
     searchTimeline: async () => ({
       ok: true as const,
