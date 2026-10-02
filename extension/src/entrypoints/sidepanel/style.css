@@ -57,33 +57,10 @@ button {
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 8px 12px;
-  min-height: 40px;
+  min-height: 32px;
   margin: 0 -12px;
   padding: 6px 12px;
   border-bottom: 1px solid var(--border);
-}
-
-.brand-lockup {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.brand-mark {
-  flex-shrink: 0;
-  width: 22px;
-  height: 22px;
-  display: block;
-}
-
-.brand-name {
-  font-family: var(--font-head);
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--accent);
 }
 
 .panel-head-side {

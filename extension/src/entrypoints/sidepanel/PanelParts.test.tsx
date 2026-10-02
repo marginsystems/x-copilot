@@ -23,7 +23,7 @@ describe("unpaired panel", () => {
     document.body.replaceChildren();
   });
 
-  it("shows the header, connect steps, and desk links", async () => {
+  it("shows only the connection status in its header, plus connect steps and desk links", async () => {
     readPairing.mockResolvedValue(null);
     create.mockResolvedValue(undefined);
     const container = document.createElement("div");
@@ -36,8 +36,8 @@ describe("unpaired panel", () => {
     });
 
     const buttons = Array.from(container.querySelectorAll("button"));
-    expect(container.textContent).toContain("x-copilot");
     expect(container.textContent).toContain("Not connected");
+    expect(container.querySelector(".panel-head")?.textContent).toBe("Not connected");
     expect(buttons.map((button) => button.textContent)).toEqual(
       expect.arrayContaining(["Open Account", "Open desk", "Learn"]),
     );
