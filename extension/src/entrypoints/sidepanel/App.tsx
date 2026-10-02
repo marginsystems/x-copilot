@@ -13,6 +13,7 @@ const REFRESH_MS = 15_000;
 type PanelState =
   | { kind: "loading" }
   | { kind: "unpaired"; notice: string | null }
+  | { kind: "error"; notice: string }
   | { kind: "ready"; pairing: Pairing; data: PanelData; error: string | null };
 
 async function openOnX(url: string): Promise<void> {
@@ -54,7 +55,7 @@ export function App() {
         return;
       }
       const message = err instanceof Error ? err.message : String(err);
-      setState((prev) => (prev.kind === "ready" ? { ...prev, error: message } : { kind: "unpaired", notice: message }));
+      setState((prev) => (prev.kind === "ready" ? { ...prev, error: message } : { kind: "error", notice: message }));
     }
   }, []);
 
@@ -89,6 +90,16 @@ export function App() {
         >
           Connect on the desk
         </button>
+      </main>
+    );
+  }
+
+  if (state.kind === "error") {
+    return (
+      <main className="panel">
+        <h1>X Copilot</h1>
+        <p className="notice" role="status">{state.notice}</p>
+        <p>Your extension is connected, but the approach card could not be loaded.</p>
       </main>
     );
   }

@@ -10,8 +10,8 @@ export default defineConfig({
     host_permissions: [
       "https://x.com/*",
       "https://api.xcopilot.dev/*",
-      "http://127.0.0.1:8787/*",
-      "http://localhost:8787/*",
+      "http://127.0.0.1/*",
+      "http://localhost/*",
     ],
     action: { default_title: "Open X Copilot" },
   }),
