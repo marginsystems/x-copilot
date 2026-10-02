@@ -6,6 +6,7 @@ import { DeskTop } from "../../src/desk/DeskTop";
 import { emptyActivityStats } from "../../src/lib/activityStats";
 import { emptyGamificationStats } from "../../src/lib/gamification";
 import { deferred } from "./support/deferred";
+import { stubFetch } from "./support/requests";
 
 vi.mock("../../src/lib/circleShare", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../src/lib/circleShare")>();
@@ -50,7 +51,7 @@ function Harness({ initialOpen }: { initialOpen: boolean }) {
 }
 
 test("shows instruments, flight path and circle together with no tabs", async () => {
-  vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({}, { status: 503 })));
+  const requests = stubFetch(vi.fn<typeof fetch>().mockResolvedValue(Response.json({}, { status: 503 })));
   render(<Harness initialOpen />);
   expect(screen.getByRole("region", { name: "Instruments" })).toBeTruthy();
   expect(screen.getByRole("region", { name: "Flight path" })).toBeTruthy();
@@ -59,12 +60,13 @@ test("shows instruments, flight path and circle together with no tabs", async ()
   for (const label of ["Replies / hour", "Replies today", "OG today", "Posts / day", "Tank", "Inbound quiet"]) {
     expect(screen.getByText(label)).toBeTruthy();
   }
-  expect(await screen.findByText("Could not load your circle. Refresh the desk to try again.")).toBeTruthy();
+  await requests.settle();
+  expect(screen.getByText("Could not load your circle. Refresh the desk to try again.")).toBeTruthy();
 });
 
 test("the circle keeps one frame from skeleton to loaded card", async () => {
   const pending = deferred<Response>();
-  vi.stubGlobal("fetch", vi.fn(() => pending.promise));
+  const requests = stubFetch(vi.fn<typeof fetch>(() => pending.promise));
   vi.stubGlobal("URL", { createObjectURL: vi.fn(() => "blob:circle"), revokeObjectURL: vi.fn() });
   render(<Harness initialOpen />);
   const frame = screen.getByRole("region", { name: "Circle" });
@@ -73,7 +75,8 @@ test("the circle keeps one frame from skeleton to loaded card", async () => {
   await act(async () => {
     pending.resolve(Response.json(circle));
   });
-  expect(await screen.findByRole("img", { name: /Bubble map of your X Circle, 5 people/ })).toBeTruthy();
+  await requests.settle();
+  expect(screen.getByRole("img", { name: /Bubble map of your X Circle, 5 people/ })).toBeTruthy();
   const loaded = screen.getByRole("region", { name: "Circle" });
   expect(loaded).toBe(frame);
   expect(loaded.getAttribute("aria-busy")).toBe("false");

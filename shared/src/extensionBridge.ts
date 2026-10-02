@@ -1,4 +1,4 @@
-import { isRecord } from "./typeGuards";
+import { isRecord } from "./typeGuards.ts";
 
 export const EXTENSION_SESSION_PATH = "/api/auth/extension-session";
 export const EXTENSION_PING = "x-copilot:extension-ping";

@@ -525,9 +525,9 @@ await describe("scoutProfilePrompt — malformed and malicious input", async () 
   });
 
   await it("non-array hint sections are ignored, not thrown on", () => {
-    const profile = clone(supportedProfile()) as ScoutProfile & { topics: unknown; authors: unknown };
-    profile.topics = { value: "freight" };
-    profile.authors = "carrierco";
+    const profile = clone(supportedProfile());
+    Reflect.set(profile, "topics", { value: "freight" });
+    Reflect.set(profile, "authors", "carrierco");
     const data = selectScoutProfilePromptData(profile);
     assert.equal(data?.topics, undefined);
     assert.equal(data?.authors, undefined);
@@ -560,7 +560,7 @@ function parseDatabaseRow(value: unknown): Array<Record<string, unknown>> {
 
 function parseunknown(value: unknown): unknown[] {
   const valid = (row: unknown): row is unknown[] =>
-    (Array.isArray(row) && row.every((item: unknown) => true));
+    (Array.isArray(row) && row.every(() => true));
   if (!valid(value)) throw new TypeError("Invalid database row");
   return value;
 }

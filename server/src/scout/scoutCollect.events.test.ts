@@ -3,9 +3,7 @@ import assert from "node:assert/strict";
 import { runScoutCollect } from "./scoutCollect.ts";
 import { card, fillBucket } from "./scoutCollect.testHelpers.ts";
 import type { ScoutCollectEvent } from "./scoutTypes.ts";
-import { normalizeAuthorKey } from "../desk/interactionCooldown.ts";
 import type { PlanQueriesOpts } from "./queryPlan.ts";
-import type { ThreadCard } from "./threadCard.ts";
 
 await describe("runScoutCollect events", async () => {
   const session = {
@@ -26,7 +24,7 @@ await describe("runScoutCollect events", async () => {
       deps: {
         sleep: async () => {},
         getCooledAuthorKeys: async () => new Set(),
-        saveScoutCache: async () => {},
+        saveScoutCache: async (snapshot) => snapshot,
         searchTimeline: async () => ({
           ok: true as const,
           queryId: "test",
@@ -65,7 +63,7 @@ await describe("runScoutCollect events", async () => {
       deps: {
         sleep: async () => {},
         getCooledAuthorKeys: async () => new Set(),
-        saveScoutCache: async () => {},
+        saveScoutCache: async (snapshot) => snapshot,
         searchTimeline: async () => {
           searchCalls += 1;
           if (searchCalls <= 2) {
@@ -123,7 +121,7 @@ await describe("runScoutCollect events", async () => {
         deps: {
           sleep: async () => {},
           getCooledAuthorKeys: async () => new Set(),
-          saveScoutCache: async () => {},
+          saveScoutCache: async (snapshot) => snapshot,
           planQueriesFromAgenda: async (agenda, opts) => {
             planCalls.push({ agenda, opts });
             if (planCalls.length === 1) {

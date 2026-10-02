@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { type IncomingMessage, ServerResponse } from "node:http";
+import { ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -587,7 +587,7 @@ await describe("interactedHttp", async () => {
     resetInteractionMemoryProjectionForTests({
       writeNote: async () => {
         wrote = true;
-        return { path: "/tmp/should-not-write.md" };
+        return { path: "/tmp/should-not-write.md", markdown: "" };
       },
     });
     const user = upsertOauthUser({
@@ -787,7 +787,7 @@ function parseRowsRow(value: unknown): Array<{
 
 function parseunknown(value: unknown): unknown[] {
   const valid = (row: unknown): row is unknown[] =>
-    (Array.isArray(row) && row.every((item: unknown) => true));
+    (Array.isArray(row) && row.every(() => true));
   if (!valid(value)) throw new TypeError("Invalid database row");
   return value;
 }

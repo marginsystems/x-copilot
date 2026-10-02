@@ -14,7 +14,7 @@ import {
   seedUser,
   type TempPlatformDb,
 } from "../platform/platformDb.testHelpers.ts";
-import { emptyScoutProfile, type ScoutProfile } from "./scoutProfile.ts";
+import { emptyScoutProfile } from "./scoutProfile.ts";
 import { readScoutProfile } from "./scoutProfileStore.ts";
 import {
   isUsableScoutRunProfile,

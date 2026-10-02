@@ -184,18 +184,17 @@ await describe("filterThreadsByCooldown", async () => {
       ...thread(root, "@codingwithroby"),
       conversationId: root,
     };
-    const blocked = conversationIdsFromHistory([
-      {
-        threadId: hyped.id,
-        author: hyped.author,
-        authorKey: "hypedtaktix",
-        at: "2026-08-05T21:25:22.077Z",
-        source: "manual",
-        userId: "u1",
-        conversationId: root,
-        inReplyToId: root,
-      },
-    ]);
+    const hypedRow: Interaction = {
+      threadId: hyped.id,
+      author: hyped.author,
+      authorKey: "hypedtaktix",
+      at: "2026-08-05T21:25:22.077Z",
+      source: "manual",
+      userId: "u1",
+      conversationId: root,
+      inReplyToId: root,
+    };
+    const blocked = conversationIdsFromHistory([hypedRow]);
     assert.ok(blocked.has(root));
     assert.ok(threadMatchesConversationIds(sibling, blocked));
     assert.ok(threadMatchesConversationIds(op, blocked));

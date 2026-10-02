@@ -58,6 +58,8 @@ jobs:
         run: npm run lint:hooks
       - name: TypeScript safety lint
         run: npm run lint:types
+      - name: Typecheck server, webhook, analytics, and scripts with tests
+        run: npm run typecheck:node
       - run: npm run build
 
   extension:

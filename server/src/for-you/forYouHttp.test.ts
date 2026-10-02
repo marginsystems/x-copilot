@@ -84,9 +84,9 @@ await describe("GET /api/for-you", async () => {
     }
     updateUserAgenda(user.id, "Find builders shipping AI tools");
     let llmCalls = 0;
-    const chat: ChatFn = async () => {
+    const chat: ChatFn = async (opts) => {
       llmCalls += 1;
-      return extraChat();
+      return extraChat(opts);
     };
     const { token } = createSession(user.id);
     const req = new IncomingMessage(new Socket());
@@ -366,9 +366,9 @@ await describe("POST /api/for-you/skip", async () => {
     });
     assert.ok(card);
     let llmCalls = 0;
-    const chat: ChatFn = async () => {
+    const chat: ChatFn = async (opts) => {
       llmCalls += 1;
-      return extraChat();
+      return extraChat(opts);
     };
     const { token } = createSession(user.id);
     const out = await invokeForYou({

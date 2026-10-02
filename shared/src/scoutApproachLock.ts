@@ -1,4 +1,4 @@
-import { isRecord } from "./typeGuards";
+import { isRecord } from "./typeGuards.ts";
 
 export const SCOUT_APPROACH_LOCK_PATH = "/api/scout-approach-lock";
 
