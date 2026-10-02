@@ -12,8 +12,8 @@ export default function DeskView({ top, tabs }: DeskViewProps) {
   return (
     <div className="dashboard">
       <section className="desk">
-        <DeskTop {...top} />
         <ThreadsTabs {...tabs} />
+        <DeskTop {...top} />
       </section>
     </div>
   );
