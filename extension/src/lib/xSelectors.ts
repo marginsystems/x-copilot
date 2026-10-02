@@ -1,6 +1,7 @@
 export const X_SELECTORS = {
   post: 'article[data-testid="tweet"]',
   replyComposer: '[data-testid="tweetTextarea_0"]',
+  sentToastLink: '[data-testid="toast"] a[href*="/status/"]',
 } as const;
 
 export type RectLike = { top: number; bottom: number; left: number; right: number; width: number; height: number };
