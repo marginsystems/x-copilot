@@ -9,9 +9,9 @@ import {
   type DeskDetectorRoute,
 } from "./approachDetector";
 
-export type DeskEventName = "ready" | "own_post" | "interacted";
+export type DeskEventName = "ready" | "own_post" | "interacted" | "approach_next";
 
-const DESK_EVENT_NAMES: DeskEventName[] = ["ready", "own_post", "interacted"];
+const DESK_EVENT_NAMES: DeskEventName[] = ["ready", "own_post", "interacted", "approach_next"];
 const RECONNECT_MIN_MS = 1_000;
 const RECONNECT_MAX_MS = 30_000;
 

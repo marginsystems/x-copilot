@@ -27,6 +27,7 @@ import { tryHandleDeskBeats } from "./desk/deskBeatsHttp.js";
 import { tryHandleDigestEmail } from "./for-you/digestEmailHttp.js";
 import { tryHandleMemory } from "./memory/memoryHttp.js";
 import { tryHandleUsage } from "./billing/usageHttp.js";
+import { tryHandleApproachNext } from "./desk/approachNextHttp.js";
 import { tryHandleHistory } from "./desk/historyHttp.js";
 import { tryHandleInteracted } from "./desk/interactedHttp.js";
 import { tryHandleCircle } from "./circle/circleHttp.js";
@@ -163,6 +164,9 @@ async function handleRequest(
         return;
       }
       if (await tryHandleOwnPostCatchUp(req, res, url)) {
+        return;
+      }
+      if (await tryHandleApproachNext(req, res, url)) {
         return;
       }
       if (await tryHandleScoutApproachLock(req, res, url)) {

@@ -7,7 +7,9 @@ import { isRecord } from "../platform/unknownValue.js";
 import { postUrl } from "../x-api/xActivity.js";
 
 type BufferedDeskEvent = { seq: number; type: DeskEventType; data: string; atMs: number };
-type DeskEventType = "own_post" | "interacted";
+type DeskEventType = "own_post" | "interacted" | "approach_next";
+
+const LIVE_ONLY_EVENTS: ReadonlySet<DeskEventType> = new Set(["approach_next"]);
 
 export const DESK_EVENT_BUFFER_SIZE = 50;
 export const DESK_EVENT_BUFFER_MS = 10 * 60_000;
@@ -73,17 +75,22 @@ export function publishDeskEvent(
   type: DeskEventType,
   payload: Record<string, unknown>,
   nowMs = Date.now(),
-): void {
+): number {
   if (!bufferSweep) {
     bufferSweep = setInterval(() => pruneBuffers(Date.now()), DESK_EVENT_BUFFER_MS);
     bufferSweep.unref();
   }
   const event: BufferedDeskEvent = { seq: ++seq, type, data: JSON.stringify(payload), atMs: nowMs };
-  buffers.set(userId, [...liveBuffer(userId, nowMs), event].slice(-DESK_EVENT_BUFFER_SIZE));
-  const frame = eventFrame(event);
-  for (const subscriber of subscribers.get(userId) ?? []) {
-    if (!subscriber.write(frame)) subscriber.destroy();
+  if (!LIVE_ONLY_EVENTS.has(type)) {
+    buffers.set(userId, [...liveBuffer(userId, nowMs), event].slice(-DESK_EVENT_BUFFER_SIZE));
   }
+  const frame = eventFrame(event);
+  let delivered = 0;
+  for (const subscriber of subscribers.get(userId) ?? []) {
+    if (subscriber.write(frame)) delivered += 1;
+    else subscriber.destroy();
+  }
+  return delivered;
 }
 
 export function warnIfDeskEventsSecretMissing(): void {

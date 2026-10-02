@@ -22,6 +22,8 @@ import {
 import { upsertOauthUser } from "../auth/oauthAccountStore.ts";
 import { SESSION_COOKIE } from "../auth/sessionCookie.ts";
 import { createSession } from "../auth/sessionStore.ts";
+import { resetRateLimiterForTests } from "../auth/authGuard.ts";
+import { APPROACH_NEXT_RATE, tryHandleApproachNext } from "./approachNextHttp.ts";
 
 function mockRes(opts: { slow?: boolean } = {}) {
   let status = 0;
@@ -121,12 +123,31 @@ async function wake(
   };
 }
 
+async function approachNext(
+  cookie: string | undefined,
+  body: unknown,
+): Promise<{ status: number; json: Record<string, unknown> }> {
+  const req = Object.assign(testRequest(), {
+    method: "POST",
+    headers: { "content-type": "application/json", ...(cookie ? { cookie } : {}) },
+    socket: { remoteAddress: "127.0.0.1" },
+  });
+  const { res, status, chunks } = mockRes();
+  const pending = tryHandleApproachNext(req, res, new URL("http://localhost/api/desk/approach/next"));
+  (req).emit("data", Buffer.from(JSON.stringify(body)));
+  (req).emit("end");
+  assert.equal(await pending, true);
+  const raw = chunks.join("");
+  return { status: status(), json: raw ? expectRecord(JSON.parse(raw)) : {} };
+}
+
 await describe("desk events", async () => {
   let dir: string;
 
   beforeEach(() => {
     resetPlatformDbForTests();
     resetDeskEventsForTests();
+    resetRateLimiterForTests();
     dir = mkdtempSync(join(tmpdir(), "x-desk-events-"));
     process.env.PLATFORM_DB_PATH = join(dir, "platform.sqlite");
     process.env.PLATFORM_MIGRATIONS_DIR = defaultMigrationsDir();
@@ -369,5 +390,41 @@ await describe("desk events", async () => {
     const reconnected = subscribe(cookie, { lastEventId });
     assert.equal(eventIds(reconnected.chunks.join("")).length, 1);
     assert.match(reconnected.chunks.join(""), /event: interacted/);
+  });
+
+  await it("relays approach Next live to the user's open desks and reports delivery", async () => {
+    const alice = signedInCookie("gid-next-a");
+    const bob = signedInCookie("gid-next-b");
+    assert.deepEqual((await approachNext(alice.cookie, { fromCardId: "c1" })).json, { ok: true, delivered: false });
+    const aliceDesk = subscribe(alice.cookie);
+    const bobDesk = subscribe(bob.cookie);
+    const sent = await approachNext(alice.cookie, { fromCardId: " c1 " });
+    assert.equal(sent.status, 200);
+    assert.deepEqual(sent.json, { ok: true, delivered: true });
+    const frames = aliceDesk.chunks.join("");
+    assert.match(frames, /event: approach_next\ndata: \{"fromCardId":"c1"\}/);
+    assert.doesNotMatch(bobDesk.chunks.join(""), /approach_next/);
+  });
+
+  await it("never replays approach Next to a desk that reconnects later", async () => {
+    const alice = signedInCookie("gid-next-replay");
+    subscribe(alice.cookie);
+    await approachNext(alice.cookie, { fromCardId: "c1" });
+    publishDeskEvent(alice.userId, "interacted", interacted);
+    const late = subscribe(alice.cookie, { lastEventId: "0.0" });
+    const replay = late.chunks.join("");
+    assert.match(replay, /event: interacted/);
+    assert.doesNotMatch(replay, /approach_next/);
+  });
+
+  await it("refuses approach Next without a session, a card id, or past the rate limit", async () => {
+    const alice = signedInCookie("gid-next-refuse");
+    assert.equal((await approachNext(undefined, { fromCardId: "c1" })).status, 401);
+    assert.equal((await approachNext(alice.cookie, {})).status, 400);
+    assert.equal((await approachNext(alice.cookie, { fromCardId: "x".repeat(65) })).status, 400);
+    for (let i = 0; i < APPROACH_NEXT_RATE.max - 2; i += 1) {
+      assert.equal((await approachNext(alice.cookie, { fromCardId: "c1" })).status, 200);
+    }
+    assert.equal((await approachNext(alice.cookie, { fromCardId: "c1" })).status, 429);
   });
 });

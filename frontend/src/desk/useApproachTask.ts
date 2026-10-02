@@ -41,6 +41,7 @@ import {
   settleForYouWait,
 } from "../../../shared/src/forYouTask";
 import { clearForYouWait, readForYouWait, writeForYouWait } from "../lib/forYouWaitStore";
+import { parseApproachNextRequest, remoteNextApplies } from "../../../shared/src/approachNext";
 import { vanishEvent } from "../lib/vanishEvent";
 import { apiFetch } from "../lib/apiBase";
 import { presentApproach, type ApproachCardInput } from "../../../shared/src/approachPresenter";
@@ -54,7 +55,7 @@ import {
 } from "./approachRetained";
 import { pickApproachScout } from "../../../shared/src/approachScout";
 import { approachDetector } from "./approachDetector";
-import { routeDeskDetector } from "./deskEventStream";
+import { onDeskEvent, routeDeskDetector } from "./deskEventStream";
 import { clearReplyPaceOverlay } from "./replyPaceStore";
 import type {
   DismissalHistoryEntry,
@@ -329,6 +330,20 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
   commitRef.current = commit;
   const advanceCardRef = useRef(advanceCard);
   advanceCardRef.current = advanceCard;
+  const scoutDetectedRef = useRef(scoutDetected);
+  scoutDetectedRef.current = scoutDetected;
+
+  useEffect(
+    () =>
+      onDeskEvent("approach_next", (data) => {
+        const request = parseApproachNextRequest(data);
+        const current = stateRef.current;
+        if (!request || !current) return;
+        if (!remoteNextApplies(current.lock, request.fromCardId, scoutDetectedRef.current)) return;
+        advanceCardRef.current({ type: "next" });
+      }),
+    [],
+  );
   const paceLockedRef = useRef(pace.locked);
   paceLockedRef.current = pace.locked;
 
