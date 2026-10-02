@@ -2,7 +2,9 @@
   "extends": "./tsconfig.server.json",
   "compilerOptions": {
     "noEmit": true,
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": true,
+    "rootDir": ".",
+    "lib": ["ES2022", "DOM"]
   },
   "include": ["server/src/**/*.ts", "server/src/**/*.d.ts"],
   "exclude": []

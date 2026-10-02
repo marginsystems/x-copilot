@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { type IncomingMessage, ServerResponse } from "node:http";
+import { ServerResponse } from "node:http";
 import { isPublicApiPath } from "../auth/authGuard.ts";
 import { upsertOauthUser } from "../auth/oauthAccountStore.ts";
 import { SESSION_COOKIE } from "../auth/sessionCookie.ts";

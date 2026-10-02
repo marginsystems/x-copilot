@@ -252,7 +252,7 @@ await describe("runScoutCollect forwards its user to triage", async () => {
       deps: {
         sleep: async () => {},
         getCooledAuthorKeys: async () => new Set(),
-        saveScoutCache: async () => {},
+        saveScoutCache: async (snapshot) => snapshot,
         saveScoutRunRecord: () => {},
         // Keep this suite off the durable profile store (C11 run snapshot).
         loadScoutProfile: async () => null,

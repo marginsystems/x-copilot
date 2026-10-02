@@ -1,11 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { runScoutCollect } from "./scoutCollect.ts";
-import { card, fillBucket } from "./scoutCollect.testHelpers.ts";
-import type { ScoutCollectEvent } from "./scoutTypes.ts";
-import { normalizeAuthorKey } from "../desk/interactionCooldown.ts";
-import type { PlanQueriesOpts } from "./queryPlan.ts";
-import type { ThreadCard } from "./threadCard.ts";
+import { card } from "./scoutCollect.testHelpers.ts";
 
 await describe("runScoutCollect hydrate", async () => {
   const session = {
@@ -26,7 +22,7 @@ await describe("runScoutCollect hydrate", async () => {
       deps: {
         sleep: async () => {},
         getCooledAuthorKeys: async () => new Set(),
-        saveScoutCache: async () => {},
+        saveScoutCache: async (snapshot) => snapshot,
         searchTimeline: async () => {
           if (id.n >= 5) {
             return {
@@ -92,7 +88,7 @@ await describe("runScoutCollect hydrate", async () => {
       deps: {
         sleep: async () => {},
         getCooledAuthorKeys: async () => new Set(),
-        saveScoutCache: async () => {},
+        saveScoutCache: async (snapshot) => snapshot,
         searchTimeline: async () => ({
           ok: true as const,
           queryId: "test",
@@ -173,7 +169,7 @@ await describe("runScoutCollect hydrate", async () => {
         deps: {
           sleep: async () => {},
           getCooledAuthorKeys: async () => new Set(),
-          saveScoutCache: async () => {},
+          saveScoutCache: async (snapshot) => snapshot,
           searchTimeline: async () => ({
             ok: true as const,
             queryId: "test",
@@ -224,7 +220,7 @@ await describe("runScoutCollect hydrate", async () => {
       deps: {
         sleep: async () => {},
         getCooledAuthorKeys: async () => new Set(),
-        saveScoutCache: async () => {},
+        saveScoutCache: async (snapshot) => snapshot,
         searchTimeline: async () => ({
           ok: true as const,
           queryId: "test",
@@ -288,7 +284,7 @@ await describe("runScoutCollect hydrate", async () => {
       deps: {
         sleep: async () => {},
         getCooledAuthorKeys: async () => new Set(),
-        saveScoutCache: async () => {},
+        saveScoutCache: async (snapshot) => snapshot,
         searchTimeline: async () => ({
           ok: true as const,
           queryId: "test",
@@ -355,7 +351,7 @@ await describe("runScoutCollect hydrate", async () => {
       deps: {
         sleep: async () => {},
         getCooledAuthorKeys: async () => new Set(),
-        saveScoutCache: async () => {},
+        saveScoutCache: async (snapshot) => snapshot,
         searchTimeline: async () => ({
           ok: true as const,
           queryId: "test",
@@ -421,7 +417,7 @@ await describe("runScoutCollect hydrate", async () => {
       deps: {
         sleep: async () => {},
         getCooledAuthorKeys: async () => new Set(),
-        saveScoutCache: async () => {},
+        saveScoutCache: async (snapshot) => snapshot,
         // First page yields a partial bucket of replies; supply is empty after.
         searchTimeline: async () => {
           searchCalls += 1;
@@ -484,7 +480,7 @@ await describe("runScoutCollect hydrate", async () => {
       deps: {
         sleep: async () => {},
         getCooledAuthorKeys: async () => new Set(),
-        saveScoutCache: async () => {},
+        saveScoutCache: async (snapshot) => snapshot,
         planQueriesFromAgenda: async () => ({
           ok: false as const,
           error: "no_replan",
@@ -574,7 +570,7 @@ await describe("runScoutCollect hydrate", async () => {
       deps: {
         sleep: async () => {},
         getCooledAuthorKeys: async () => new Set(),
-        saveScoutCache: async () => {},
+        saveScoutCache: async (snapshot) => snapshot,
         searchTimeline: async () => {
           searchCalls += 1;
           if (searchCalls === 1) {

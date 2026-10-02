@@ -2,7 +2,7 @@ import { testRequest } from "../http/http.testHelpers.js";
 import { expectRecord } from "../http/http.testHelpers.js";
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { type IncomingMessage, ServerResponse } from "node:http";
+import { ServerResponse } from "node:http";
 import { upsertOauthUser } from "../auth/oauthAccountStore.ts";
 import {
   closeTempPlatformDb,

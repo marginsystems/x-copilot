@@ -269,10 +269,10 @@ await describe("tryHandleScout", async () => {
         await saveScoutCache(
           {
             savedAt: new Date().toISOString(),
-            queries: opts.queries,
+            queries: opts.queries ?? [],
             threads: [],
           },
-          { userId: opts.userId },
+          { userId: opts.userId ?? "" },
         );
         opts.onEvent?.({ ...doneEvent });
         return { ok: true, event: { ...doneEvent } };

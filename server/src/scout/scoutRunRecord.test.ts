@@ -17,7 +17,7 @@ import {
   saveScoutRunRecord,
 } from "./scoutRunStore.ts";
 
-const session = { bearerToken: "test-token" };
+const session = { bearerToken: "test-token", configured: true };
 let temp: TempPlatformDb | undefined;
 
 afterEach(() => {
@@ -89,7 +89,7 @@ await describe("Scout run records", async () => {
       deps: {
         sleep: async () => {},
         getCooledAuthorKeys: async () => new Set(),
-        saveScoutCache: async () => {},
+        saveScoutCache: async (snapshot) => snapshot,
         // Keep this suite off the durable profile store (C11 run snapshot).
         loadScoutProfile: async () => null,
         searchTimeline: async () => ({

@@ -2,9 +2,6 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { runScoutCollect } from "./scoutCollect.ts";
 import { card, fillBucket } from "./scoutCollect.testHelpers.ts";
-import type { ScoutCollectEvent } from "./scoutTypes.ts";
-import { normalizeAuthorKey } from "../desk/interactionCooldown.ts";
-import type { PlanQueriesOpts } from "./queryPlan.ts";
 import type { ThreadCard } from "./threadCard.ts";
 
 await describe("runScoutCollect stop", async () => {
@@ -25,7 +22,7 @@ await describe("runScoutCollect stop", async () => {
       deps: {
         sleep: async () => {},
         getCooledAuthorKeys: async () => new Set(),
-        saveScoutCache: async () => {},
+        saveScoutCache: async (snapshot) => snapshot,
         creditGate: async () => {
           gateCalls += 1;
           // Allow the first search to read, then cut the pool mid-run.
@@ -71,7 +68,7 @@ await describe("runScoutCollect stop", async () => {
       deps: {
         sleep: async () => {},
         getCooledAuthorKeys: async () => new Set(),
-        saveScoutCache: async () => {},
+        saveScoutCache: async (snapshot) => snapshot,
         searchTimeline: async () => {
           searchCalls += 1;
           abort.abort();

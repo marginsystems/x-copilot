@@ -22,7 +22,7 @@ await describe("runScoutCollect query cursors", async () => {
       deps: {
         sleep: async () => {},
         getCooledAuthorKeys: async () => new Set(),
-        saveScoutCache: async () => {},
+        saveScoutCache: async (snapshot) => snapshot,
         searchTimeline: async (opts) => {
           seen.push({ cursor: opts.cursor, startTime: opts.startTime });
           return {
@@ -65,7 +65,7 @@ await describe("runScoutCollect query cursors", async () => {
       deps: {
         sleep: async () => {},
         getCooledAuthorKeys: async () => new Set(),
-        saveScoutCache: async () => {},
+        saveScoutCache: async (snapshot) => snapshot,
         searchTimeline: async (opts) => {
           calls.push(opts.query);
           return {
@@ -112,7 +112,7 @@ await describe("runScoutCollect query cursors", async () => {
         deps: {
           sleep: async () => {},
           getCooledAuthorKeys: async () => new Set(),
-          saveScoutCache: async () => {},
+          saveScoutCache: async (snapshot) => snapshot,
           planQueriesFromAgenda: async () => {
             planCalls += 1;
             return {
