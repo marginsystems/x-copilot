@@ -92,12 +92,13 @@ export default defineContentScript({
     }
 
     ctx.setInterval(() => {
+      const statusId = statusIdFromPath(window.location.pathname);
       clock = tickAttention(clock, {
-        statusId: statusIdFromPath(window.location.pathname),
+        statusId,
         nowMs: Date.now(),
         visible: document.visibilityState === "visible",
         focused: document.hasFocus(),
-        postInView: postInView(),
+        postInView: enabled && statusId !== null && statusId === clock.statusId ? postInView() : false,
       });
       render();
     }, TICK_MS);
