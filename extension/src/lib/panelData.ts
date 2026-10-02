@@ -4,24 +4,27 @@ import {
   parseApproachNextResponse,
 } from "../../../shared/src/approachNext";
 import { EXTENSION_SESSION_PATH } from "../../../shared/src/extensionBridge";
-import {
-  parseScoutApproachLockResponse,
-  SCOUT_APPROACH_LOCK_PATH,
-  type ScoutApproachLockCard,
-} from "../../../shared/src/scoutApproachLock";
+import type { ScoutApproachLockCard } from "../../../shared/src/scoutApproachLock";
 import { apiRequest } from "./api";
 import type { Pairing } from "./pairing";
+import { readScoutLock } from "./scoutLock";
 
-export type PanelData = { lock: ScoutApproachLockCard | null; replyAt: string[] };
+export type PanelData = {
+  lock: ScoutApproachLockCard | null;
+  lockSupported: boolean;
+  replyAt: string[];
+};
 
 export async function loadPanelData(pairing: Pairing): Promise<PanelData> {
-  const [lockRaw, coachingRaw] = await Promise.all([
-    apiRequest(pairing, SCOUT_APPROACH_LOCK_PATH),
+  const [lock, coachingRaw] = await Promise.all([
+    readScoutLock(pairing),
     apiRequest(pairing, coachingPath({ lite: true })),
   ]);
-  const lock = parseScoutApproachLockResponse(lockRaw);
-  if (!lock) throw new Error("The approach lock came back malformed.");
-  return { lock: lock.card, replyAt: parseCoachingPayload(coachingRaw)?.replyAt ?? [] };
+  return {
+    lock: lock.card,
+    lockSupported: lock.supported,
+    replyAt: parseCoachingPayload(coachingRaw)?.replyAt ?? [],
+  };
 }
 
 export async function signOutExtension(pairing: Pairing): Promise<void> {

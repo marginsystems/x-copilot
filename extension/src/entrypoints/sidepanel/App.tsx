@@ -6,6 +6,7 @@ import type { Pairing } from "../../lib/pairing";
 import { clearPairing, readPairing } from "../../lib/pairingStore";
 import { askDeskForNext, loadPanelData, signOutExtension, type PanelData } from "../../lib/panelData";
 import { panelCanAskNext, panelCard, panelNextNotice, panelPace } from "../../lib/panelModel";
+import { OLDER_SERVER_NOTICE } from "../../lib/scoutLock";
 import { readRepliedCardId } from "../../lib/repliedCardStore";
 import { readAttentionGate, writeAttentionGate } from "../../lib/settingsStore";
 import { DESK_LINKS, FOOTER_LINKS, openDeskPage, PanelLinks, PanelShell } from "./PanelParts";
@@ -175,6 +176,7 @@ export function App() {
   return (
     <PanelShell connected headSide={signOut}>
       {state.error ? <p className="status-line" role="status">{state.error}</p> : null}
+      {state.data.lockSupported ? null : <p className="status-line" role="status">{OLDER_SERVER_NOTICE}</p>}
       <section className={`card card-${card.kind}`} aria-label="Approach card">
         <p className="verb">{card.verb}</p>
         <h2>{card.title}</h2>

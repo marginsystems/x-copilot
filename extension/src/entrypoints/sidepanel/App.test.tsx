@@ -58,4 +58,28 @@ describe("App", () => {
 
     await act(async () => root.unmount());
   });
+
+  it("shows the For You card and a plain notice when the server is older than the extension", async () => {
+    readPairing.mockResolvedValue({
+      token: "token",
+      expiresAt: "2026-11-01T00:00:00.000Z",
+      apiBase: "https://api.xcopilot.dev",
+      deskOrigin: "https://xcopilot.dev",
+    });
+    loadPanelData.mockResolvedValue({ lock: null, lockSupported: false, replyAt: [] });
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<App />);
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+
+    expect(container.textContent).toContain("a version behind this extension");
+    expect(container.textContent).toContain("Open For You");
+    expect(container.textContent).not.toContain("failed (405)");
+
+    await act(async () => root.unmount());
+  });
 });

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiStatusError } from "./api";
 import { reportReply } from "./reportReply";
 
 const state = vi.hoisted(() => ({
@@ -15,7 +16,8 @@ vi.mock("./pairingStore", () => ({
   readPairing: state.readPairing,
 }));
 
-vi.mock("./api", () => ({
+vi.mock("./api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./api")>()),
   apiRequest: state.apiRequest,
 }));
 
@@ -67,5 +69,31 @@ describe("reportReply", () => {
     });
     expect(state.set).toHaveBeenCalledTimes(1);
     expect(state.set).toHaveBeenCalledWith(expect.objectContaining({ lastRepliedCardId: "123" }));
+  });
+
+  it("falls back to own-post catch-up when the server cannot read the lock yet", async () => {
+    state.readPairing.mockResolvedValue({ apiBase: "https://desk.example", token: "token" });
+    state.apiRequest
+      .mockRejectedValueOnce(new ApiStatusError("/api/scout-approach-lock", 405))
+      .mockResolvedValueOnce({ ok: true, stored: 1 });
+    state.set.mockResolvedValue(undefined);
+
+    await expect(reportReply("https://x.com/me/status/555", "123")).resolves.toBeUndefined();
+
+    expect(state.apiRequest).toHaveBeenNthCalledWith(2, expect.anything(), "/api/desk/own-posts/catch-up", { method: "POST" });
+    expect(state.set).toHaveBeenCalledWith(expect.not.objectContaining({ lastRepliedCardId: expect.anything() }));
+  });
+
+  it("falls back to own-post catch-up when the lock response is malformed", async () => {
+    state.readPairing.mockResolvedValue({ apiBase: "https://desk.example", token: "token" });
+    state.apiRequest
+      .mockResolvedValueOnce({ ok: true, card: { id: "" } })
+      .mockResolvedValueOnce({ ok: true, stored: 1 });
+    state.set.mockResolvedValue(undefined);
+
+    await expect(reportReply("https://x.com/me/status/555", "123")).resolves.toBeUndefined();
+
+    expect(state.apiRequest).toHaveBeenNthCalledWith(2, expect.anything(), "/api/desk/own-posts/catch-up", { method: "POST" });
+    expect(state.set).toHaveBeenCalledWith(expect.not.objectContaining({ lastRepliedCardId: expect.anything() }));
   });
 });

@@ -1,11 +1,8 @@
 import { browser } from "wxt/browser";
-import {
-  parseScoutApproachLockResponse,
-  SCOUT_APPROACH_LOCK_PATH,
-} from "../../../shared/src/scoutApproachLock";
 import { apiRequest } from "./api";
 import { readPairing } from "./pairingStore";
 import { postedStatusUrl, replyReport, REPLIED_CARD_KEY, REPLY_SEEN_KEY } from "./replySeen";
+import { readScoutLock } from "./scoutLock";
 
 const INTERACTED_PATH = "/api/interacted";
 const OWN_POST_CATCH_UP_PATH = "/api/desk/own-posts/catch-up";
@@ -15,8 +12,8 @@ export async function reportReply(rawReplyUrl: string, pageStatusId: string | nu
   const pairing = await readPairing();
   if (!replyUrl) return;
   if (!pairing) throw new Error("The extension is not paired");
-  const lock = parseScoutApproachLockResponse(await apiRequest(pairing, SCOUT_APPROACH_LOCK_PATH));
-  const report = replyReport(lock?.card ?? null, pageStatusId, replyUrl);
+  const lock = await readScoutLock(pairing);
+  const report = replyReport(lock.card, pageStatusId, replyUrl);
   if (report.kind === "scout") {
     await apiRequest(pairing, INTERACTED_PATH, {
       method: "POST",
