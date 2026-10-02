@@ -87,3 +87,10 @@
     animation: none;
   }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .mission-slide-card,
+  .threads .thread-row.is-exiting {
+    animation: none;
+  }
+}

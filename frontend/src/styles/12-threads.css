@@ -288,15 +288,6 @@
   border-color: #5c4a26;
 }
 
-@keyframes desk-row-in {
-  from {
-    transform: translateY(8px);
-  }
-  to {
-    transform: none;
-  }
-}
-
 .thread-row {
   min-width: 0;
   max-width: 100%;
@@ -305,9 +296,45 @@
   background: var(--panel);
 }
 
-.threads .thread-row {
-  animation: desk-row-in 380ms var(--ease-out) both;
-  animation-delay: calc(min(var(--i, 0), 8) * 28ms);
+.mission-slide {
+  display: grid;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+.mission-slide-card {
+  grid-area: 1 / 1;
+  min-width: 0;
+  max-width: 100%;
+  animation: desk-card-in 420ms var(--ease-out) both;
+}
+
+.mission-slide-card.is-leaving {
+  animation: desk-card-out 380ms var(--ease-in-out) both;
+  pointer-events: none;
+}
+
+@keyframes desk-card-in {
+  from {
+    opacity: 0;
+    transform: translateX(-12%);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes desk-card-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateX(12%);
+  }
 }
 
 @keyframes desk-row-out {
@@ -318,17 +345,17 @@
   }
   99.9% {
     opacity: 0;
-    transform: translateY(-6px);
+    transform: translateX(12%);
   }
   100% {
     opacity: 0;
-    transform: translateY(-6px);
+    transform: translateX(12%);
     visibility: hidden;
   }
 }
 
 .threads .thread-row.is-exiting {
-  animation: desk-row-out 380ms var(--ease-out) both;
+  animation: desk-row-out 380ms var(--ease-in-out) both;
   pointer-events: none;
 }
 

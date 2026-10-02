@@ -9,6 +9,8 @@ import {
 } from "./HistoryRows";
 import { RankingDrawer } from "./RankingDrawer";
 import { ApproachLoadingCard, MissionCard } from "./MissionCard";
+import { MissionSlide } from "./MissionSlide";
+import { missionSlideKey } from "../lib/missionSlide";
 import type { CoachingState } from "../../../shared/src/coaching";
 import type { ScoutStageId } from "../../../shared/src/scoutStages";
 import { ThreadsTabCount } from "./ThreadsTabCount";
@@ -267,22 +269,26 @@ export function ThreadsTabs({
           !agendaReady || !task.ready ? (
             <ApproachLoadingCard />
           ) : (
-            <MissionCard
-              {...task.cardInput}
-              clock={task.clock}
-              onOpenSettings={onOpenSettings}
-              actionBusy={actionBusy}
-              interactedIds={interactedIds}
-              exitingIds={task.exitingIds}
-              onScoutSkip={task.onScoutSkip}
-              onScoutDismiss={task.onScoutDismiss}
-              onScoutNext={task.onScoutNext}
-              onSuggestionPosted={task.onSuggestionPosted}
-              onSuggestionSkip={task.onSuggestionSkip}
-              onSuggestionDismiss={task.onSuggestionDismiss}
-              onForYouNext={task.onForYouNext}
-              onLinkX={onLinkX}
-            />
+            <MissionSlide
+              slideKey={missionSlideKey(task.presentation, task.cardInput)}
+            >
+              <MissionCard
+                {...task.cardInput}
+                clock={task.clock}
+                onOpenSettings={onOpenSettings}
+                actionBusy={actionBusy}
+                interactedIds={interactedIds}
+                exitingIds={task.exitingIds}
+                onScoutSkip={task.onScoutSkip}
+                onScoutDismiss={task.onScoutDismiss}
+                onScoutNext={task.onScoutNext}
+                onSuggestionPosted={task.onSuggestionPosted}
+                onSuggestionSkip={task.onSuggestionSkip}
+                onSuggestionDismiss={task.onSuggestionDismiss}
+                onForYouNext={task.onForYouNext}
+                onLinkX={onLinkX}
+              />
+            </MissionSlide>
           )
         ) : threadsTab === "interacted" ? (
           interactedTotal === 0 ? (
