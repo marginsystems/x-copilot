@@ -1,10 +1,6 @@
 import assert from "node:assert/strict";
 import { beforeEach, describe, it } from "node:test";
-import {
-  parseApproachLock,
-  readApproachLock,
-  writeApproachLock,
-} from "./approachLock.ts";
+import { readApproachLock, writeApproachLock } from "./approachLockStore.ts";
 import type { ApproachLock } from "../../../shared/src/deskPhase.ts";
 
 const store = new Map<string, string>();
@@ -21,26 +17,6 @@ await describe("Approach lock persistence", () => {
   beforeEach(() => {
     store.clear();
   });
-
-  it("rejects garbage and snapshots without a valid phase", () => {
-    assert.equal(parseApproachLock("not json"), null);
-    assert.equal(
-      parseApproachLock(JSON.stringify({ cardId: "1", surface: null })),
-      null,
-    );
-    assert.equal(
-      parseApproachLock(
-        JSON.stringify({ phase: "fork", cardId: null, surface: null }),
-      ),
-      null,
-    );
-    assert.equal(
-      parseApproachLock(
-        JSON.stringify({ phase: "original", cardId: null, surface: null }),
-      ),
-      null,
-    );
-  }).catch(assert.fail);
 
   it("round-trips scout and organic reply locks per user", () => {
     const locks: ApproachLock[] = [

@@ -13,7 +13,7 @@ import {
   type ApproachGate,
   type ApproachInventory,
   type ApproachLock,
-} from "../../../shared/src/deskPhase";
+} from "./deskPhase";
 import {
   openForYouWait,
   type ActivityCursor,

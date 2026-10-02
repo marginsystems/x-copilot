@@ -86,7 +86,8 @@ await describe("scoutApproachLock", async () => {
 
   await it("rejects unauthenticated and malformed requests", async () => {
     assert.equal((await call("PUT", { card: { id: "c1" } })).status, 401);
-    assert.equal((await call("GET", undefined, a.cookie)).status, 405);
+    assert.equal((await call("GET")).status, 401);
+    assert.equal((await call("DELETE", undefined, a.cookie)).status, 405);
     assert.equal((await call("PUT", { card: "x" }, a.cookie)).status, 400);
     assert.equal((await call("PUT", { card: { id: " " } }, a.cookie)).status, 400);
   });
@@ -146,6 +147,32 @@ await describe("scoutApproachLock", async () => {
     assert.equal(retained?.threadKind, null);
     assert.equal(retained?.author, "bob");
     assert.equal(retained?.contextSource, "lock");
+  });
+
+  await it("reads back the current lock for this user only", async () => {
+    const b = signIn("b");
+    assert.deepEqual((await call("GET", undefined, a.cookie)).json, { ok: true, card: null });
+    assert.equal(
+      (await call("PUT", { card: { id: "c9", conversationId: "conv-9", author: "@dana", url: "https://x.com/dana/status/9", text: "hi", surface: "reply" } }, a.cookie)).status,
+      200,
+    );
+    const read = await call("GET", undefined, a.cookie);
+    assert.equal(read.status, 200);
+    assert.deepEqual(read.json, {
+      ok: true,
+      card: {
+        id: "c9",
+        conversationId: "conv-9",
+        inReplyToId: null,
+        surface: "reply",
+        author: "@dana",
+        url: "https://x.com/dana/status/9",
+        text: "hi",
+      },
+    });
+    assert.deepEqual((await call("GET", undefined, b.cookie)).json, { ok: true, card: null });
+    assert.equal((await call("PUT", { card: null }, a.cookie)).status, 200);
+    assert.deepEqual((await call("GET", undefined, a.cookie)).json, { ok: true, card: null });
   });
 
   await it("expires the lock after its TTL without touching retained context", async () => {

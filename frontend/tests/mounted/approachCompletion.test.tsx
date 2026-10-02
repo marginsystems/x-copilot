@@ -6,7 +6,7 @@ import type { AuthSessionUser } from "../../src/auth/types";
 import { useApproachTask } from "../../src/desk/useApproachTask";
 import { useDeskHistory } from "../../src/desk/useDeskHistory";
 import { readRetainedSuggestion } from "../../src/desk/approachRetained";
-import { readApproachLock, writeApproachLock } from "../../src/lib/approachLock";
+import { readApproachLock, writeApproachLock } from "../../src/lib/approachLockStore";
 import type { ForYouSuggestion } from "../../../shared/src/forYou";
 import { DEFAULT_SETTINGS } from "../../src/lib/settings";
 import { deferred } from "./support/deferred";

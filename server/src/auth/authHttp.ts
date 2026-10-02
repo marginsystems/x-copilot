@@ -25,6 +25,7 @@ import {
 } from "./sessionCookie.js";
 import { revokeSessionToken } from "./sessionStore.js";
 import { tryHandleSessions } from "./sessionsHttp.js";
+import { tryHandleExtensionSession } from "./extensionSessionHttp.js";
 
 function sendJson(
   req: IncomingMessage,
@@ -120,6 +121,7 @@ export async function tryHandleAuth(
     return true;
   }
   if (await tryHandleSessions(req, res, url)) return true;
+  if (tryHandleExtensionSession(req, res, url)) return true;
 
   if (req.method === "POST" && url.pathname === "/api/auth/logout") {
     const token = requestCookies(req)[SESSION_COOKIE];

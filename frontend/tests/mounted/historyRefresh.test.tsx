@@ -6,7 +6,7 @@ import { INTERACTED_FALLBACK_POLL_MS, useDeskHistory } from "../../src/desk/useD
 import { DESK_DETECTOR_FALLBACK_MS } from "../../src/desk/approachDetector";
 import { DESK_CATCH_UP_PATH, routeDeskDetector } from "../../src/desk/deskEventStream";
 import { vanishEvent } from "../../src/lib/vanishEvent";
-import { latestActivityCursor } from "../../src/lib/forYouTask";
+import { latestActivityCursor } from "../../../shared/src/forYouTask";
 import { parseDeskBoot } from "../../src/lib/deskBoot";
 import { markFromHistory } from "../../src/lib/deskInstruments";
 import { useActivityStrip } from "../../src/desk/useActivityStrip";

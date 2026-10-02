@@ -33,4 +33,13 @@ await describe("shared desk core boundary", () => {
     );
     assert.deepEqual(leaks, []);
   }).catch(assert.fail);
+
+  it("touches no browser storage or DOM, so the extension's service worker can load it too", () => {
+    const browserGlobal = /\b(?:localStorage|sessionStorage|document|window)\b/;
+    const touches = sourceFiles(sharedRoot)
+      .filter((file) => !file.endsWith(".test.ts"))
+      .filter((file) => browserGlobal.test(readFileSync(file, "utf8")))
+      .map((file) => relative(sharedRoot, file));
+    assert.deepEqual(touches, []);
+  }).catch(assert.fail);
 });
