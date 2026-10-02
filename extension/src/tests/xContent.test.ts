@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import contentScript from "./x.content";
+import contentScript from "../entrypoints/x.content";
 import { ATTENTION_GATE_KEY } from "../lib/settings";
 
 const state = vi.hoisted(() => ({
@@ -41,7 +41,7 @@ describe("x content attention polling", () => {
       setInterval: (callback: () => void) => {
         state.intervalCallback = callback;
       },
-    } as unknown as Parameters<typeof contentScript.main>[0];
+    } as unknown as NonNullable<Parameters<typeof contentScript.main>[0]>;
 
     contentScript.main(context);
     state.intervalCallback?.();
