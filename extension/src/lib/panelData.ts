@@ -2,6 +2,7 @@ import { coachingPath, parseCoachingPayload } from "../../../shared/src/coaching
 import {
   APPROACH_NEXT_PATH,
   parseApproachNextResponse,
+  type ApproachNextRequest,
 } from "../../../shared/src/approachNext";
 import { EXTENSION_SESSION_PATH } from "../../../shared/src/extensionBridge";
 import type { ScoutApproachLockCard } from "../../../shared/src/scoutApproachLock";
@@ -31,12 +32,12 @@ export async function signOutExtension(pairing: Pairing): Promise<void> {
   await apiRequest(pairing, EXTENSION_SESSION_PATH, { method: "DELETE" });
 }
 
-export async function askDeskForNext(pairing: Pairing, fromCardId: string): Promise<boolean> {
+export async function askDeskForNext(pairing: Pairing, request: ApproachNextRequest): Promise<boolean> {
   const response = parseApproachNextResponse(
     await apiRequest(pairing, APPROACH_NEXT_PATH, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fromCardId }),
+      body: JSON.stringify(request),
     }),
   );
   if (!response) throw new Error("The desk's Next answer came back malformed.");

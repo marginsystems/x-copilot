@@ -403,6 +403,9 @@ await describe("desk events", async () => {
     assert.deepEqual(sent.json, { ok: true, delivered: true });
     const frames = aliceDesk.chunks.join("");
     assert.match(frames, /event: approach_next\ndata: \{"fromCardId":"c1"\}/);
+    const forYou = await approachNext(alice.cookie, { forYou: true });
+    assert.deepEqual(forYou.json, { ok: true, delivered: true });
+    assert.match(aliceDesk.chunks.join(""), /event: approach_next\ndata: \{"forYou":true\}/);
     assert.doesNotMatch(bobDesk.chunks.join(""), /approach_next/);
   });
 
@@ -422,7 +425,8 @@ await describe("desk events", async () => {
     assert.equal((await approachNext(undefined, { fromCardId: "c1" })).status, 401);
     assert.equal((await approachNext(alice.cookie, {})).status, 400);
     assert.equal((await approachNext(alice.cookie, { fromCardId: "x".repeat(65) })).status, 400);
-    for (let i = 0; i < APPROACH_NEXT_RATE.max - 2; i += 1) {
+    assert.equal((await approachNext(alice.cookie, { fromCardId: "c1", forYou: true })).status, 400);
+    for (let i = 0; i < APPROACH_NEXT_RATE.max - 3; i += 1) {
       assert.equal((await approachNext(alice.cookie, { fromCardId: "c1" })).status, 200);
     }
     assert.equal((await approachNext(alice.cookie, { fromCardId: "c1" })).status, 429);

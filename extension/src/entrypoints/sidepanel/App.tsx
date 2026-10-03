@@ -5,8 +5,10 @@ import { planOpenOnX } from "../../lib/openOnX";
 import type { Pairing } from "../../lib/pairing";
 import { clearPairing, readPairing } from "../../lib/pairingStore";
 import { askDeskForNext, loadPanelData, signOutExtension, type PanelData } from "../../lib/panelData";
-import { panelCanAskNext, panelCard, panelNextNotice, panelPace } from "../../lib/panelModel";
+import { nextFromCardId, panelCanAskNext, panelCard, panelNextNotice, panelPace } from "../../lib/panelModel";
 import { OLDER_SERVER_NOTICE, waitForLockChange } from "../../lib/scoutLock";
+import { cardDetected, cardKey, detectionTag, type CardSince } from "../../lib/detection";
+import { readReplySeenAt, trackCardSince } from "../../lib/detectionStore";
 import { readRepliedCardId } from "../../lib/repliedCardStore";
 import { readAttentionGate, writeAttentionGate } from "../../lib/settingsStore";
 import { DESK_LINKS, FOOTER_LINKS, openDeskPage, PanelLinks, PanelShell } from "./PanelParts";
@@ -42,6 +44,8 @@ export function App() {
   const [state, setState] = useState<PanelState>({ kind: "loading" });
   const [attentionGate, setAttentionGate] = useState(true);
   const [repliedCardId, setRepliedCardId] = useState<string | null>(null);
+  const [replySeenAtMs, setReplySeenAtMs] = useState<number | null>(null);
+  const [since, setSince] = useState<CardSince | null>(null);
   const [nextNotice, setNextNotice] = useState<string | null>(null);
   const [askingNext, setAskingNext] = useState(false);
   const now = useNow();
@@ -57,8 +61,10 @@ export function App() {
       return;
     }
     setRepliedCardId(await readRepliedCardId().catch(() => null));
+    setReplySeenAtMs(await readReplySeenAt().catch(() => null));
     try {
       const data = await loadPanelData(pairing);
+      setSince(await trackCardSince(cardKey(data.lock), Date.now()).catch(() => null));
       setState((prev) => {
         if (prev.kind === "ready" && prev.data.lock?.id !== data.lock?.id) setNextNotice(null);
         return { kind: "ready", pairing, data, error: null };
@@ -144,22 +150,26 @@ export function App() {
   const pairing = state.pairing;
   const lock = state.data.lock;
   const canAskNext = panelCanAskNext(lock, repliedCardId);
+  const detected = cardDetected({ lock, repliedCardId, replySeenAtMs, since });
+  const tag = detectionTag(lock, detected);
 
   function askNext() {
-    if (!lock) return;
-    const fromCardId = lock.id;
+    const request = nextFromCardId(lock);
     setAskingNext(true);
     setNextNotice(null);
-    askDeskForNext(pairing, fromCardId)
+    askDeskForNext(pairing, request)
       .then(async (delivered) => {
         if (!delivered) {
           setNextNotice(panelNextNotice("no_desk"));
           return;
         }
-        const moved = await waitForLockChange(pairing, fromCardId);
+        const moved = await waitForLockChange(pairing, request);
         if (!moved) {
-          setNextNotice(panelNextNotice("not_moved"));
+          setNextNotice(panelNextNotice(lock ? "not_moved" : "no_card"));
           return;
+        }
+        if ("forYou" in request) {
+          setSince(await trackCardSince(cardKey(moved.card), Date.now()).catch(() => null));
         }
         setState((prev) =>
           prev.kind === "ready"
@@ -193,9 +203,15 @@ export function App() {
       {state.error ? <p className="status-line" role="status">{state.error}</p> : null}
       {state.data.lockSupported ? null : <p className="status-line" role="status">{OLDER_SERVER_NOTICE}</p>}
       <section className={`card card-${card.kind}`} aria-label="Approach card">
-        <p className="verb">{card.verb}</p>
+        <div className="card-head">
+          <p className="verb">{card.verb}</p>
+          <span className={`detect-tag${tag.detected ? " is-detected" : ""}`} role="status">
+            <span className="detect-dot" aria-hidden="true" />
+            {tag.label}
+          </span>
+        </div>
         <h2>{card.title}</h2>
-        <p className="detail">{card.detail}</p>
+        <p className="detail">{detected ? "Detected. Tap Next card for your next one." : card.detail}</p>
         {pace ? (
           <p className="pace" role="timer" aria-live="off" title={pace.tip}>
             <span className="pace-label">Next reply in</span>
@@ -203,16 +219,35 @@ export function App() {
           </p>
         ) : null}
         <div className="actions">
-          <button
-            type="button"
-            className="primary"
-            onClick={() => { openOnX(card.openUrl).catch(() => undefined); }}
-          >
-            {card.openLabel}
-          </button>
+          {detected ? null : (
+            <button
+              type="button"
+              className="primary"
+              onClick={() => { openOnX(card.openUrl).catch(() => undefined); }}
+            >
+              {card.openLabel}
+            </button>
+          )}
+          {!detected && card.secondary ? (
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => {
+                const url = card.secondary?.url;
+                if (url) openOnX(url).catch(() => undefined);
+              }}
+            >
+              {card.secondary.label}
+            </button>
+          ) : null}
           {canAskNext ? (
-            <button type="button" className="ghost" disabled={askingNext} onClick={askNext}>
-              Next card
+            <button
+              type="button"
+              className={detected ? "primary" : "ghost"}
+              disabled={askingNext}
+              onClick={askNext}
+            >
+              {askingNext ? "Finding next…" : "Next card"}
             </button>
           ) : null}
         </div>

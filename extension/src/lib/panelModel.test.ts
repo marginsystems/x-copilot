@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { X_FOR_YOU_URL } from "../../../shared/src/forYou";
+import { X_FOR_YOU_URL, X_INSPIRATION_URL } from "../../../shared/src/forYou";
 import { REPLY_PACE_MS } from "../../../shared/src/replyPace";
-import { panelCanAskNext, panelCard, panelNextNotice, panelPace, scoutOpenUrl } from "./panelModel";
+import { nextFromCardId, panelCanAskNext, panelCard, panelNextNotice, panelPace, scoutOpenUrl } from "./panelModel";
 
 const lock = {
   id: "123",
@@ -26,7 +26,13 @@ describe("panelCard", () => {
   });
 
   it("falls back to the For You feed when nothing is locked", () => {
-    expect(panelCard(null)).toMatchObject({ kind: "for_you", openUrl: X_FOR_YOU_URL });
+    expect(panelCard(null)).toMatchObject({
+      kind: "for_you",
+      openUrl: X_FOR_YOU_URL,
+      openLabel: "Open For You",
+      secondary: { url: X_INSPIRATION_URL, label: "Open Inspiration" },
+    });
+    expect(panelCard(lock).secondary).toBeNull();
   });
 
   it("only opens x.com links and falls back to the status id", () => {
@@ -56,11 +62,17 @@ describe("panel Next", () => {
     expect(panelCanAskNext(lock, "123")).toBe(true);
     expect(panelCanAskNext(lock, "999")).toBe(false);
     expect(panelCanAskNext(lock, null)).toBe(false);
-    expect(panelCanAskNext(null, "123")).toBe(false);
+  });
+
+  it("is always offered on the For You card, like the desk", () => {
+    expect(panelCanAskNext(null, null)).toBe(true);
+    expect(nextFromCardId(null)).toEqual({ forYou: true });
+    expect(nextFromCardId(lock)).toEqual({ fromCardId: "123" });
   });
 
   it("explains when no desk is listening and when the desk is on another page", () => {
     expect(panelNextNotice("no_desk")).toContain("Open your desk dashboard");
     expect(panelNextNotice("not_moved")).toContain("as soon as its dashboard is showing");
+    expect(panelNextNotice("no_card")).toContain("No new card yet");
   });
 });

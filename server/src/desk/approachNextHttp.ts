@@ -35,12 +35,16 @@ export async function tryHandleApproachNext(
     send(req, res, err instanceof BodyError ? err.statusCode : 400, { error: "bad_request" });
     return true;
   }
-  const fromCardId = isRecord(body) && typeof body.fromCardId === "string" ? body.fromCardId.trim() : "";
-  if (!fromCardId || fromCardId.length > APPROACH_NEXT_ID_MAX) {
-    send(req, res, 400, { error: "bad_request", message: "Pass { fromCardId: string }." });
+  const request = isRecord(body) && body.forYou === true && body.fromCardId === undefined
+    ? { forYou: true as const }
+    : isRecord(body) && typeof body.fromCardId === "string" && body.forYou === undefined
+      ? { fromCardId: body.fromCardId.trim() }
+      : null;
+  if (!request || ("fromCardId" in request && (!request.fromCardId || request.fromCardId.length > APPROACH_NEXT_ID_MAX))) {
+    send(req, res, 400, { error: "bad_request", message: "Pass { fromCardId: string } or { forYou: true }." });
     return true;
   }
-  const delivered = publishDeskEvent(user.id, "approach_next", { fromCardId }) > 0;
+  const delivered = publishDeskEvent(user.id, "approach_next", request) > 0;
   send(req, res, 200, { ok: true, delivered }, { "Cache-Control": "no-store" });
   return true;
 }

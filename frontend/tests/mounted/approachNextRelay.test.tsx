@@ -63,9 +63,10 @@ function mountStreamOnly(ownerId = user.id) {
   }, ownerId), { wrapper });
 }
 
-function setup(interactedIds: Set<string>, opts: { keepBrowser?: boolean } = {}) {
+function setup(interactedIds: Set<string>, opts: { keepBrowser?: boolean; lockId?: string } = {}) {
   if (!opts.keepBrowser) stubBrowser();
-  writeApproachLock(user.id, { phase: "scout_reply", cardId: cardA.id, surface: null });
+  const lockedCard = opts.lockId ? { ...cardA, id: opts.lockId } : cardA;
+  writeApproachLock(user.id, { phase: "scout_reply", cardId: lockedCard.id, surface: null });
   return renderHook(() => {
     const history = useDeskHistory({
       setStatus: vi.fn(), setThreads: vi.fn(), setActionBusy: vi.fn(), settings: DEFAULT_SETTINGS,
@@ -73,7 +74,7 @@ function setup(interactedIds: Set<string>, opts: { keepBrowser?: boolean } = {})
     return useApproachTask({
       authUser: user, writesEnabled: true, deskBootReady: true, agendaReady: true,
       agenda: "Help developers build reliable software and share useful engineering ideas.",
-      curatedThreads: [cardA, cardB], forYouSuggestions: [],
+      curatedThreads: [lockedCard, cardB], forYouSuggestions: [],
       interactedIds, interactedRetainedHistory: history.interactedRetainedHistory,
       dismissedHistory: [], dismissThread: null, searching: false,
       actForYou: vi.fn(), onSkip: vi.fn(), onDismiss: vi.fn(),
@@ -104,6 +105,14 @@ test("the extension's Next leaves an unreplied Scout card in place", () => {
   setup(new Set());
   act(() => { liveStream().emit("approach_next", { fromCardId: cardA.id }); });
   expect(readApproachLock(user.id)?.cardId).toBe(cardA.id);
+});
+
+test("a Scout card id equal to the old For You sentinel still applies as a Scout request", () => {
+  setup(new Set(["for_you"]), { lockId: "for_you" });
+  expect(readApproachLock(user.id)?.cardId).toBe("for_you");
+
+  act(() => { liveStream().emit("approach_next", { fromCardId: "for_you" }); });
+  expect(readApproachLock(user.id)?.cardId).not.toBe("for_you");
 });
 
 test("a Next that arrives while the desk is off the dashboard applies when the dashboard opens", () => {

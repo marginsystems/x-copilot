@@ -1,14 +1,16 @@
-import type { ApproachLock } from "./deskPhase.ts";
+import { isForYouTask, type ApproachLock } from "./deskPhase.ts";
 import { isRecord } from "./typeGuards.ts";
 
 export const APPROACH_NEXT_PATH = "/api/desk/approach/next";
 export const APPROACH_NEXT_EVENT = "approach_next";
 export const APPROACH_NEXT_ID_MAX = 64;
 
-export type ApproachNextRequest = { fromCardId: string };
+export type ApproachNextRequest = { fromCardId: string } | { forYou: true };
 
 export function parseApproachNextRequest(raw: unknown): ApproachNextRequest | null {
-  if (!isRecord(raw) || typeof raw.fromCardId !== "string") return null;
+  if (!isRecord(raw)) return null;
+  if (raw.forYou === true && raw.fromCardId === undefined) return { forYou: true };
+  if (typeof raw.fromCardId !== "string" || raw.forYou !== undefined) return null;
   const fromCardId = raw.fromCardId.trim();
   if (!fromCardId || fromCardId.length > APPROACH_NEXT_ID_MAX) return null;
   return { fromCardId };
@@ -21,8 +23,14 @@ export function parseApproachNextResponse(raw: unknown): { delivered: boolean } 
 
 export function remoteNextApplies(
   lock: ApproachLock,
-  fromCardId: string,
+  request: ApproachNextRequest,
   scoutDetected: boolean,
 ): boolean {
-  return lock.phase === "scout_reply" && lock.cardId === fromCardId && scoutDetected;
+  if ("forYou" in request) return isForYouTask(lock);
+  return lock.phase === "scout_reply" && lock.cardId === request.fromCardId && scoutDetected;
+}
+
+export function remoteNextStale(lock: ApproachLock, request: ApproachNextRequest): boolean {
+  if ("forYou" in request) return !isForYouTask(lock);
+  return lock.cardId !== request.fromCardId;
 }

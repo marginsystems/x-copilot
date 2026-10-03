@@ -47,7 +47,7 @@ describe("waitForLockChange", () => {
     state.apiRequest
       .mockResolvedValueOnce({ ok: true, card })
       .mockResolvedValueOnce({ ok: true, card: other });
-    await expect(waitForLockChange(pairing, "1", noSleep)).resolves.toEqual({ card: other, supported: true, valid: true });
+    await expect(waitForLockChange(pairing, { fromCardId: "1" }, noSleep)).resolves.toEqual({ card: other, supported: true, valid: true });
     expect(state.apiRequest).toHaveBeenCalledTimes(2);
   });
 
@@ -63,18 +63,28 @@ describe("waitForLockChange", () => {
   ])("continues polling after a $kind lock read", async ({ firstRead }) => {
     firstRead();
     state.apiRequest.mockResolvedValueOnce({ ok: true, card: other });
-    await expect(waitForLockChange(pairing, "1", noSleep)).resolves.toEqual({ card: other, supported: true, valid: true });
+    await expect(waitForLockChange(pairing, { fromCardId: "1" }, noSleep)).resolves.toEqual({ card: other, supported: true, valid: true });
     expect(state.apiRequest).toHaveBeenCalledTimes(2);
   });
 
   it("treats a cleared lock as moved, to For You", async () => {
     state.apiRequest.mockResolvedValue({ ok: true, card: null });
-    await expect(waitForLockChange(pairing, "1", noSleep)).resolves.toEqual({ card: null, supported: true, valid: true });
+    await expect(waitForLockChange(pairing, { fromCardId: "1" }, noSleep)).resolves.toEqual({ card: null, supported: true, valid: true });
+  });
+
+  it("after a For You Next, waits for a card to appear", async () => {
+    state.apiRequest
+      .mockResolvedValueOnce({ ok: true, card: null })
+      .mockResolvedValueOnce({ ok: true, card });
+    await expect(waitForLockChange(pairing, { forYou: true }, noSleep)).resolves.toMatchObject({ card, supported: true });
+    state.apiRequest.mockReset();
+    state.apiRequest.mockResolvedValue({ ok: true, card: null });
+    await expect(waitForLockChange(pairing, { forYou: true }, noSleep)).resolves.toBeNull();
   });
 
   it("gives up after a bounded number of checks when the desk does not move", async () => {
     state.apiRequest.mockResolvedValue({ ok: true, card });
-    await expect(waitForLockChange(pairing, "1", noSleep)).resolves.toBeNull();
+    await expect(waitForLockChange(pairing, { fromCardId: "1" }, noSleep)).resolves.toBeNull();
     expect(state.apiRequest).toHaveBeenCalledTimes(NEXT_POLL_TRIES);
   });
 });

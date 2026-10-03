@@ -41,7 +41,12 @@ import {
   settleForYouWait,
 } from "../../../shared/src/forYouTask";
 import { clearForYouWait, readForYouWait, writeForYouWait } from "../lib/forYouWaitStore";
-import { parseApproachNextRequest, remoteNextApplies } from "../../../shared/src/approachNext";
+import {
+  parseApproachNextRequest,
+  remoteNextApplies,
+  remoteNextStale,
+  type ApproachNextRequest,
+} from "../../../shared/src/approachNext";
 import { vanishEvent } from "../lib/vanishEvent";
 import { apiFetch } from "../lib/apiBase";
 import { presentApproach, type ApproachCardInput } from "../../../shared/src/approachPresenter";
@@ -337,6 +342,11 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
   advanceCardRef.current = advanceCard;
   const scoutDetectedRef = useRef(scoutDetected);
   scoutDetectedRef.current = scoutDetected;
+  const applyRemoteNextRef = useRef((request: ApproachNextRequest) => {
+    advanceCardRef.current({ type: "next" });
+    if (!("forYou" in request)) return;
+    Promise.resolve(refreshCoachingRef.current()).catch((err: unknown) => console.error(err));
+  });
 
   useEffect(
     () =>
@@ -344,8 +354,8 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
         const request = parseApproachNextRequest(data);
         const current = stateRef.current;
         if (!request || !current) return;
-        if (!remoteNextApplies(current.lock, request.fromCardId, scoutDetectedRef.current)) return;
-        advanceCardRef.current({ type: "next" });
+        if (!remoteNextApplies(current.lock, request, scoutDetectedRef.current)) return;
+        applyRemoteNextRef.current(request);
       }),
     [],
   );
@@ -354,13 +364,13 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     const request = parseApproachNextRequest(peekPendingApproachNext());
     const current = stateRef.current;
     if (!request || !current) return;
-    if (current.lock.cardId !== request.fromCardId) {
+    if (remoteNextStale(current.lock, request)) {
       clearPendingApproachNext();
       return;
     }
-    if (!remoteNextApplies(current.lock, request.fromCardId, scoutDetected)) return;
+    if (!remoteNextApplies(current.lock, request, scoutDetected)) return;
     clearPendingApproachNext();
-    advanceCardRef.current({ type: "next" });
+    applyRemoteNextRef.current(request);
   }, [lock, scoutDetected]);
   const paceLockedRef = useRef(pace.locked);
   paceLockedRef.current = pace.locked;

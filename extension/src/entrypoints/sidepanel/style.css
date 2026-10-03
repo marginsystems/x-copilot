@@ -324,3 +324,47 @@ button.small-btn {
     opacity: 0.5;
   }
 }
+
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.card-head .verb {
+  margin: 0;
+}
+
+.detect-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.detect-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--border-strong);
+}
+
+.detect-tag.is-detected {
+  color: var(--gain);
+  border-color: var(--gain);
+  background: color-mix(in srgb, var(--gain) 12%, transparent);
+}
+
+.detect-tag.is-detected .detect-dot {
+  background: var(--gain);
+}

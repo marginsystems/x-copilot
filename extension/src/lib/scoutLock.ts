@@ -3,6 +3,7 @@ import {
   SCOUT_APPROACH_LOCK_PATH,
   type ScoutApproachLockCard,
 } from "../../../shared/src/scoutApproachLock";
+import type { ApproachNextRequest } from "../../../shared/src/approachNext";
 import { ApiStatusError, apiRequest } from "./api";
 import type { Pairing } from "./pairing";
 
@@ -33,14 +34,15 @@ export const NEXT_POLL_TRIES = 10;
 
 export async function waitForLockChange(
   pairing: Pairing,
-  fromCardId: string,
+  request: ApproachNextRequest,
   sleep: (ms: number) => Promise<void> = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
 ): Promise<ScoutLockRead | null> {
   for (let attempt = 0; attempt < NEXT_POLL_TRIES; attempt += 1) {
     await sleep(NEXT_POLL_MS);
     const lock = await readScoutLock(pairing);
     if (!lock.supported || !lock.valid) continue;
-    if (lock.card?.id !== fromCardId) return lock;
+    const moved = "forYou" in request ? lock.card !== null : lock.card?.id !== request.fromCardId;
+    if (moved) return lock;
   }
   return null;
 }
