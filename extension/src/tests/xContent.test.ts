@@ -39,6 +39,7 @@ describe("x content attention polling", () => {
     state.sendMessage.mockResolvedValue({ ok: true });
     document.documentElement.innerHTML = "<head></head><body></body>";
     window.history.replaceState(null, "", "/home");
+    window.sessionStorage.clear();
   });
 
   it("skips post scans off post pages and while the gate is disabled", () => {
@@ -132,6 +133,72 @@ describe("x content attention polling", () => {
     state.intervalCallback?.();
     expect(chip?.textContent).toBe("Ready");
     expect(chip?.classList.contains("gone")).toBe(false);
+
+    vi.restoreAllMocks();
+  });
+
+  it("keeps a post's reading time across a detour and a fresh script on the same tab", () => {
+    let nowMs = 0;
+    vi.spyOn(Date, "now").mockImplementation(() => nowMs);
+    vi.spyOn(document, "hasFocus").mockReturnValue(true);
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+
+    const box = (top: number, height: number) => ({
+      top,
+      bottom: top + height,
+      left: 10,
+      right: 300,
+      width: 290,
+      height,
+      x: 10,
+      y: top,
+      toJSON: () => ({}),
+    });
+    const post = document.createElement("article");
+    post.setAttribute("data-testid", "tweet");
+    vi.spyOn(post, "getBoundingClientRect").mockReturnValue(box(10, 90));
+    const composer = document.createElement("div");
+    composer.setAttribute("data-testid", "tweetTextarea_0");
+    vi.spyOn(composer, "getBoundingClientRect").mockReturnValue(box(200, 40));
+    document.body.append(post, composer);
+
+    const invalidations: Array<() => void> = [];
+    const context = {
+      setInterval: (callback: () => void) => {
+        state.intervalCallback = callback;
+      },
+      onInvalidated: (callback: () => void) => {
+        invalidations.push(callback);
+      },
+    } as unknown as NonNullable<Parameters<typeof contentScript.main>[0]>;
+    const attachShadow = vi.spyOn(Element.prototype, "attachShadow");
+    const chipText = (index: number) => attachShadow.mock.results[index]?.value.querySelector(".chip")?.textContent;
+
+    window.history.replaceState(null, "", "/user/status/789");
+    contentScript.main(context);
+    state.intervalCallback?.();
+    for (let second = 1; second <= 4; second += 1) {
+      nowMs = second * 1_000;
+      state.intervalCallback?.();
+    }
+    expect(chipText(0)).toBe("Reading6s");
+
+    window.history.replaceState(null, "", "/compose/post");
+    nowMs = 4_250;
+    state.intervalCallback?.();
+    window.history.replaceState(null, "", "/user/status/789");
+    nowMs = 4_500;
+    state.intervalCallback?.();
+    expect(chipText(0)).toBe("Reading6s");
+
+    for (const invalidate of invalidations) invalidate();
+    expect(document.querySelectorAll('[data-x-copilot="attention"]')).toHaveLength(0);
+
+    contentScript.main(context);
+    nowMs = 5_000;
+    state.intervalCallback?.();
+    expect(chipText(1)).toBe("Reading6s");
+    expect(document.querySelectorAll('[data-x-copilot="attention"]')).toHaveLength(1);
 
     vi.restoreAllMocks();
   });

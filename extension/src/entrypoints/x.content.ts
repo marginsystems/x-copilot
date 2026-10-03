@@ -4,6 +4,8 @@ import {
   IDLE_CLOCK,
   attentionSecondsLeft,
   chipPhase,
+  parseAttentionMemory,
+  rememberAttention,
   readySince,
   statusIdFromPath,
   tickAttention,
@@ -16,6 +18,24 @@ import { X_SELECTORS, chipPagePosition, rectInViewport } from "../lib/xSelectors
 
 const TICK_MS = 250;
 const CHIP_HEIGHT = 22;
+const CHIP_HOST_SELECTOR = '[data-x-copilot="attention"]';
+const MEMORY_KEY = "x-copilot:attention";
+
+function readMemory() {
+  try {
+    return parseAttentionMemory(window.sessionStorage.getItem(MEMORY_KEY));
+  } catch {
+    return [];
+  }
+}
+
+function writeMemory(memory: ReturnType<typeof readMemory>) {
+  try {
+    window.sessionStorage.setItem(MEMORY_KEY, JSON.stringify(memory));
+  } catch {
+    return;
+  }
+}
 
 const CHIP_CSS = `
   :host { all: initial; }
@@ -57,9 +77,10 @@ const CHIP_CSS = `
   }
 `;
 
-type Chip = { root: HTMLDivElement; label: HTMLSpanElement; count: HTMLSpanElement };
+type Chip = { host: HTMLDivElement; root: HTMLDivElement; label: HTMLSpanElement; count: HTMLSpanElement };
 
 function createChip(): Chip {
+  document.querySelector(CHIP_HOST_SELECTOR)?.remove();
   const host = document.createElement("div");
   host.setAttribute("data-x-copilot", "attention");
   const shadow = host.attachShadow({ mode: "closed" });
@@ -75,7 +96,7 @@ function createChip(): Chip {
   root.append(label, count);
   shadow.append(style, root);
   document.documentElement.append(host);
-  return { root, label, count };
+  return { host, root, label, count };
 }
 
 function viewport() {
@@ -96,7 +117,9 @@ export default defineContentScript({
   main(ctx) {
     let enabled = true;
     let clock = IDLE_CLOCK;
+    let memory = readMemory();
     const chip = createChip();
+    ctx.onInvalidated(() => chip.host.remove());
 
     readAttentionGate().then((on) => { enabled = on; }, () => undefined);
     browser.storage.onChanged.addListener((changes, area) => {
@@ -194,7 +217,12 @@ export default defineContentScript({
         visible: document.visibilityState === "visible",
         focused: document.hasFocus(),
         postInView: enabled && statusId !== null && statusId === clock.statusId ? postInView() : false,
-      });
+      }, memory);
+      const remembered = rememberAttention(memory, clock);
+      if (remembered !== memory) {
+        memory = remembered;
+        writeMemory(memory);
+      }
       render(nowMs);
     }, TICK_MS);
   },
