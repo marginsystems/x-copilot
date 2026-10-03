@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { X_FOR_YOU_URL, X_INSPIRATION_URL } from "../../../shared/src/forYou";
 import { REPLY_PACE_MS } from "../../../shared/src/replyPace";
-import { nextFromCardId, panelCanAskNext, panelCard, panelNextNotice, panelPace, scoutOpenUrl } from "./panelModel";
+import { nextFromCardId, panelCanAskNext, panelCard, panelNextNotice, panelPace, preloadedNextCard, scoutOpenUrl } from "./panelModel";
 
 const lock = {
   id: "123",
@@ -74,5 +74,22 @@ describe("panel Next", () => {
     expect(panelNextNotice("no_desk")).toContain("Open your desk dashboard");
     expect(panelNextNotice("not_moved")).toContain("as soon as its dashboard is showing");
     expect(panelNextNotice("no_card")).toContain("No new card yet");
+  });
+});
+
+describe("preloadedNextCard", () => {
+  const upNext = { ...lock, id: "456" };
+
+  it("offers the desk's lined-up card when it differs from the one on screen", () => {
+    expect(preloadedNextCard({ fromCardId: "123" }, { card: upNext })).toEqual({ card: upNext });
+    expect(preloadedNextCard({ fromCardId: "123" }, { card: null })).toEqual({ card: null });
+    expect(preloadedNextCard({ forYou: true }, { card: upNext })).toEqual({ card: upNext });
+  });
+
+  it("offers nothing when the desk named no next card or it would not move the panel", () => {
+    expect(preloadedNextCard({ fromCardId: "123" }, null)).toBeNull();
+    expect(preloadedNextCard({ fromCardId: "123" }, undefined)).toBeNull();
+    expect(preloadedNextCard({ fromCardId: "123" }, { card: lock })).toBeNull();
+    expect(preloadedNextCard({ forYou: true }, { card: null })).toBeNull();
   });
 });

@@ -29,6 +29,7 @@ import {
   isForYouTask,
   type ApproachEvent,
   type ApproachInventory,
+  type ApproachLock,
 } from "../../../shared/src/deskPhase";
 import { eligibleScoutCards } from "../../../shared/src/deskRefuel";
 import { forYouTargetId, type ForYouSuggestion } from "../../../shared/src/forYou";
@@ -45,6 +46,7 @@ import {
   parseApproachNextRequest,
   remoteNextApplies,
   remoteNextStale,
+  upNextLock,
   type ApproachNextRequest,
 } from "../../../shared/src/approachNext";
 import { vanishEvent } from "../lib/vanishEvent";
@@ -470,6 +472,47 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     },
   }), [activeDetector, owner]);
 
+  const upNextTarget = lock
+    ? upNextLock(lock, inventoryFor(lock.cardId, isForYouTask(lock)))
+    : null;
+  const upNextJson = upNextTarget ? publishedUpNextJson(upNextTarget) : "";
+
+  function publishedUpNextJson(target: ApproachLock): string {
+    if (target.phase === "scout_reply") {
+      const scout = target.cardId ? scoutCardsRef.current.get(target.cardId) : null;
+      if (!scout) return "";
+      return JSON.stringify({
+        card: {
+          id: scout.id,
+          conversationId: scout.conversationId,
+          inReplyToId: scout.inReplyToId,
+          surface: scout.surface,
+          author: scout.author,
+          url: scout.url,
+          text: scout.text,
+        },
+      });
+    }
+    if (target.phase === "organic_reply") {
+      const suggestion = target.cardId ? suggestionCardsRef.current.get(target.cardId) : null;
+      if (!suggestion) return "";
+      const targetId = suggestion.kind === "reply" ? forYouTargetId(suggestion) : null;
+      if (!targetId) return JSON.stringify({ card: null });
+      return JSON.stringify({
+        card: {
+          id: targetId,
+          conversationId: targetId,
+          inReplyToId: targetId,
+          surface: "reply",
+          author: suggestion.targetAuthor,
+          url: suggestion.targetUrl,
+          text: null,
+        },
+      });
+    }
+    return JSON.stringify({ card: null });
+  }
+
   const ready = lock !== null;
   const lockGeneration = session.capture();
   useEffect(() => {
@@ -516,9 +559,10 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
               text: scoutLock.text,
             }
           : suggestedTarget,
+        ...(upNextJson ? { next: JSON.parse(upNextJson) as unknown } : {}),
       }),
     }).catch(() => {});
-  }, [authUser?.id, lockedScout, lockedSuggestion, phase, ready, writesEnabled, lockGeneration, session]);
+  }, [authUser?.id, lockedScout, lockedSuggestion, phase, ready, writesEnabled, lockGeneration, session, upNextJson]);
 
   const pendingDismissIdRef = useRef<string | null>(null);
 

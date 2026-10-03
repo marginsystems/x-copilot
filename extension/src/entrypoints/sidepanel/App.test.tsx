@@ -229,4 +229,63 @@ describe("App", () => {
 
     await act(async () => root.unmount());
   });
+
+  it("shows the preloaded next card at once, before the desk answers", async () => {
+    readPairing.mockResolvedValue(paired);
+    const upNext = { id: "42", conversationId: null, inReplyToId: null, surface: "reply", author: "@dana", url: null, text: "Preloaded post" };
+    loadPanelData.mockResolvedValue({ lock: null, lockSupported: true, nextUp: { card: upNext }, replyAt: [], scout: null });
+    askDeskForNext.mockReturnValue(new Promise(() => undefined));
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<App />);
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+    const next = Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Next card");
+    await act(async () => {
+      next?.click();
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+
+    expect(container.textContent).toContain("@dana");
+    expect(container.textContent).toContain("Preloaded post");
+    expect(container.textContent).not.toContain("Finding next");
+    expect(waitForLockChange).not.toHaveBeenCalled();
+
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+    expect(container.textContent).toContain("Preloaded post");
+
+    await act(async () => root.unmount());
+  });
+
+  it("goes back to the desk's card with a notice when no desk is open to confirm the preloaded one", async () => {
+    readPairing.mockResolvedValue(paired);
+    const upNext = { id: "42", conversationId: null, inReplyToId: null, surface: "reply", author: "@dana", url: null, text: "Preloaded post" };
+    loadPanelData.mockResolvedValue({ lock: null, lockSupported: true, nextUp: { card: upNext }, replyAt: [], scout: null });
+    askDeskForNext.mockResolvedValue(false);
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<App />);
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+    const next = Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Next card");
+    await act(async () => {
+      next?.click();
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+
+    expect(container.textContent).not.toContain("Preloaded post");
+    expect(container.textContent).toContain("Open For You");
+    expect(container.textContent).toContain("Open your desk dashboard in a tab");
+
+    await act(async () => root.unmount());
+  });
 });

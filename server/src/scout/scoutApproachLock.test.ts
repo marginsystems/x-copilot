@@ -14,7 +14,9 @@ import { createSession } from "../auth/sessionStore.ts";
 import { saveScoutCache } from "./scoutCache.ts";
 import {
   getScoutApproachLock,
+  getScoutApproachNext,
   setScoutApproachLock,
+  setScoutApproachNext,
   tryHandleScoutApproachLock,
 } from "./scoutApproachLock.ts";
 import { readRetainedTargetContext } from "./scoutEvidenceContext.ts";
@@ -151,7 +153,7 @@ await describe("scoutApproachLock", async () => {
 
   await it("reads back the current lock for this user only", async () => {
     const b = signIn("b");
-    assert.deepEqual((await call("GET", undefined, a.cookie)).json, { ok: true, card: null });
+    assert.deepEqual((await call("GET", undefined, a.cookie)).json, { ok: true, card: null, next: null });
     assert.equal(
       (await call("PUT", { card: { id: "c9", conversationId: "conv-9", author: "@dana", url: "https://x.com/dana/status/9", text: "hi", surface: "reply" } }, a.cookie)).status,
       200,
@@ -169,10 +171,38 @@ await describe("scoutApproachLock", async () => {
         url: "https://x.com/dana/status/9",
         text: "hi",
       },
+      next: null,
     });
-    assert.deepEqual((await call("GET", undefined, b.cookie)).json, { ok: true, card: null });
+    assert.deepEqual((await call("GET", undefined, b.cookie)).json, { ok: true, card: null, next: null });
     assert.equal((await call("PUT", { card: null }, a.cookie)).status, 200);
-    assert.deepEqual((await call("GET", undefined, a.cookie)).json, { ok: true, card: null });
+    assert.deepEqual((await call("GET", undefined, a.cookie)).json, { ok: true, card: null, next: null });
+  });
+
+  await it("publishes the card the desk would lock after Next beside the current lock", async () => {
+    const upNext = { id: "c10", conversationId: null, inReplyToId: null, surface: "reply", author: "@eve", url: null, text: "next up" };
+    assert.equal((await call("PUT", { card: { id: "c9" }, next: { card: upNext } }, a.cookie)).status, 200);
+    assert.deepEqual((await call("GET", undefined, a.cookie)).json.next, { card: upNext });
+
+    assert.equal((await call("PUT", { card: { id: "c9" }, next: { card: null } }, a.cookie)).status, 200);
+    assert.deepEqual((await call("GET", undefined, a.cookie)).json.next, { card: null });
+
+    assert.equal((await call("PUT", { card: null, next: { card: upNext } }, a.cookie)).status, 200);
+    assert.deepEqual((await call("GET", undefined, a.cookie)).json, { ok: true, card: null, next: { card: upNext } });
+  });
+
+  await it("forgets the next card when a write does not name one", async () => {
+    const upNext = { id: "c10", conversationId: null, inReplyToId: null, surface: "reply", author: null, url: null, text: null };
+    assert.equal((await call("PUT", { card: { id: "c9" }, next: { card: upNext } }, a.cookie)).status, 200);
+    assert.equal((await call("PUT", { card: { id: "c10" } }, a.cookie)).status, 200);
+    assert.equal((await call("GET", undefined, a.cookie)).json.next, null);
+    assert.equal((await call("PUT", { card: { id: "c10" }, next: { card: { id: " " } } }, a.cookie)).status, 200);
+    assert.equal((await call("GET", undefined, a.cookie)).json.next, null);
+  });
+
+  await it("expires the next card with the lock's TTL", async () => {
+    setScoutApproachNext(a.userId, { card: null });
+    assert.deepEqual(getScoutApproachNext(a.userId), { card: null });
+    assert.equal(getScoutApproachNext(a.userId, Date.now() + 25 * 60 * 60 * 1000), null);
   });
 
   await it("expires the lock after its TTL without touching retained context", async () => {

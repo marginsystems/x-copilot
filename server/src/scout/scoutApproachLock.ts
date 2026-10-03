@@ -100,6 +100,68 @@ export function setScoutApproachLock(
   );
 }
 
+export type ScoutApproachNext = { card: ScoutApproachLock | null };
+
+function lockCardFromBody(value: unknown): ScoutApproachLock | null {
+  if (!isRecord(value)) return null;
+  const id = optionalText(value.id);
+  if (!id) return null;
+  return {
+    id,
+    conversationId: optionalText(value.conversationId),
+    inReplyToId: optionalText(value.inReplyToId),
+    surface: value.surface === "reply" ? "reply" : null,
+    author: optionalText(value.author),
+    url: optionalText(value.url),
+    text: optionalText(value.text),
+  };
+}
+
+function nextFromBody(value: unknown): ScoutApproachNext | null {
+  if (!isRecord(value)) return null;
+  if (value.card === null) return { card: null };
+  const card = lockCardFromBody(value.card);
+  return card ? { card } : null;
+}
+
+export function getScoutApproachNext(
+  userId: string,
+  nowMs: number = Date.now(),
+): ScoutApproachNext | null {
+  const row: unknown = getPlatformDb()
+    .prepare(`SELECT card_json, updated_at FROM scout_approach_next WHERE user_id = ?`)
+    .get(userId);
+  if (!isRecord(row) || typeof row.updated_at !== "string") return null;
+  const updatedAt = Date.parse(row.updated_at);
+  if (!Number.isFinite(updatedAt) || nowMs - updatedAt > SCOUT_APPROACH_LOCK_TTL_MS) return null;
+  if (row.card_json === null) return { card: null };
+  if (typeof row.card_json !== "string") return null;
+  try {
+    const card = lockCardFromBody(JSON.parse(row.card_json));
+    return card ? { card } : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setScoutApproachNext(
+  userId: string,
+  next: ScoutApproachNext | null,
+): void {
+  const db = getPlatformDb();
+  if (!next) {
+    db.prepare(`DELETE FROM scout_approach_next WHERE user_id = ?`).run(userId);
+    return;
+  }
+  db.prepare(
+    `INSERT INTO scout_approach_next (user_id, card_json, updated_at)
+     VALUES (?, ?, ?)
+     ON CONFLICT(user_id) DO UPDATE SET
+       card_json = excluded.card_json,
+       updated_at = excluded.updated_at`,
+  ).run(userId, next.card ? JSON.stringify(next.card) : null, new Date().toISOString());
+}
+
 export async function tryHandleScoutApproachLock(
   req: IncomingMessage,
   res: ServerResponse,
@@ -120,7 +182,11 @@ export async function tryHandleScoutApproachLock(
       send(req, res, 429, { error: "rate_limited" });
       return true;
     }
-    send(req, res, 200, { ok: true, card: getScoutApproachLock(user.id) });
+    send(req, res, 200, {
+      ok: true,
+      card: getScoutApproachLock(user.id),
+      next: getScoutApproachNext(user.id),
+    });
     return true;
   }
   if (!allowRate(`scout-approach-lock:${user.id}`, 40, 60_000)) {
@@ -144,6 +210,7 @@ export async function tryHandleScoutApproachLock(
 
   if (body.card === null) {
     setScoutApproachLock(user.id, null);
+    setScoutApproachNext(user.id, nextFromBody(body.next));
     send(req, res, 200, { ok: true });
     return true;
   }
@@ -170,6 +237,7 @@ export async function tryHandleScoutApproachLock(
     url: optionalText(raw.url),
     text,
   });
+  setScoutApproachNext(user.id, nextFromBody(body.next));
   try {
     await retainScoutContextForTarget({
       userId: user.id,

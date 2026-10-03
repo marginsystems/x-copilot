@@ -25,11 +25,28 @@ export function parseScoutApproachLockCard(raw: unknown): ScoutApproachLockCard 
   return { id: raw.id, conversationId, inReplyToId, surface, author, url, text };
 }
 
-export function parseScoutApproachLockResponse(
-  raw: unknown,
-): { card: ScoutApproachLockCard | null } | null {
-  if (!isRecord(raw) || raw.ok !== true) return null;
+export type ScoutApproachNext = { card: ScoutApproachLockCard | null };
+
+export function parseScoutApproachNext(raw: unknown): ScoutApproachNext | null {
+  if (!isRecord(raw)) return null;
   if (raw.card === null) return { card: null };
   const card = parseScoutApproachLockCard(raw.card);
   return card ? { card } : null;
+}
+
+export function lockMovedAfterNext(
+  request: { fromCardId: string } | { forYou: true },
+  card: { id: string } | null,
+): boolean {
+  return "forYou" in request ? card !== null : card?.id !== request.fromCardId;
+}
+
+export function parseScoutApproachLockResponse(
+  raw: unknown,
+): { card: ScoutApproachLockCard | null; next: ScoutApproachNext | null } | null {
+  if (!isRecord(raw) || raw.ok !== true) return null;
+  const next = parseScoutApproachNext(raw.next);
+  if (raw.card === null) return { card: null, next };
+  const card = parseScoutApproachLockCard(raw.card);
+  return card ? { card, next } : null;
 }

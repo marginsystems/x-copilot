@@ -1,14 +1,20 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { ApproachNextRequest } from "../../../../shared/src/approachNext";
+import {
+  lockMovedAfterNext,
+  type ScoutApproachLockCard,
+  type ScoutApproachNext,
+} from "../../../../shared/src/scoutApproachLock";
 import { browser } from "wxt/browser";
 import { UnpairedError } from "../../lib/api";
 import { planOpenOnX } from "../../lib/openOnX";
 import type { Pairing } from "../../lib/pairing";
 import { clearPairing, readPairing } from "../../lib/pairingStore";
 import { askDeskForNext, loadPanelData, signOutExtension, type PanelData } from "../../lib/panelData";
-import { nextFromCardId, panelCanAskNext, panelCard, panelNextNotice, panelPace } from "../../lib/panelModel";
+import { nextFromCardId, panelCanAskNext, panelCard, panelNextNotice, panelPace, preloadedNextCard } from "../../lib/panelModel";
 import { OLDER_SERVER_NOTICE, waitForLockChange } from "../../lib/scoutLock";
 import { cardDetected, cardKey, detectionTag, type CardSince } from "../../lib/detection";
-import { readReplySeenAt, trackCardSince } from "../../lib/detectionStore";
+import { readReplySeenAt, restoreCardSince, trackCardSince } from "../../lib/detectionStore";
 import { readRepliedCardId } from "../../lib/repliedCardStore";
 import { readAttentionGate, writeAttentionGate } from "../../lib/settingsStore";
 import { repliesOnUtcDay, scoutLook } from "../../lib/scout";
@@ -49,7 +55,8 @@ export function App() {
   const [replySeenAtMs, setReplySeenAtMs] = useState<number | null>(null);
   const [since, setSince] = useState<CardSince | null>(null);
   const [nextNotice, setNextNotice] = useState<string | null>(null);
-  const [askingNext, setAskingNext] = useState(false);
+  const [nextBusy, setNextBusy] = useState<"idle" | "finding" | "confirming">("idle");
+  const pendingNextRef = useRef<ApproachNextRequest | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const now = useNow();
 
@@ -67,6 +74,7 @@ export function App() {
     setReplySeenAtMs(await readReplySeenAt().catch(() => null));
     try {
       const data = await loadPanelData(pairing);
+      if (pendingNextRef.current && !lockMovedAfterNext(pendingNextRef.current, data.lock)) return;
       setSince(await trackCardSince(cardKey(data.lock), Date.now()).catch(() => null));
       setState((prev) => {
         if (prev.kind === "ready" && prev.data.lock?.id !== data.lock?.id) setNextNotice(null);
@@ -162,32 +170,45 @@ export function App() {
   const tag = detectionTag(lock, detected);
 
   function askNext() {
+    if (pendingNextRef.current) return;
     const request = nextFromCardId(lock);
-    setAskingNext(true);
+    const preloaded = preloadedNextCard(request, state.kind === "ready" ? state.data.nextUp : null);
+    pendingNextRef.current = request;
+    setNextBusy(preloaded ? "confirming" : "finding");
     setNextNotice(null);
+
+    const show = async (card: ScoutApproachLockCard | null, nextUp: ScoutApproachNext | null) => {
+      setState((prev) => (prev.kind === "ready" ? { ...prev, data: { ...prev.data, lock: card, nextUp } } : prev));
+      setSince(await trackCardSince(cardKey(card), Date.now()).catch(() => null));
+      await openOnX(panelCard(card).openUrl);
+    };
+    const settle = async (notice: string | null) => {
+      pendingNextRef.current = null;
+      if (notice && preloaded) {
+        const nextUp = state.kind === "ready" ? state.data.nextUp : null;
+        setState((prev) => (prev.kind === "ready" ? { ...prev, data: { ...prev.data, lock, nextUp } } : prev));
+        setSince(since);
+        await restoreCardSince(since).catch(() => undefined);
+      }
+      if (notice) setNextNotice(notice);
+      setNextBusy("idle");
+    };
+
+    if (preloaded) show(preloaded.card, null).catch(() => undefined);
     askDeskForNext(pairing, request)
       .then(async (delivered) => {
-        if (!delivered) {
-          setNextNotice(panelNextNotice("no_desk"));
-          return;
-        }
+        if (!delivered) return panelNextNotice("no_desk");
         const moved = await waitForLockChange(pairing, request);
-        if (!moved) {
-          setNextNotice(panelNextNotice(lock ? "not_moved" : "no_card"));
-          return;
+        if (!moved) return panelNextNotice(lock ? "not_moved" : "no_card");
+        if (preloaded && moved.card?.id === preloaded.card?.id) {
+          setState((prev) => (prev.kind === "ready" ? { ...prev, data: { ...prev.data, nextUp: moved.next } } : prev));
+          return null;
         }
-        if ("forYou" in request) {
-          setSince(await trackCardSince(cardKey(moved.card), Date.now()).catch(() => null));
-        }
-        setState((prev) =>
-          prev.kind === "ready"
-            ? { ...prev, data: { ...prev.data, lock: moved.card, lockSupported: moved.supported } }
-            : prev,
-        );
-        await openOnX(panelCard(moved.card).openUrl);
+        await show(moved.card, moved.next);
+        return null;
       })
-      .catch((err: unknown) => setNextNotice(err instanceof Error ? err.message : String(err)))
-      .finally(() => setAskingNext(false));
+      .then(settle, (err: unknown) => settle(err instanceof Error ? err.message : String(err)))
+      .catch(() => undefined);
   }
 
   const look = scoutLook({
@@ -302,10 +323,10 @@ export function App() {
             <button
               type="button"
               className={detected ? "primary" : "ghost"}
-              disabled={askingNext}
+              disabled={nextBusy !== "idle"}
               onClick={askNext}
             >
-              {askingNext ? "Finding next…" : "Next card"}
+              {nextBusy === "finding" ? "Finding next…" : "Next card"}
             </button>
           ) : null}
         </div>

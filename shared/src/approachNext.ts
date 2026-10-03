@@ -1,4 +1,9 @@
-import { isForYouTask, type ApproachLock } from "./deskPhase.ts";
+import {
+  advanceApproach,
+  isForYouTask,
+  type ApproachInventory,
+  type ApproachLock,
+} from "./deskPhase.ts";
 import { isRecord } from "./typeGuards.ts";
 
 export const APPROACH_NEXT_PATH = "/api/desk/approach/next";
@@ -33,4 +38,11 @@ export function remoteNextApplies(
 export function remoteNextStale(lock: ApproachLock, request: ApproachNextRequest): boolean {
   if ("forYou" in request) return !isForYouTask(lock);
   return lock.cardId !== request.fromCardId;
+}
+
+export function upNextLock(lock: ApproachLock, inventory: ApproachInventory): ApproachLock | null {
+  const remoteNextCanApply = isForYouTask(lock) || (lock.phase === "scout_reply" && lock.cardId !== null);
+  if (!remoteNextCanApply) return null;
+  const next = advanceApproach(lock, { type: "next" }, inventory);
+  return next === lock ? null : next;
 }

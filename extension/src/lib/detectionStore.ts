@@ -10,6 +10,10 @@ export async function trackCardSince(key: string, nowMs: number): Promise<CardSi
   return next;
 }
 
+export async function restoreCardSince(since: CardSince | null): Promise<void> {
+  if (since) await browser.storage.local.set({ [CARD_SINCE_KEY]: since });
+}
+
 export async function readReplySeenAt(): Promise<number | null> {
   const stored = await browser.storage.local.get(REPLY_SEEN_KEY);
   const value: unknown = stored[REPLY_SEEN_KEY];

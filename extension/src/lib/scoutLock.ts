@@ -1,7 +1,9 @@
 import {
+  lockMovedAfterNext,
   parseScoutApproachLockResponse,
   SCOUT_APPROACH_LOCK_PATH,
   type ScoutApproachLockCard,
+  type ScoutApproachNext,
 } from "../../../shared/src/scoutApproachLock";
 import type { ApproachNextRequest } from "../../../shared/src/approachNext";
 import { ApiStatusError, apiRequest } from "./api";
@@ -10,7 +12,12 @@ import type { Pairing } from "./pairing";
 export const OLDER_SERVER_NOTICE =
   "The X Copilot server is a version behind this extension, so Scout cards can't show here yet. Showing For You.";
 
-export type ScoutLockRead = { card: ScoutApproachLockCard | null; supported: boolean; valid: boolean };
+export type ScoutLockRead = {
+  card: ScoutApproachLockCard | null;
+  next: ScoutApproachNext | null;
+  supported: boolean;
+  valid: boolean;
+};
 
 export function serverLacksLockRead(err: unknown): boolean {
   return err instanceof ApiStatusError && (err.status === 404 || err.status === 405);
@@ -21,12 +28,12 @@ export async function readScoutLock(pairing: Pairing): Promise<ScoutLockRead> {
   try {
     raw = await apiRequest(pairing, SCOUT_APPROACH_LOCK_PATH);
   } catch (err) {
-    if (serverLacksLockRead(err)) return { card: null, supported: false, valid: false };
+    if (serverLacksLockRead(err)) return { card: null, next: null, supported: false, valid: false };
     throw err;
   }
   const parsed = parseScoutApproachLockResponse(raw);
-  if (!parsed) return { card: null, supported: true, valid: false };
-  return { card: parsed.card, supported: true, valid: true };
+  if (!parsed) return { card: null, next: null, supported: true, valid: false };
+  return { card: parsed.card, next: parsed.next, supported: true, valid: true };
 }
 
 export const NEXT_POLL_MS = 600;
@@ -47,8 +54,7 @@ export async function waitForLockChange(
     await sleep(nextPollDelayMs(attempt));
     const lock = await readScoutLock(pairing);
     if (!lock.supported || !lock.valid) continue;
-    const moved = "forYou" in request ? lock.card !== null : lock.card?.id !== request.fromCardId;
-    if (moved) return lock;
+    if (lockMovedAfterNext(request, lock.card)) return lock;
   }
   return null;
 }

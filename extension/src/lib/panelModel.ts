@@ -6,7 +6,11 @@ import {
   replyPaceTip,
   seedReplyPaceUntil,
 } from "../../../shared/src/replyPace";
-import type { ScoutApproachLockCard } from "../../../shared/src/scoutApproachLock";
+import {
+  lockMovedAfterNext,
+  type ScoutApproachLockCard,
+  type ScoutApproachNext,
+} from "../../../shared/src/scoutApproachLock";
 
 export type PanelCard = {
   kind: "scout" | "for_you";
@@ -68,6 +72,14 @@ export function panelCanAskNext(lock: ScoutApproachLockCard | null, repliedCardI
 
 export function nextFromCardId(lock: ScoutApproachLockCard | null): ApproachNextRequest {
   return lock ? { fromCardId: lock.id } : { forYou: true };
+}
+
+export function preloadedNextCard(
+  request: ApproachNextRequest,
+  nextUp: ScoutApproachNext | null | undefined,
+): ScoutApproachNext | null {
+  if (!nextUp || !lockMovedAfterNext(request, nextUp.card)) return null;
+  return nextUp;
 }
 
 export type NextOutcome = "no_desk" | "not_moved" | "no_card";

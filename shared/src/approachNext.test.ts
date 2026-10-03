@@ -6,6 +6,7 @@ import {
   parseApproachNextRequest,
   parseApproachNextResponse,
   remoteNextApplies,
+  upNextLock,
 } from "./approachNext.ts";
 
 await describe("remote approach Next", () => {
@@ -39,5 +40,29 @@ await describe("remote approach Next", () => {
     assert.equal(remoteNextStale(collidingScout, { fromCardId: "for_you" }), false);
     assert.equal(remoteNextStale(scout, { fromCardId: "c1" }), false);
     assert.equal(remoteNextStale(scout, { fromCardId: "c2" }), true);
+  }).catch(assert.fail);
+});
+
+await describe("up next lock", () => {
+  const inventory = { scoutId: "c2", suggestionId: null, canPresentForYou: true };
+
+  it("names the Scout card a For You Next would lock", () => {
+    assert.deepEqual(upNextLock({ phase: "hold", cardId: null, surface: "for_you" }, inventory), {
+      phase: "scout_reply",
+      cardId: "c2",
+      surface: null,
+    });
+  }).catch(assert.fail);
+
+  it("names what follows the locked Scout card", () => {
+    const lock = { phase: "scout_reply" as const, cardId: "c1", surface: null };
+    assert.equal(upNextLock(lock, { ...inventory, suggestionId: "s1" })?.cardId, "s1");
+    assert.equal(upNextLock(lock, { ...inventory, scoutId: null })?.surface, "for_you");
+  }).catch(assert.fail);
+
+  it("names nothing for a card a remote Next cannot move", () => {
+    assert.equal(upNextLock({ phase: "organic_reply", cardId: "s1", surface: null }, inventory), null);
+    assert.equal(upNextLock({ phase: "scout_reply", cardId: null, surface: null }, inventory), null);
+    assert.equal(upNextLock({ phase: "done_for_now", cardId: null, surface: null }, inventory), null);
   }).catch(assert.fail);
 });
