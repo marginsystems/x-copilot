@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   ATTENTION_MS,
+  READY_LINGER_MS,
+  chipPhase,
+  readySince,
   IDLE_CLOCK,
   attentionLabel,
   attentionReady,
@@ -72,5 +75,27 @@ describe("tickAttention", () => {
     const home = tickAttention(next, { ...attending("2", 2_000), statusId: null });
     expect(home.attendedMs).toBe(0);
     expect(tickAttention(home, { ...attending("x", 3_000), statusId: null }).attendedMs).toBe(0);
+  });
+});
+
+describe("chip phase", () => {
+  const counting: AttentionClock = { statusId: "1", attendedMs: 4_000, lastTickAt: 0 };
+  const ready: AttentionClock = { statusId: "1", attendedMs: ATTENTION_MS, lastTickAt: 0 };
+
+  it("counts down until the post has been read", () => {
+    expect(readySince(counting, null, 5_000)).toBeNull();
+    expect(chipPhase(counting, null, 5_000)).toBe("counting");
+  });
+
+  it("shows Ready briefly, then goes away", () => {
+    const since = readySince(ready, null, 10_000);
+    expect(since).toBe(10_000);
+    expect(readySince(ready, since, 10_800)).toBe(10_000);
+    expect(chipPhase(ready, since, 10_800)).toBe("ready");
+    expect(chipPhase(ready, since, 10_000 + READY_LINGER_MS)).toBe("gone");
+  });
+
+  it("starts over when a new post resets the clock", () => {
+    expect(readySince(counting, 10_000, 20_000)).toBeNull();
   });
 });

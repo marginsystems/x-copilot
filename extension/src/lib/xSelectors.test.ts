@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseAttentionGate } from "./settings";
-import { chipPosition, rectInViewport } from "./xSelectors";
+import { chipPagePosition, rectInViewport } from "./xSelectors";
 
 const rect = (top: number, height: number, left = 10, width = 300) => ({
   top,
@@ -23,10 +23,19 @@ describe("rectInViewport", () => {
   });
 });
 
-describe("chipPosition", () => {
-  it("sits above the composer, or below it near the top edge", () => {
-    expect(chipPosition(rect(300, 60), 24)).toEqual({ top: 270, left: 10 });
-    expect(chipPosition(rect(10, 60), 24)).toEqual({ top: 76, left: 10 });
+describe("chipPagePosition", () => {
+  it("anchors to the composer's top-right corner in page coordinates", () => {
+    expect(chipPagePosition(rect(300, 60), { x: 0, y: 0 }, 22)).toEqual({ top: 272, right: 310 });
+  });
+
+  it("stays on the same page spot while the page scrolls", () => {
+    const before = chipPagePosition(rect(300, 60), { x: 0, y: 1000 }, 22);
+    const after = chipPagePosition(rect(-200, 60), { x: 0, y: 1500 }, 22);
+    expect(after).toEqual(before);
+  });
+
+  it("drops below a composer at the very top of the page", () => {
+    expect(chipPagePosition(rect(10, 60), { x: 0, y: 0 }, 22)).toEqual({ top: 76, right: 310 });
   });
 });
 

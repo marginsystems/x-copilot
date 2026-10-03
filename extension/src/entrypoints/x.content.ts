@@ -2,8 +2,9 @@ import { browser } from "wxt/browser";
 import { defineContentScript } from "wxt/utils/define-content-script";
 import {
   IDLE_CLOCK,
-  attentionLabel,
-  attentionReady,
+  attentionSecondsLeft,
+  chipPhase,
+  readySince,
   statusIdFromPath,
   tickAttention,
 } from "../lib/attention";
@@ -11,45 +12,70 @@ import { REPLY_SEEN } from "../lib/messages";
 import { postedStatusUrl } from "../lib/replySeen";
 import { ATTENTION_GATE_KEY, parseAttentionGate } from "../lib/settings";
 import { readAttentionGate } from "../lib/settingsStore";
-import { X_SELECTORS, chipPosition, rectInViewport } from "../lib/xSelectors";
+import { X_SELECTORS, chipPagePosition, rectInViewport } from "../lib/xSelectors";
 
 const TICK_MS = 250;
-const CHIP_HEIGHT = 24;
+const CHIP_HEIGHT = 22;
 
 const CHIP_CSS = `
   :host { all: initial; }
   .chip {
-    position: fixed;
+    position: absolute;
+    top: 0;
+    left: 0;
     z-index: 2147483647;
+    box-sizing: border-box;
     height: ${CHIP_HEIGHT}px;
-    padding: 0 10px;
-    border-radius: 999px;
+    padding: 0 8px;
     display: flex;
     align-items: center;
-    font: 600 12px/1 system-ui, -apple-system, "Segoe UI", sans-serif;
-    font-variant-numeric: tabular-nums;
-    background: #536471;
-    color: #ffffff;
+    gap: 6px;
+    border: 1px solid #4d453c;
+    border-radius: 4px;
+    background: #1f1b17;
+    color: #a89f94;
+    font: 600 10px/1 "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    white-space: nowrap;
     pointer-events: none;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+    opacity: 1;
+    translate: -100% 0;
+    transition: opacity 0.3s ease, color 0.2s ease, border-color 0.2s ease;
   }
-  .chip.ready { background: #00ba7c; }
+  .count {
+    color: #7eb8dc;
+    letter-spacing: 0;
+    text-transform: none;
+    font-variant-numeric: tabular-nums;
+  }
+  .chip.ready { color: #7dba8a; border-color: #7dba8a; }
+  .chip.gone { opacity: 0; }
   .chip[hidden] { display: none; }
+  @media (prefers-reduced-motion: reduce) {
+    .chip { transition: none; }
+  }
 `;
 
-function createChip(): HTMLDivElement {
+type Chip = { root: HTMLDivElement; label: HTMLSpanElement; count: HTMLSpanElement };
+
+function createChip(): Chip {
   const host = document.createElement("div");
   host.setAttribute("data-x-copilot", "attention");
   const shadow = host.attachShadow({ mode: "closed" });
   const style = document.createElement("style");
   style.textContent = CHIP_CSS;
-  const chip = document.createElement("div");
-  chip.className = "chip";
-  chip.hidden = true;
-  chip.setAttribute("aria-hidden", "true");
-  shadow.append(style, chip);
+  const root = document.createElement("div");
+  root.className = "chip";
+  root.hidden = true;
+  root.setAttribute("aria-hidden", "true");
+  const label = document.createElement("span");
+  const count = document.createElement("span");
+  count.className = "count";
+  root.append(label, count);
+  shadow.append(style, root);
   document.documentElement.append(host);
-  return chip;
+  return { root, label, count };
 }
 
 function viewport() {
@@ -78,19 +104,34 @@ export default defineContentScript({
       if (area === "local" && change) enabled = parseAttentionGate(change.newValue);
     });
 
-    function render() {
+    let since: number | null = null;
+    let placed = "";
+
+    function render(nowMs: number) {
       const composer = clock.statusId ? document.querySelector(X_SELECTORS.replyComposer) : null;
       const rect = composer?.getBoundingClientRect();
-      if (!enabled || !rect || !rectInViewport(rect, viewport())) {
-        chip.hidden = true;
+      if (!enabled || !rect || rect.width <= 0 || rect.height <= 0) {
+        since = null;
+        chip.root.hidden = true;
         return;
       }
-      const position = chipPosition(rect, CHIP_HEIGHT);
-      chip.style.top = `${position.top}px`;
-      chip.style.left = `${position.left}px`;
-      chip.textContent = attentionLabel(clock);
-      chip.classList.toggle("ready", attentionReady(clock));
-      chip.hidden = false;
+      since = readySince(clock, since, nowMs);
+      const phase = chipPhase(clock, since, nowMs);
+      const position = chipPagePosition(rect, { x: window.scrollX, y: window.scrollY }, CHIP_HEIGHT);
+      const next = `${position.top}:${position.right}`;
+      if (next !== placed) {
+        chip.root.style.top = `${position.top}px`;
+        chip.root.style.left = `${position.right}px`;
+        placed = next;
+      }
+      const label = phase === "counting" ? "Reading" : "Ready";
+      const count = phase === "counting" ? `${attentionSecondsLeft(clock)}s` : "";
+      if (chip.label.textContent !== label) chip.label.textContent = label;
+      if (chip.count.textContent !== count) chip.count.textContent = count;
+      chip.count.hidden = count === "";
+      chip.root.classList.toggle("ready", phase !== "counting");
+      chip.root.classList.toggle("gone", phase === "gone");
+      chip.root.hidden = false;
     }
 
     const reported = new Set<string>();
@@ -140,14 +181,15 @@ export default defineContentScript({
 
     ctx.setInterval(() => {
       const statusId = statusIdFromPath(window.location.pathname);
+      const nowMs = Date.now();
       clock = tickAttention(clock, {
         statusId,
-        nowMs: Date.now(),
+        nowMs,
         visible: document.visibilityState === "visible",
         focused: document.hasFocus(),
         postInView: enabled && statusId !== null && statusId === clock.statusId ? postInView() : false,
       });
-      render();
+      render(nowMs);
     }, TICK_MS);
   },
 });

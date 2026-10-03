@@ -11,7 +11,16 @@ export function rectInViewport(rect: RectLike, viewport: { width: number; height
   return rect.bottom > 0 && rect.top < viewport.height && rect.right > 0 && rect.left < viewport.width;
 }
 
-export function chipPosition(composer: RectLike, chipHeight: number): { top: number; left: number } {
-  const above = composer.top - chipHeight - 6;
-  return { top: above >= 0 ? above : composer.bottom + 6, left: Math.max(0, composer.left) };
+export const CHIP_GAP = 6;
+
+export function chipPagePosition(
+  composer: RectLike,
+  scroll: { x: number; y: number },
+  chipHeight: number,
+): { top: number; right: number } {
+  const above = composer.top + scroll.y - chipHeight - CHIP_GAP;
+  return {
+    top: Math.round(above >= 0 ? above : composer.bottom + scroll.y + CHIP_GAP),
+    right: Math.round(composer.right + scroll.x),
+  };
 }

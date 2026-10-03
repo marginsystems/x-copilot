@@ -43,8 +43,25 @@ export function attentionReady(clock: AttentionClock): boolean {
   return clock.attendedMs >= ATTENTION_MS;
 }
 
+export function attentionSecondsLeft(clock: AttentionClock): number {
+  return Math.max(0, Math.ceil((ATTENTION_MS - clock.attendedMs) / 1_000));
+}
+
 export function attentionLabel(clock: AttentionClock): string {
   if (attentionReady(clock)) return "Ready";
-  const left = Math.ceil((ATTENTION_MS - clock.attendedMs) / 1_000);
-  return `Reading · ${left}s`;
+  return `Reading · ${attentionSecondsLeft(clock)}s`;
+}
+
+export const READY_LINGER_MS = 1_500;
+
+export type ChipPhase = "counting" | "ready" | "gone";
+
+export function readySince(clock: AttentionClock, previous: number | null, nowMs: number): number | null {
+  if (!attentionReady(clock)) return null;
+  return previous ?? nowMs;
+}
+
+export function chipPhase(clock: AttentionClock, since: number | null, nowMs: number): ChipPhase {
+  if (!attentionReady(clock) || since === null) return "counting";
+  return nowMs - since < READY_LINGER_MS ? "ready" : "gone";
 }
