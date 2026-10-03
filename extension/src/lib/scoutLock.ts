@@ -30,7 +30,13 @@ export async function readScoutLock(pairing: Pairing): Promise<ScoutLockRead> {
 }
 
 export const NEXT_POLL_MS = 600;
-export const NEXT_POLL_TRIES = 10;
+export const NEXT_POLL_FAST_MS = 150;
+export const NEXT_POLL_FAST_TRIES = 4;
+export const NEXT_POLL_TRIES = 13;
+
+export function nextPollDelayMs(attempt: number): number {
+  return attempt < NEXT_POLL_FAST_TRIES ? NEXT_POLL_FAST_MS : NEXT_POLL_MS;
+}
 
 export async function waitForLockChange(
   pairing: Pairing,
@@ -38,7 +44,7 @@ export async function waitForLockChange(
   sleep: (ms: number) => Promise<void> = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
 ): Promise<ScoutLockRead | null> {
   for (let attempt = 0; attempt < NEXT_POLL_TRIES; attempt += 1) {
-    await sleep(NEXT_POLL_MS);
+    await sleep(nextPollDelayMs(attempt));
     const lock = await readScoutLock(pairing);
     if (!lock.supported || !lock.valid) continue;
     const moved = "forYou" in request ? lock.card !== null : lock.card?.id !== request.fromCardId;

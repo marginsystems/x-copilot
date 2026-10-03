@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiStatusError } from "./api";
-import { NEXT_POLL_TRIES, readScoutLock, waitForLockChange } from "./scoutLock";
+import { NEXT_POLL_FAST_MS, NEXT_POLL_MS, NEXT_POLL_TRIES, readScoutLock, waitForLockChange } from "./scoutLock";
 
 const state = vi.hoisted(() => ({ apiRequest: vi.fn() }));
 
@@ -86,5 +86,14 @@ describe("waitForLockChange", () => {
     state.apiRequest.mockResolvedValue({ ok: true, card });
     await expect(waitForLockChange(pairing, { fromCardId: "1" }, noSleep)).resolves.toBeNull();
     expect(state.apiRequest).toHaveBeenCalledTimes(NEXT_POLL_TRIES);
+  });
+
+  it("checks quickly right after Next, then settles to the slower pace", async () => {
+    state.apiRequest.mockResolvedValue({ ok: true, card });
+    const waits: number[] = [];
+    await waitForLockChange(pairing, { fromCardId: "1" }, async (ms) => { waits.push(ms); });
+    expect(waits[0]).toBe(NEXT_POLL_FAST_MS);
+    expect(waits.at(-1)).toBe(NEXT_POLL_MS);
+    expect(NEXT_POLL_FAST_MS).toBeLessThan(NEXT_POLL_MS);
   });
 });

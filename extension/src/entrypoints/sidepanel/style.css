@@ -273,10 +273,79 @@ button.small-btn {
   padding: 10px 12px;
   font-size: 0.78rem;
   line-height: 1.4;
-  background: var(--panel);
+  background: var(--raised);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   cursor: pointer;
+}
+
+button.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  color: var(--muted);
+}
+
+button.icon-btn[aria-pressed="true"] {
+  color: var(--accent);
+  border-color: var(--accent-dim);
+}
+
+.scout {
+  margin-top: auto;
+  display: grid;
+  gap: 8px;
+  padding-top: 12px;
+}
+
+.scout-stage {
+  display: block;
+  width: 100%;
+  height: 132px;
+  image-rendering: pixelated;
+}
+
+.scout-line {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  text-align: center;
+  color: var(--text);
+}
+
+.scout-facts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.scout-facts div {
+  display: grid;
+  gap: 2px;
+  padding: 6px 8px;
+  text-align: center;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.scout-facts dt {
+  font-size: 0.62rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.scout-facts dd {
+  margin: 0;
+  font-family: var(--font-head);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
 }
 
 .toggle input {
@@ -294,7 +363,6 @@ button.small-btn {
 }
 
 .footnote {
-  margin-top: auto;
   text-align: center;
 }
 

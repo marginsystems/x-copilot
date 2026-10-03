@@ -42,6 +42,15 @@ vi.mock("wxt/browser", () => ({
   },
 }));
 
+HTMLCanvasElement.prototype.getContext = () => null;
+
+const paired = {
+  token: "token",
+  expiresAt: "2026-11-01T00:00:00.000Z",
+  apiBase: "https://api.xcopilot.dev",
+  deskOrigin: "https://xcopilot.dev",
+};
+
 describe("App", () => {
   afterEach(() => {
     readPairing.mockReset();
@@ -84,7 +93,7 @@ describe("App", () => {
       apiBase: "https://api.xcopilot.dev",
       deskOrigin: "https://xcopilot.dev",
     });
-    loadPanelData.mockResolvedValue({ lock: null, lockSupported: false, replyAt: [] });
+    loadPanelData.mockResolvedValue({ lock: null, lockSupported: false, replyAt: [], scout: null });
     const container = document.createElement("div");
     document.body.append(container);
     const root = createRoot(container);
@@ -112,8 +121,8 @@ describe("App", () => {
     storageData.lastReplySeenAt = now - 1_000;
     storageData.panelCardSince = { key: "for_you", sinceMs: now - 5_000 };
     loadPanelData
-      .mockResolvedValueOnce({ lock: null, lockSupported: true, replyAt: [] })
-      .mockResolvedValueOnce({ lock: null, lockSupported: true, replyAt: [] });
+      .mockResolvedValueOnce({ lock: null, lockSupported: true, replyAt: [], scout: null })
+      .mockResolvedValueOnce({ lock: null, lockSupported: true, replyAt: [], scout: null });
     askDeskForNext.mockResolvedValue(true);
     waitForLockChange.mockResolvedValue({
       card: { id: "42", conversationId: null, inReplyToId: null, surface: "reply", author: "@dana", url: null, text: null },
@@ -148,6 +157,76 @@ describe("App", () => {
     expect(container.textContent).toContain("Waiting for your post");
     expect(container.textContent).not.toContain("Post detected");
     expect(container.textContent).toContain("Open For You");
+    await act(async () => root.unmount());
+  });
+
+  it("keeps the reading timer toggle behind the settings gear", async () => {
+    readPairing.mockResolvedValue(paired);
+    loadPanelData.mockResolvedValue({ lock: null, lockSupported: true, replyAt: [], scout: null });
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<App />);
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+
+    expect(container.querySelector("input[type=checkbox]")).toBeNull();
+    expect(container.textContent).not.toContain("Reading timer");
+    const gear = container.querySelector<HTMLButtonElement>("button[aria-label=Settings]");
+    expect(gear?.querySelector("svg")).not.toBeNull();
+
+    await act(async () => gear?.click());
+    const toggle = container.querySelector<HTMLInputElement>("input[type=checkbox]");
+    expect(container.textContent).toContain("Reading timer on posts");
+    expect(container.textContent).toContain("Sign out");
+    expect(toggle?.checked).toBe(true);
+
+    await act(async () => toggle?.click());
+    expect(storageData.attentionGate).toBe(false);
+
+    const done = Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Done");
+    await act(async () => done?.click());
+    expect(container.querySelector("input[type=checkbox]")).toBeNull();
+    expect(container.textContent).toContain("Open For You");
+
+    await act(async () => root.unmount());
+  });
+
+  it("shows Scout with today's replies, streak and level under the card", async () => {
+    readPairing.mockResolvedValue(paired);
+    const today = new Date().toISOString().slice(0, 10);
+    const replies = Array.from({ length: 4 }, (_, index) => `${today}T0${index}:00:00.000Z`);
+    for (const replyAt of replies) {
+      loadPanelData.mockResolvedValueOnce({
+        lock: null,
+        lockSupported: true,
+        replyAt: [replyAt],
+        scout: { level: 4, streak: 5 },
+      });
+    }
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<App />);
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+
+    for (let index = 1; index < replies.length; index += 1) {
+      await act(async () => {
+        window.dispatchEvent(new Event("focus"));
+        await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+      });
+    }
+
+    const scout = container.querySelector("section[aria-label=Scout]");
+    expect(scout?.querySelector("canvas")).not.toBeNull();
+    expect(scout?.textContent).toContain("4 replies today. Scout is glowing.");
+    expect(Array.from(scout?.querySelectorAll("dd") ?? []).map((node) => node.textContent)).toEqual(["4", "5d", "4"]);
+
     await act(async () => root.unmount());
   });
 });

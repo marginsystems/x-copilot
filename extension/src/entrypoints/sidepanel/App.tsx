@@ -11,7 +11,9 @@ import { cardDetected, cardKey, detectionTag, type CardSince } from "../../lib/d
 import { readReplySeenAt, trackCardSince } from "../../lib/detectionStore";
 import { readRepliedCardId } from "../../lib/repliedCardStore";
 import { readAttentionGate, writeAttentionGate } from "../../lib/settingsStore";
-import { DESK_LINKS, FOOTER_LINKS, openDeskPage, PanelLinks, PanelShell } from "./PanelParts";
+import { repliesOnUtcDay, scoutLook } from "../../lib/scout";
+import { DESK_LINKS, FOOTER_LINKS, GearIcon, openDeskPage, PanelLinks, PanelShell } from "./PanelParts";
+import { Scout } from "./Scout";
 
 const REFRESH_MS = 15_000;
 
@@ -48,6 +50,7 @@ export function App() {
   const [since, setSince] = useState<CardSince | null>(null);
   const [nextNotice, setNextNotice] = useState<string | null>(null);
   const [askingNext, setAskingNext] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const now = useNow();
 
   useEffect(() => {
@@ -67,7 +70,11 @@ export function App() {
       setSince(await trackCardSince(cardKey(data.lock), Date.now()).catch(() => null));
       setState((prev) => {
         if (prev.kind === "ready" && prev.data.lock?.id !== data.lock?.id) setNextNotice(null);
-        return { kind: "ready", pairing, data, error: null };
+        const previousReplies = prev.kind === "ready" && prev.pairing.token === pairing.token ? prev.data.replyAt : [];
+        const replyAt = [...data.replyAt, ...previousReplies]
+          .filter((at, index, all) => all.indexOf(at) === index)
+          .slice(0, 2000);
+        return { kind: "ready", pairing, data: { ...data, replyAt }, error: null };
       });
     } catch (err) {
       if (err instanceof UnpairedError) {
@@ -124,6 +131,7 @@ export function App() {
           </button>
         </section>
         <PanelLinks links={DESK_LINKS} />
+        <Scout look={scoutLook({ connected: false, repliesToday: 0, stats: null })} />
         <p className="footnote">X Copilot never types or posts for you.</p>
       </PanelShell>
     );
@@ -182,24 +190,74 @@ export function App() {
       .finally(() => setAskingNext(false));
   }
 
-  const signOut = (
+  const look = scoutLook({
+    connected: true,
+    repliesToday: repliesOnUtcDay(state.data.replyAt, now),
+    stats: state.data.scout ?? null,
+  });
+
+  const settingsButton = (
     <button
       type="button"
-      className="ghost small-btn"
-      onClick={() => {
-        signOutExtension(pairing)
-          .catch(() => undefined)
-          .then(() => clearPairing())
-          .then(() => setState({ kind: "unpaired", notice: "Signed out." }))
-          .catch(() => undefined);
-      }}
+      className="ghost icon-btn"
+      aria-label="Settings"
+      aria-pressed={settingsOpen}
+      title="Settings"
+      onClick={() => setSettingsOpen((open) => !open)}
     >
-      Sign out
+      <GearIcon />
     </button>
   );
 
+  if (settingsOpen) {
+    return (
+      <PanelShell connected headSide={settingsButton}>
+        <section className="card" aria-label="Settings">
+          <p className="section-title">Settings</p>
+          <label className="toggle">
+            <input
+              type="checkbox"
+              checked={attentionGate}
+              onChange={(event) => {
+                const on = event.currentTarget.checked;
+                setAttentionGate(on);
+                writeAttentionGate(on).catch(() => undefined);
+              }}
+            />
+            <span>Reading timer on posts</span>
+          </label>
+          <p className="settings-help">Holds the reply box on x.com for 10 seconds so you read the post first.</p>
+          <div className="actions">
+            <button type="button" className="primary" onClick={() => setSettingsOpen(false)}>
+              Done
+            </button>
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => {
+                signOutExtension(pairing)
+                  .catch(() => undefined)
+                  .then(() => clearPairing())
+                  .then(() => {
+                    setSettingsOpen(false);
+                    setState({ kind: "unpaired", notice: "Signed out." });
+                  })
+                  .catch(() => undefined);
+              }}
+            >
+              Sign out
+            </button>
+          </div>
+        </section>
+        <PanelLinks links={FOOTER_LINKS} />
+        <Scout look={look} />
+        <p className="footnote">X Copilot never types or posts for you.</p>
+      </PanelShell>
+    );
+  }
+
   return (
-    <PanelShell connected headSide={signOut}>
+    <PanelShell connected headSide={settingsButton}>
       {state.error ? <p className="status-line" role="status">{state.error}</p> : null}
       {state.data.lockSupported ? null : <p className="status-line" role="status">{OLDER_SERVER_NOTICE}</p>}
       <section className={`card card-${card.kind}`} aria-label="Approach card">
@@ -253,19 +311,8 @@ export function App() {
         </div>
         {nextNotice ? <p className="settings-help" role="status">{nextNotice}</p> : null}
       </section>
-      <label className="toggle">
-        <input
-          type="checkbox"
-          checked={attentionGate}
-          onChange={(event) => {
-            const on = event.currentTarget.checked;
-            setAttentionGate(on);
-            writeAttentionGate(on).catch(() => undefined);
-          }}
-        />
-        <span>Reading timer on posts (10 s before you reply)</span>
-      </label>
       <PanelLinks links={FOOTER_LINKS} />
+      <Scout look={look} />
       <p className="footnote">X Copilot never types or posts for you.</p>
     </PanelShell>
   );

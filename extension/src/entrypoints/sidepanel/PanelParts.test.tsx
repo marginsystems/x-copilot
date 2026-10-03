@@ -16,6 +16,8 @@ vi.mock("wxt/browser", () => ({
   },
 }));
 
+HTMLCanvasElement.prototype.getContext = () => null;
+
 describe("unpaired panel", () => {
   afterEach(() => {
     readPairing.mockReset();
@@ -38,6 +40,7 @@ describe("unpaired panel", () => {
     const buttons = Array.from(container.querySelectorAll("button"));
     expect(container.textContent).toContain("Not connected");
     expect(container.querySelector(".panel-head")?.textContent).toBe("Not connected");
+    expect(container.querySelector("section[aria-label=Scout]")?.textContent).toContain("Scout is napping");
     expect(buttons.map((button) => button.textContent)).toEqual(
       expect.arrayContaining(["Open Account", "Open desk", "Learn"]),
     );
