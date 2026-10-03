@@ -29,6 +29,8 @@ vi.mock("../../lib/scoutLock", async (importOriginal) => ({
   waitForLockChange,
 }));
 
+vi.mock("../../lib/lockStream", () => ({ watchLock: () => () => undefined }));
+
 vi.mock("wxt/browser", () => ({
   browser: {
     storage: {

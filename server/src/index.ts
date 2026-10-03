@@ -39,6 +39,11 @@ import { tryHandleScout } from "./scout/scoutHttp.js";
 import { tryHandleScoutProfile } from "./scout/scoutProfileHttp.js";
 import { tryHandleBoot } from "./http/bootHttp.js";
 import { tryHandleScoutApproachLock } from "./scout/scoutApproachLock.js";
+import {
+  publishScoutApproachLockChanged,
+  scoutApproachLockWritten,
+  tryHandleScoutApproachLockEvents,
+} from "./scout/scoutApproachLockEvents.js";
 import { resumeDueSubscriptions } from "./x-api/xActivitySubscribe.js";
 import { send } from "./http/httpJson.js";
 
@@ -169,7 +174,13 @@ async function handleRequest(
       if (await tryHandleApproachNext(req, res, url)) {
         return;
       }
+      if (tryHandleScoutApproachLockEvents(req, res, url)) {
+        return;
+      }
       if (await tryHandleScoutApproachLock(req, res, url)) {
+        if (sessionUser && scoutApproachLockWritten(req, res)) {
+          publishScoutApproachLockChanged(sessionUser.id);
+        }
         return;
       }
       if (await tryHandleScoutProfile(req, res, url)) {

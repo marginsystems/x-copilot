@@ -20,6 +20,7 @@ import { readAttentionGate, writeAttentionGate } from "../../lib/settingsStore";
 import { repliesOnUtcDay, scoutLook } from "../../lib/scout";
 import { DESK_LINKS, FOOTER_LINKS, GearIcon, openDeskPage, PanelLinks, PanelShell } from "./PanelParts";
 import { Scout } from "./Scout";
+import { watchLock } from "../../lib/lockStream";
 
 const REFRESH_MS = 15_000;
 
@@ -108,6 +109,13 @@ export function App() {
       browser.storage.onChanged.removeListener(onStorage);
     };
   }, [refresh]);
+
+  const liveApiBase = state.kind === "ready" ? state.pairing.apiBase : null;
+  const liveToken = state.kind === "ready" ? state.pairing.token : null;
+  useEffect(() => {
+    if (!liveApiBase || !liveToken) return undefined;
+    return watchLock({ apiBase: liveApiBase, token: liveToken }, () => { refresh().catch(() => undefined); });
+  }, [liveApiBase, liveToken, refresh]);
 
   if (state.kind === "loading") {
     return (
