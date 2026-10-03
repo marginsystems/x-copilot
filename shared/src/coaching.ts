@@ -1,6 +1,4 @@
 import { isRecord, isOneOf } from "./typeGuards.ts";
-/** Client types + fetch for GET /api/coaching. */
-
 import { emptyDeskBeats, type DeskBeats } from "./deskPhase.ts";
 
 export const NEXT_ACTION_KINDS = [
