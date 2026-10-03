@@ -117,7 +117,13 @@ export default defineContentScript({
       }
       since = readySince(clock, since, nowMs);
       const phase = chipPhase(clock, since, nowMs);
-      const position = chipPagePosition(rect, { x: window.scrollX, y: window.scrollY }, CHIP_HEIGHT);
+      const replyButton = document.querySelector(X_SELECTORS.inlineReplyButton)?.getBoundingClientRect();
+      const position = chipPagePosition(
+        rect,
+        { x: window.scrollX, y: window.scrollY },
+        CHIP_HEIGHT,
+        replyButton,
+      );
       const next = `${position.top}:${position.right}`;
       if (next !== placed) {
         chip.root.style.top = `${position.top}px`;
