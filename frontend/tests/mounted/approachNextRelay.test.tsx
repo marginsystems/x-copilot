@@ -5,6 +5,11 @@ import { SessionBoundary } from "../../src/auth/session";
 import type { AuthSessionUser } from "../../src/auth/types";
 import { useApproachTask } from "../../src/desk/useApproachTask";
 import { useDeskHistory } from "../../src/desk/useDeskHistory";
+import {
+  APPROACH_NEXT_PENDING_MS,
+  clearPendingApproachNext,
+  peekPendingApproachNext,
+} from "../../src/desk/deskEventStream";
 import { readApproachLock, writeApproachLock } from "../../src/lib/approachLockStore";
 import type { ThreadCard } from "../../../shared/src/deskTypes";
 import { DEFAULT_SETTINGS } from "../../src/lib/settings";
@@ -46,10 +51,20 @@ function wrapper({ children }: { children: ReactNode }) {
   return <StrictMode><SessionBoundary>{children}</SessionBoundary></StrictMode>;
 }
 
-function setup(interactedIds: Set<string>) {
+function stubBrowser() {
   FakeEventSource.instances = [];
   vi.stubGlobal("EventSource", FakeEventSource);
   vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response("{}"))));
+}
+
+function mountStreamOnly(ownerId = user.id) {
+  return renderHook(() => useDeskHistory({
+    setStatus: vi.fn(), setThreads: vi.fn(), setActionBusy: vi.fn(), settings: DEFAULT_SETTINGS,
+  }, ownerId), { wrapper });
+}
+
+function setup(interactedIds: Set<string>, opts: { keepBrowser?: boolean } = {}) {
+  if (!opts.keepBrowser) stubBrowser();
   writeApproachLock(user.id, { phase: "scout_reply", cardId: cardA.id, surface: null });
   return renderHook(() => {
     const history = useDeskHistory({
@@ -68,6 +83,8 @@ function setup(interactedIds: Set<string>) {
 }
 
 afterEach(() => {
+  clearPendingApproachNext();
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
   localStorage.clear();
 });
@@ -87,4 +104,54 @@ test("the extension's Next leaves an unreplied Scout card in place", () => {
   setup(new Set());
   act(() => { liveStream().emit("approach_next", { fromCardId: cardA.id }); });
   expect(readApproachLock(user.id)?.cardId).toBe(cardA.id);
+});
+
+test("a Next that arrives while the desk is off the dashboard applies when the dashboard opens", () => {
+  stubBrowser();
+  const account = mountStreamOnly();
+  act(() => { liveStream().emit("approach_next", { fromCardId: cardA.id }); });
+  account.unmount();
+
+  setup(new Set([cardA.id]), { keepBrowser: true });
+  expect(readApproachLock(user.id)?.cardId).not.toBe(cardA.id);
+});
+
+test("an expired Next leaves the Scout card in place when the dashboard opens", () => {
+  stubBrowser();
+  const nowMs = Date.now();
+  const dateNow = vi.spyOn(Date, "now").mockReturnValue(nowMs);
+  const account = mountStreamOnly();
+  act(() => { liveStream().emit("approach_next", { fromCardId: cardA.id }); });
+  expect(peekPendingApproachNext(nowMs + APPROACH_NEXT_PENDING_MS)).toBeNull();
+  act(() => { liveStream().emit("approach_next", { fromCardId: cardA.id }); });
+  account.unmount();
+
+  dateNow.mockReturnValue(nowMs + APPROACH_NEXT_PENDING_MS);
+  setup(new Set([cardA.id]), { keepBrowser: true });
+  expect(readApproachLock(user.id)?.cardId).toBe(cardA.id);
+});
+
+test("a kept Next for a card the desk has since left is dropped", () => {
+  stubBrowser();
+  const account = mountStreamOnly();
+  act(() => { liveStream().emit("approach_next", { fromCardId: "some-old-card" }); });
+  account.unmount();
+
+  setup(new Set([cardA.id]), { keepBrowser: true });
+  expect(readApproachLock(user.id)?.cardId).toBe(cardA.id);
+  expect(peekPendingApproachNext()).toBeNull();
+  act(() => { liveStream().emit("approach_next", { fromCardId: cardA.id }); });
+  expect(readApproachLock(user.id)?.cardId).not.toBe(cardA.id);
+});
+
+test("a kept Next is cleared when the event stream changes owners", () => {
+  stubBrowser();
+  const account = mountStreamOnly("owner-a");
+  act(() => { liveStream().emit("approach_next", { fromCardId: cardA.id }); });
+  account.unmount();
+  expect(peekPendingApproachNext()).not.toBeNull();
+
+  const nextAccount = mountStreamOnly("owner-b");
+  expect(peekPendingApproachNext()).toBeNull();
+  nextAccount.unmount();
 });

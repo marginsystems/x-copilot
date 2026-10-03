@@ -55,7 +55,12 @@ import {
 } from "./approachRetained";
 import { pickApproachScout } from "../../../shared/src/approachScout";
 import { approachDetector } from "./approachDetector";
-import { onDeskEvent, routeDeskDetector } from "./deskEventStream";
+import {
+  clearPendingApproachNext,
+  onDeskEvent,
+  peekPendingApproachNext,
+  routeDeskDetector,
+} from "./deskEventStream";
 import { clearReplyPaceOverlay } from "./replyPaceStore";
 import type {
   DismissalHistoryEntry,
@@ -344,6 +349,19 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
       }),
     [],
   );
+
+  useEffect(() => {
+    const request = parseApproachNextRequest(peekPendingApproachNext());
+    const current = stateRef.current;
+    if (!request || !current) return;
+    if (current.lock.cardId !== request.fromCardId) {
+      clearPendingApproachNext();
+      return;
+    }
+    if (!remoteNextApplies(current.lock, request.fromCardId, scoutDetected)) return;
+    clearPendingApproachNext();
+    advanceCardRef.current({ type: "next" });
+  }, [lock, scoutDetected]);
   const paceLockedRef = useRef(pace.locked);
   paceLockedRef.current = pace.locked;
 

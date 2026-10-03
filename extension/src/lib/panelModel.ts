@@ -61,8 +61,10 @@ export function panelCanAskNext(lock: ScoutApproachLockCard | null, repliedCardI
   return lock !== null && repliedCardId !== null && lock.id === repliedCardId;
 }
 
-export function panelNextNotice(delivered: boolean): string {
-  return delivered
-    ? "Asked the desk for the next card."
-    : "Open the desk in a tab, then press Next again. The desk picks the next card.";
+export type NextOutcome = "no_desk" | "not_moved";
+
+export function panelNextNotice(outcome: NextOutcome): string {
+  return outcome === "no_desk"
+    ? "Open your desk dashboard in a tab, then press Next again. The desk picks the next card."
+    : "Your desk is open on another page. It moves to the next card as soon as its dashboard is showing.";
 }

@@ -33,6 +33,24 @@ export function onDeskEvent(
   };
 }
 
+export const APPROACH_NEXT_PENDING_MS = 10 * 60_000;
+
+let pendingApproachNext: { data: unknown; atMs: number } | null = null;
+let deskEventOwnerId: string | null | undefined;
+
+export function peekPendingApproachNext(nowMs: number = Date.now()): unknown {
+  if (!pendingApproachNext) return null;
+  if (nowMs - pendingApproachNext.atMs >= APPROACH_NEXT_PENDING_MS) {
+    pendingApproachNext = null;
+    return null;
+  }
+  return pendingApproachNext.data;
+}
+
+export function clearPendingApproachNext(): void {
+  pendingApproachNext = null;
+}
+
 function emitDeskEvent(name: DeskEventName, raw: string): void {
   let data: unknown = null;
   try {
@@ -40,7 +58,11 @@ function emitDeskEvent(name: DeskEventName, raw: string): void {
   } catch {
     data = null;
   }
-  for (const listener of [...(listeners.get(name) ?? [])]) listener(data);
+  const targets = [...(listeners.get(name) ?? [])];
+  if (name === "approach_next" && targets.length === 0) {
+    pendingApproachNext = { data, atMs: Date.now() };
+  }
+  for (const listener of targets) listener(data);
 }
 
 export function deskEventsPath(lastEventId: string): string {
@@ -93,6 +115,10 @@ function openDeskEventSource(): () => void {
 
 export function useDeskEventStream(ownerId: string | null): void {
   useEffect(() => {
+    if (deskEventOwnerId !== ownerId) {
+      clearPendingApproachNext();
+      deskEventOwnerId = ownerId;
+    }
     let checking = false;
     const runCheck = async (run: () => void | Promise<void>) => {
       checking = true;

@@ -59,8 +59,8 @@ describe("panel Next", () => {
     expect(panelCanAskNext(null, "123")).toBe(false);
   });
 
-  it("explains when no desk tab is open to pick the next card", () => {
-    expect(panelNextNotice(true)).toBe("Asked the desk for the next card.");
-    expect(panelNextNotice(false)).toContain("Open the desk in a tab");
+  it("explains when no desk is listening and when the desk is on another page", () => {
+    expect(panelNextNotice("no_desk")).toContain("Open your desk dashboard");
+    expect(panelNextNotice("not_moved")).toContain("as soon as its dashboard is showing");
   });
 });

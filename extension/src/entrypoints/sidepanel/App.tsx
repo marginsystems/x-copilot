@@ -6,7 +6,7 @@ import type { Pairing } from "../../lib/pairing";
 import { clearPairing, readPairing } from "../../lib/pairingStore";
 import { askDeskForNext, loadPanelData, signOutExtension, type PanelData } from "../../lib/panelData";
 import { panelCanAskNext, panelCard, panelNextNotice, panelPace } from "../../lib/panelModel";
-import { OLDER_SERVER_NOTICE } from "../../lib/scoutLock";
+import { OLDER_SERVER_NOTICE, waitForLockChange } from "../../lib/scoutLock";
 import { readRepliedCardId } from "../../lib/repliedCardStore";
 import { readAttentionGate, writeAttentionGate } from "../../lib/settingsStore";
 import { DESK_LINKS, FOOTER_LINKS, openDeskPage, PanelLinks, PanelShell } from "./PanelParts";
@@ -147,11 +147,26 @@ export function App() {
 
   function askNext() {
     if (!lock) return;
+    const fromCardId = lock.id;
     setAskingNext(true);
-    askDeskForNext(pairing, lock.id)
-      .then((delivered) => {
-        setNextNotice(panelNextNotice(delivered));
-        if (delivered) window.setTimeout(() => { refresh().catch(() => undefined); }, 1_500);
+    setNextNotice(null);
+    askDeskForNext(pairing, fromCardId)
+      .then(async (delivered) => {
+        if (!delivered) {
+          setNextNotice(panelNextNotice("no_desk"));
+          return;
+        }
+        const moved = await waitForLockChange(pairing, fromCardId);
+        if (!moved) {
+          setNextNotice(panelNextNotice("not_moved"));
+          return;
+        }
+        setState((prev) =>
+          prev.kind === "ready"
+            ? { ...prev, data: { ...prev.data, lock: moved.card, lockSupported: moved.supported } }
+            : prev,
+        );
+        await openOnX(panelCard(moved.card).openUrl);
       })
       .catch((err: unknown) => setNextNotice(err instanceof Error ? err.message : String(err)))
       .finally(() => setAskingNext(false));
