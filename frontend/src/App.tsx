@@ -632,6 +632,7 @@ function SessionApp() {
             curatedThreads,
             forYouSuggestions,
             coaching,
+            gamification,
             interactedHistory,
             interactedRetainedHistory,
             interactedTotal,

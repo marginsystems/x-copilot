@@ -2,7 +2,10 @@ import { useState } from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expect, test, vi } from "vitest";
+import type { CoachingState } from "../../../shared/src/coaching";
 import type { ThreadsTab } from "../../../shared/src/deskTypes";
+import { SCOUT_CANVAS_LABEL } from "../../../shared/src/scoutCompanionStage";
+import { emptyGamificationStats } from "../../src/lib/gamification";
 
 vi.mock("../../src/desk/useApproachTask", () => ({
   // ready:false keeps the Approach loading branch; cardInput/actions are unread.
@@ -11,7 +14,15 @@ vi.mock("../../src/desk/useApproachTask", () => ({
 
 import { ThreadsTabs } from "../../src/desk/ThreadsTabs";
 
-function Harness({ total = 0, page = 1, onPage = async (_page: number) => {} }: { total?: number; page?: number; onPage?: (page: number) => Promise<void> }) {
+type HarnessProps = {
+  total?: number;
+  page?: number;
+  onPage?: (page: number) => Promise<void>;
+  coaching?: CoachingState | null;
+  streak?: number;
+};
+
+function Harness({ total = 0, page = 1, onPage = async (_page: number) => {}, coaching = null, streak = 0 }: HarnessProps) {
   const [threadsTab, setThreadsTab] = useState<ThreadsTab>("curated");
   return (
     <ThreadsTabs
@@ -19,6 +30,8 @@ function Harness({ total = 0, page = 1, onPage = async (_page: number) => {} }: 
       setThreadsTab={setThreadsTab}
       curatedThreads={[]}
       forYouSuggestions={[]}
+      coaching={coaching}
+      gamification={{ ...emptyGamificationStats(), currentStreak: streak }}
       interactedHistory={[]}
       interactedRetainedHistory={[]}
       interactedTotal={total}
@@ -113,4 +126,40 @@ test.each([0, 10])("hides pagination for %i stored rows", async (total) => {
   await user.click(screen.getByRole("tab", { name: /Interacted/ }));
   expect(screen.queryByRole("navigation", { name: "Interacted pages" })).toBeNull();
   expect(Boolean(screen.queryByText(/No interacted threads yet/))).toBe(total === 0);
+});
+
+test("shows the Scout companion under the Approach card and on no other tab", async () => {
+  const user = userEvent.setup();
+  render(<Harness />);
+
+  const companion = screen.getByRole("img", { name: SCOUT_CANVAS_LABEL });
+  const panel = screen.getByRole("tabpanel");
+  expect(panel.contains(companion)).toBe(true);
+  expect(panel.lastElementChild?.contains(companion)).toBe(true);
+
+  for (const name of [/Interacted/, /Skipped/, /Not interested/, /Expired/]) {
+    await user.click(screen.getByRole("tab", { name }));
+    expect(screen.queryByRole("img", { name: SCOUT_CANVAS_LABEL })).toBeNull();
+  }
+
+  await user.click(screen.getByRole("tab", { name: /Approach/ }));
+  expect(screen.getByRole("img", { name: SCOUT_CANVAS_LABEL })).toBeTruthy();
+});
+
+test("the companion speaks from the replies today and streak the desk already holds", () => {
+  const today = new Date().toISOString();
+  const coaching: CoachingState = {
+    dayUtc: today.slice(0, 10),
+    nextAction: null,
+    missions: [],
+    beats: { scoutReplyDone: false, organicReplyDone: false, forkChoice: null, forkDone: false },
+    repliesToday: 4,
+    replyAt: [today],
+  };
+  const { rerender } = render(<Harness coaching={coaching} streak={5} />);
+  expect(screen.getByText("4 replies today. Scout is glowing.")).toBeTruthy();
+  expect(screen.queryByText("Streak")).toBeNull();
+
+  rerender(<Harness streak={5} />);
+  expect(screen.getByText("Day 5 of your streak. One reply keeps it alive.")).toBeTruthy();
 });

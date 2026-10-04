@@ -1,6 +1,4 @@
-import { isRecord } from "../../../shared/src/typeGuards";
-
-export const GAMIFICATION_PATH = "/api/gamification";
+import { isRecord } from "./typeGuards.ts";
 
 export type ScoutStats = { level: number; streak: number };
 

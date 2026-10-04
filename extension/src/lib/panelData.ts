@@ -8,7 +8,7 @@ import { EXTENSION_SESSION_PATH } from "../../../shared/src/extensionBridge";
 import type { DeskApproachState, ScoutApproachLockCard, ScoutApproachNext } from "../../../shared/src/scoutApproachLock";
 import { apiRequest, UnpairedError } from "./api";
 import type { Pairing } from "./pairing";
-import { GAMIFICATION_PATH, parseScoutStats, type ScoutStats } from "./scout";
+import { parseScoutStats, type ScoutStats } from "../../../shared/src/scoutCompanion";
 import { readScoutLock } from "./scoutLock";
 
 export type PanelData = {
@@ -21,6 +21,7 @@ export type PanelData = {
   scout: ScoutStats | null;
 };
 
+const GAMIFICATION_PATH = "/api/gamification";
 export const SCOUT_STATS_FRESH_MS = 60_000;
 
 let scoutStatsCache: { token: string; atMs: number; stats: ScoutStats } | null = null;

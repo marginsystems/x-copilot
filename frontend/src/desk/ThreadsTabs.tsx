@@ -8,10 +8,12 @@ import {
   SkippedRow,
 } from "./HistoryRows";
 import { RankingDrawer } from "./RankingDrawer";
+import { ScoutCompanion } from "./ScoutCompanion";
 import { ApproachLoadingCard, MissionCard } from "./MissionCard";
 import { MissionSlide } from "./MissionSlide";
 import { missionSlideKey } from "../lib/missionSlide";
 import type { CoachingState } from "../../../shared/src/coaching";
+import type { GamificationStats } from "../lib/gamification";
 import type { ScoutStageId } from "../../../shared/src/scoutStages";
 import { ThreadsTabCount } from "./ThreadsTabCount";
 import { useApproachTask } from "./useApproachTask";
@@ -31,6 +33,7 @@ type ThreadsTabsProps = {
   curatedThreads: ThreadCard[];
   forYouSuggestions: ForYouSuggestion[];
   coaching?: CoachingState | null;
+  gamification?: GamificationStats | null;
   interactedHistory: InteractionHistoryEntry[];
   interactedRetainedHistory: RetainedInteractionEntry[];
   interactedTotal: number;
@@ -147,6 +150,7 @@ export function ThreadsTabs({
   curatedThreads,
   forYouSuggestions,
   coaching,
+  gamification,
   interactedHistory,
   interactedRetainedHistory,
   interactedTotal,
@@ -357,6 +361,9 @@ export function ThreadsTabs({
             ))}
           </div>
         )}
+        {threadsTab === "curated" ? (
+          <ScoutCompanion coaching={coaching} gamification={gamification} />
+        ) : null}
       </div>
     </>
   );

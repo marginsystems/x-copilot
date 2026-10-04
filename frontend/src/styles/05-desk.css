@@ -24,7 +24,6 @@
 
 .desk-top {
   flex: 0 0 auto;
-  margin-top: auto;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -285,6 +284,33 @@ button.primary.scout-run.desk-top-takeoff {
 .threads-scroll > * {
   min-width: 0;
   max-width: 100%;
+}
+
+.desk-companion {
+  flex: 0 0 auto;
+  margin-top: auto;
+  display: grid;
+  gap: 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.desk-companion-stage {
+  display: block;
+  width: 100%;
+  image-rendering: pixelated;
+}
+
+.desk-companion-line {
+  margin: 0;
+  padding-bottom: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  line-height: 1.4;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--muted);
 }
 
 .threads-scroll::-webkit-scrollbar {

@@ -22,7 +22,7 @@ import { cardDetected, detectionTag, type CardSince } from "../../lib/detection"
 import { readReplySeenAt, trackCardSince } from "../../lib/detectionStore";
 import { readRepliedCardId } from "../../lib/repliedCardStore";
 import { readAttentionGate, writeAttentionGate } from "../../lib/settingsStore";
-import { repliesTodayCount, scoutLook } from "../../lib/scout";
+import { repliesTodayCount, scoutLook } from "../../../../shared/src/scoutCompanion";
 import { NEXT_LABEL, nextAskActive, nextClick, type NextAsk } from "../../../../shared/src/nextConfirm";
 import { CardSlide, DESK_LINKS, FOOTER_LINKS, GearIcon, NextConfirm, openDeskPage, PanelLinks, PanelShell } from "./PanelParts";
 import { Scout } from "./Scout";

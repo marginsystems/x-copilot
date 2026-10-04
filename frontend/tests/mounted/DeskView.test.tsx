@@ -12,12 +12,12 @@ vi.mock("../../src/desk/DeskTop", () => ({
 
 type Props = ComponentProps<typeof DeskView>;
 
-test("desk renders the threads section before the cockpit", () => {
+test("desk renders the cockpit before the threads section", () => {
   const top = vi.fn<() => Props["top"]>()();
   const tabs = vi.fn<() => Props["tabs"]>()();
   const { container } = render(<DeskView top={top} tabs={tabs} />);
   const order = [...container.querySelectorAll(".desk > [data-testid]")].map(
     (node) => node.getAttribute("data-testid"),
   );
-  expect(order).toEqual(["threads", "cockpit"]);
+  expect(order).toEqual(["cockpit", "threads"]);
 });
