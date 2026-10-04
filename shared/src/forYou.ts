@@ -1,4 +1,4 @@
-import { isRecord, isOneOf } from "./typeGuards";
+import { isRecord, isOneOf } from "./typeGuards.ts";
 export const FOR_YOU_KINDS = ["post", "quote", "repost", "reply"] as const;
 export type ForYouKind = (typeof FOR_YOU_KINDS)[number];
 
