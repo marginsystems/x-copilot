@@ -21,7 +21,6 @@ import { tryHandleApproachNext } from "./approachNextHttp.ts";
 import { advanceApproachOnServer, publishedStateFor } from "./approachServerNext.ts";
 import { listReleasedCardIds } from "./approachStock.ts";
 import { getApproachTask, setApproachTask } from "./approachTaskStore.ts";
-import { markInteracted } from "./interactionStore.ts";
 
 const AGENDA = "Building developer tools for people who ship small products every week.";
 const FOR_YOU = { phase: "hold" as const, cardId: null, surface: "for_you" as const };
@@ -87,12 +86,11 @@ await describe("server approach Next", async () => {
     assert.deepEqual(getScoutApproachNext(userId), { card: null });
   });
 
-  await it("leaves a Scout card in place until its reply is recorded, then moves on and releases it", async () => {
+  await it("moves past the Scout card it is on, replied or not, and releases it", async () => {
     setApproachTask(userId, { phase: "scout_reply", cardId: "a1", surface: null }, "desk");
-    assert.equal(await advanceApproachOnServer(userId, { fromCardId: "a1" }), false);
     assert.equal(await advanceApproachOnServer(userId, { fromCardId: "other" }), false);
+    assert.equal(getApproachTask(userId)?.owner, "desk");
 
-    await markInteracted({ threadId: "a1", author: "@alpha", userId });
     assert.equal(await advanceApproachOnServer(userId, { fromCardId: "a1" }), true);
     assert.deepEqual(getApproachTask(userId)?.lock, { phase: "silent_refuel", cardId: null, surface: "for_you" });
     assert.equal(getScoutApproachLock(userId), null);

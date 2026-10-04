@@ -7,22 +7,15 @@ import {
 } from "../scout/scoutApproachLock.js";
 import { retainScoutContextForTarget } from "../scout/scoutEvidenceContext.js";
 import { isForYouTask } from "./approachPhase.js";
-import { nextApproachStep, type ApproachStock } from "./approachSelector.js";
+import { nextApproachStep } from "./approachSelector.js";
 import { loadApproachStock, releaseCardIds, type LoadedApproachStock } from "./approachStock.js";
 import { getApproachTask, setApproachTask, type ApproachTaskLock } from "./approachTaskStore.js";
 
 export type ServerNextRequest = { fromCardId: string } | { forYou: true };
 
-export function cardReplied(stock: ApproachStock, cardId: string): boolean {
-  if (stock.interactedIds.includes(cardId)) return true;
-  return stock.history.some(
-    (row) => row.threadId === cardId || row.conversationId === cardId || row.inReplyToId === cardId,
-  );
-}
-
-export function serverNextApplies(lock: ApproachTaskLock, request: ServerNextRequest, stock: ApproachStock): boolean {
+export function serverNextApplies(lock: ApproachTaskLock, request: ServerNextRequest): boolean {
   if ("forYou" in request) return isForYouTask(lock);
-  return lock.phase === "scout_reply" && lock.cardId === request.fromCardId && cardReplied(stock, request.fromCardId);
+  return lock.phase === "scout_reply" && lock.cardId === request.fromCardId;
 }
 
 function remoteNextCanApply(lock: ApproachTaskLock): boolean {
@@ -67,8 +60,9 @@ export async function advanceApproachOnServer(
 ): Promise<boolean> {
   const task = getApproachTask(userId);
   if (!task) return false;
+  if (!serverNextApplies(task.lock, request)) return false;
   const loaded = await loadApproachStock(userId, nowMs);
-  if (!loaded || !serverNextApplies(task.lock, request, loaded.stock)) return false;
+  if (!loaded) return false;
   const step = nextApproachStep(loaded.stock, task.lock);
   if (!step) return false;
 

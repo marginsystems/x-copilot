@@ -137,6 +137,49 @@ describe("App", () => {
     await act(async () => root.unmount());
   });
 
+  it("asks before skipping a Scout card whose reply is not detected, then sends the Next", async () => {
+    readPairing.mockResolvedValue(paired);
+    const current = { id: "1", conversationId: null, inReplyToId: null, surface: "reply", author: "@ada", url: null, text: "Current post" };
+    loadPanelData.mockResolvedValue({
+      lock: current,
+      lockSupported: true,
+      deskState: { view: "scout", detected: false },
+      replyAt: [],
+      scout: null,
+    });
+    askDeskForNext.mockResolvedValue(true);
+    waitForLockChange.mockResolvedValue(null);
+    const { container, root } = await mountPanel();
+
+    expect(buttonLabelled(container, "Next")?.className).toBe("primary");
+    await press(container, "Next");
+
+    expect(askDeskForNext).not.toHaveBeenCalled();
+    expect(container.textContent).toContain("No reply detected yet. Skip this card?");
+
+    await press(container, "Skip card");
+
+    expect(askDeskForNext).toHaveBeenCalledTimes(1);
+    expect(askDeskForNext).toHaveBeenCalledWith(expect.anything(), { fromCardId: "1" });
+    await act(async () => root.unmount());
+  });
+
+  it("does not offer Next on an undetected suggested reply card", async () => {
+    readPairing.mockResolvedValue(paired);
+    const current = { id: "1", conversationId: null, inReplyToId: null, surface: "reply", author: "@ada", url: null, text: "Current post" };
+    loadPanelData.mockResolvedValue({
+      lock: current,
+      lockSupported: true,
+      deskState: { view: "suggestion", detected: false },
+      replyAt: [],
+      scout: null,
+    });
+    const { container, root } = await mountPanel();
+
+    expect(buttonLabelled(container, "Next")).toBeUndefined();
+    await act(async () => root.unmount());
+  });
+
   it("cancels the question with Escape", async () => {
     readPairing.mockResolvedValue(paired);
     loadPanelData.mockResolvedValue({ lock: null, lockSupported: true, replyAt: [], repliesToday: null, scout: null });

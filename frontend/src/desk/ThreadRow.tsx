@@ -77,7 +77,7 @@ export function ThreadRow({
       openPace={openPace}
       onNext={onNext}
       nextTip={FYP_NEXT_TIP}
-      nextDisabled={!interacted}
+      askBeforeNext={interacted ? undefined : { subject: "reply", cardKey: thread.id }}
       onSkip={!interacted ? onSkip : undefined}
       onDismiss={!interacted ? onDismiss : undefined}
       busy={busy}

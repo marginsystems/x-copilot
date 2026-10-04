@@ -81,6 +81,18 @@ import { useDeskRowExit } from "./useDeskRowExit";
 import { useReplyPace } from "./useReplyPace";
 import { watchDeskThreads } from "./watch";
 
+function serverReleasedIds(raw: unknown): string[] | null {
+  if (
+    typeof raw !== "object" ||
+    raw === null ||
+    !("releasedIds" in raw) ||
+    !Array.isArray(raw.releasedIds)
+  ) {
+    return null;
+  }
+  return raw.releasedIds.filter((id: unknown): id is string => typeof id === "string");
+}
+
 export const SERVER_TASK_CHECK_MS = 4_000;
 
 export type UseApproachTaskOpts = {
@@ -347,8 +359,6 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
   commitRef.current = commit;
   const advanceCardRef = useRef(advanceCard);
   advanceCardRef.current = advanceCard;
-  const scoutDetectedRef = useRef(scoutDetected);
-  scoutDetectedRef.current = scoutDetected;
   const applyRemoteNextRef = useRef((request: ApproachNextRequest) => {
     advanceCardRef.current({ type: "next" });
     if (!("forYou" in request)) return;
@@ -361,7 +371,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
         const request = parseApproachNextRequest(data);
         const current = stateRef.current;
         if (!request || !current) return;
-        if (!remoteNextApplies(current.lock, request, scoutDetectedRef.current)) return;
+        if (!remoteNextApplies(current.lock, request)) return;
         applyRemoteNextRef.current(request);
       }),
     [],
@@ -375,10 +385,10 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
       clearPendingApproachNext();
       return;
     }
-    if (!remoteNextApplies(current.lock, request, scoutDetected)) return;
+    if (!remoteNextApplies(current.lock, request)) return;
     clearPendingApproachNext();
     applyRemoteNextRef.current(request);
-  }, [lock, scoutDetected]);
+  }, [lock]);
   const paceLockedRef = useRef(pace.locked);
   paceLockedRef.current = pace.locked;
 
@@ -407,6 +417,10 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
       .then((res) => (res.ok ? res.json() : null))
       .then((raw: unknown) => {
         if (!live) return;
+        const releasedIds = serverReleasedIds(raw);
+        if (releasedIds) {
+          for (const id of releasedIds) releasedIdsRef.current.add(id);
+        }
         const serverLock = serverOwnedLock(raw);
         if (serverLock) {
           writeApproachLock(userId, serverLock);
@@ -429,8 +443,13 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
       apiFetch(SCOUT_APPROACH_LOCK_PATH)
         .then((res) => (res.ok ? res.json() : null))
         .then((raw: unknown) => {
+          if (ownerRef.current !== userId) return;
+          const releasedIds = serverReleasedIds(raw);
+          if (releasedIds) {
+            for (const id of releasedIds) releasedIdsRef.current.add(id);
+          }
           const serverLock = serverOwnedLock(raw);
-          if (!serverLock || ownerRef.current !== userId) return;
+          if (!serverLock) return;
           writeApproachLock(userId, serverLock);
           adoptServerLockRef.current(serverLock);
         })

@@ -426,10 +426,10 @@ await describe("desk events", async () => {
     const alice = signedInCookie("gid-next-fallback");
     setApproachTask(alice.userId, { phase: "scout_reply", cardId: "c1", surface: null }, "desk");
     const desk = subscribe(alice.cookie);
-    const sent = await approachNext(alice.cookie, { fromCardId: "c1" });
+    const sent = await approachNext(alice.cookie, { fromCardId: "c2" });
     assert.deepEqual(sent.json, { ok: true, delivered: true, advanced: false });
     assert.equal(getApproachTask(alice.userId)?.owner, "desk");
-    assert.match(desk.chunks.join(""), /event: approach_next\ndata: \{"fromCardId":"c1"\}/);
+    assert.match(desk.chunks.join(""), /event: approach_next\ndata: \{"fromCardId":"c2"\}/);
   });
 
   await it("never replays approach Next to a desk that reconnects later", async () => {

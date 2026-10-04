@@ -586,7 +586,7 @@ await describe("Approach flight frame", async () => {
     assert.doesNotMatch(html, /I posted on X/);
   });
 
-  await it("keeps Open, Skip, and Not interested on an undetected Scout", () => {
+  await it("keeps Open, an enabled Next, Skip, and Not interested on an undetected Scout", () => {
     const lead = thread("undetected-lead", 42);
     const html = renderToStaticMarkup(
       MissionCard(
@@ -598,7 +598,8 @@ await describe("Approach flight frame", async () => {
       ),
     );
     assert.match(html, /Open on X/);
-    assert.match(html, /<button[^>]*disabled=""[^>]*>Next/);
+    assert.match(html, />Next</);
+    assert.doesNotMatch(html, /<button[^>]*disabled=""[^>]*>Next/);
     assert.match(html, />Skip</);
     assert.match(html, />Not interested</);
   });

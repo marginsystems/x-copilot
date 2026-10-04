@@ -16,6 +16,7 @@ import {
   getApproachTask,
   setApproachTask,
 } from "../desk/approachTaskStore.js";
+import { listReleasedCardIds, releaseCardIds } from "../desk/approachStock.js";
 
 export const SCOUT_APPROACH_LOCK_PATH = "/api/scout-approach-lock";
 
@@ -238,6 +239,7 @@ export async function tryHandleScoutApproachLock(
       next: getScoutApproachNext(user.id),
       state: getDeskApproachState(user.id),
       task: getApproachTask(user.id),
+      releasedIds: listReleasedCardIds(user.id),
     });
     return true;
   }
@@ -268,7 +270,12 @@ export async function tryHandleScoutApproachLock(
       currentTask.lock.phase === taskLock.phase &&
       currentTask.lock.cardId === taskLock.cardId &&
       currentTask.lock.surface === taskLock.surface;
-    if (!acknowledgesServerLock) setApproachTask(user.id, taskLock, "desk");
+    if (!acknowledgesServerLock) {
+      if (currentTask?.owner === "desk" && currentTask.lock.cardId && currentTask.lock.cardId !== taskLock.cardId) {
+        releaseCardIds(user.id, [currentTask.lock.cardId]);
+      }
+      setApproachTask(user.id, taskLock, "desk");
+    }
   }
 
   if (body.card === null) {

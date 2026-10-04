@@ -210,7 +210,12 @@ export function App() {
     deskCardId: state.data.lock?.id ?? null,
     seenHere: cardDetected({ lock, repliedCardId, replySeenAtMs, since }),
   });
-  const canAskNext = panelCanAskNext(view, detected);
+  const canAskNext = panelCanAskNext(
+    view,
+    detected,
+    deskState,
+    state.data.lock?.id ?? null,
+  );
   const asking = nextAskActive(nextAsk, { detected, cardKey: view.key });
   if (nextAsk !== null && !asking) setNextAsk(null);
   const tag = view.collecting ? { label: "Waiting for Scout", detected: false } : detectionTag(lock, detected);

@@ -129,9 +129,18 @@ export function panelDetected(opts: {
   return opts.seenHere || (deskOnCard && desk.detected && opts.deskCardId === opts.view.lock.id);
 }
 
-export function panelCanAskNext(view: PanelView, detected: boolean): boolean {
+export function panelCanAskNext(
+  view: PanelView,
+  detected: boolean,
+  deskState: DeskApproachState | null | undefined,
+  deskCardId: string | null,
+): boolean {
   if (view.collecting) return false;
-  return view.lock === null || detected;
+  return (
+    view.lock === null ||
+    detected ||
+    (deskState?.view === "scout" && deskCardId === view.lock.id)
+  );
 }
 
 export function preloadedNextCard(

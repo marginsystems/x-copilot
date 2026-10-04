@@ -426,6 +426,38 @@ test("Next on a detected card advances with a single click", () => {
   expect(liveActions(container)).not.toContain("Skip this card?");
 });
 
+test("Next on an undetected Scout card asks about the reply, and Skip card runs the Next once", () => {
+  const thread = { id: "1", author: "@ada", text: "Hi", url: "https://x.com/ada/status/1" };
+  const onNext = vi.fn();
+  const onSkip = vi.fn();
+  const { container } = render(
+    <ThreadRow thread={thread} busy={false} interacted={false} onSkip={onSkip} onDismiss={vi.fn()} onNext={onNext} />,
+  );
+
+  expect(labelled(container, "Next")?.hasAttribute("disabled")).toBe(false);
+  act(() => labelled(container, "Next")?.click());
+
+  expect(onNext).not.toHaveBeenCalled();
+  expect(liveActions(container)).toContain("No reply detected yet. Skip this card?");
+
+  act(() => labelled(container, "Skip card")?.click());
+
+  expect(onNext).toHaveBeenCalledTimes(1);
+  expect(onSkip).not.toHaveBeenCalled();
+});
+
+test("Next on a detected Scout card advances with a single click", () => {
+  const thread = { id: "1", author: "@ada", text: "Hi", url: "https://x.com/ada/status/1" };
+  const onNext = vi.fn();
+  const { container } = render(
+    <ThreadRow thread={thread} busy={false} interacted onSkip={vi.fn()} onDismiss={vi.fn()} onNext={onNext} />,
+  );
+
+  act(() => labelled(container, "Next")?.click());
+
+  expect(onNext).toHaveBeenCalledTimes(1);
+});
+
 test("a Scout row drops its Open button once the reply is detected", () => {
   const thread = { id: "1", author: "@ada", text: "Hi", url: "https://x.com/ada/status/1" };
   const props = { thread, busy: false, onSkip: vi.fn(), onDismiss: vi.fn(), onNext: vi.fn() };

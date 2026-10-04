@@ -109,6 +109,66 @@ test("the extension's Next moves the desk off a replied Scout card", () => {
   expect(readApproachLock(user.id)?.cardId).not.toBe(cardA.id);
 });
 
+test("the desk's own Next publishes its move off an unreplied Scout card", async () => {
+  const fetchMock = stubBrowser();
+  const task = setup(new Set(), { keepBrowser: true });
+
+  await waitFor(() => {
+    expect(fetchMock.mock.calls.some(([url, init]) =>
+      String(url).includes("/api/scout-approach-lock") && init?.method === "PUT",
+    )).toBe(true);
+  });
+  act(() => { task.result.current.onScoutNext(); });
+  expect(readApproachLock(user.id)?.cardId).not.toBe(cardA.id);
+  await waitFor(() => {
+    const lockIds = fetchMock.mock.calls
+      .filter(([url, init]) => String(url).includes("/api/scout-approach-lock") && init?.method === "PUT")
+      .map(([, init]) => publishedLockCardId(JSON.parse(String(init?.body))));
+    expect(lockIds[0]).toBe(cardA.id);
+    expect(lockIds.length).toBeGreaterThan(1);
+    expect(lockIds.at(-1)).not.toBe(cardA.id);
+  });
+  task.unmount();
+});
+
+test("the desk excludes server-released cards after loading its lock", async () => {
+  const fetchMock = stubBrowser();
+  fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+    const isLockRead = String(input).includes("/api/scout-approach-lock") && (init?.method ?? "GET") === "GET";
+    const body = isLockRead
+      ? {
+          releasedIds: [cardA.id],
+          task: { lock: { phase: "hold", cardId: null, surface: "for_you" }, version: 2, owner: "server" },
+        }
+      : {};
+    return Promise.resolve(new Response(JSON.stringify(body)));
+  });
+  writeApproachLock(user.id, { phase: "hold", cardId: null, surface: "for_you" });
+  const task = renderHook(() => {
+    const history = useDeskHistory({
+      setStatus: vi.fn(), setThreads: vi.fn(), setActionBusy: vi.fn(), settings: DEFAULT_SETTINGS,
+    }, user.id);
+    return useApproachTask({
+      authUser: user, writesEnabled: true, deskBootReady: true, agendaReady: true,
+      agenda: "Help developers build reliable software and share useful engineering ideas.",
+      curatedThreads: [cardA, cardB], forYouSuggestions: [],
+      interactedIds: new Set(), interactedRetainedHistory: history.interactedRetainedHistory,
+      dismissedHistory: [], dismissThread: null, searching: false,
+      actForYou: vi.fn(), onSkip: vi.fn(), onDismiss: vi.fn(),
+      onRefreshCoaching: vi.fn(), onHydrateInteracted: vi.fn(), onPollInteracted: vi.fn(),
+    });
+  }, { wrapper });
+
+  await waitFor(() => {
+    expect(fetchMock.mock.calls.some(([url, init]) =>
+      String(url).includes("/api/scout-approach-lock") && init?.method === "PUT",
+    )).toBe(true);
+  });
+  act(() => { task.result.current.onForYouNext(); });
+  expect(readApproachLock(user.id)?.cardId).toBe(cardB.id);
+  task.unmount();
+});
+
 test("the desk takes the card the server moved to when its event stream reconnects", async () => {
   const fetchMock = stubBrowser();
   setup(new Set(), { keepBrowser: true });
@@ -152,10 +212,11 @@ test("a stale Next for the previous card cannot move the server-adopted lock", a
   expect(readApproachLock(user.id)?.cardId).toBe(cardB.id);
 });
 
-test("the extension's Next leaves an unreplied Scout card in place", () => {
+test("the extension's Next moves past an unreplied Scout card, as the desk's own Next does", () => {
   setup(new Set());
-  act(() => { liveStream().emit("approach_next", { fromCardId: cardA.id }); });
   expect(readApproachLock(user.id)?.cardId).toBe(cardA.id);
+  act(() => { liveStream().emit("approach_next", { fromCardId: cardA.id }); });
+  expect(readApproachLock(user.id)?.cardId).not.toBe(cardA.id);
 });
 
 test("publishes Collecting when an empty Scout lock has no locked card", async () => {

@@ -58,19 +58,31 @@ describe("panelPace", () => {
 });
 
 describe("panel Next", () => {
-  it("is offered on a Scout card only once its reply is detected", () => {
-    expect(panelCanAskNext(panelView(lock, null), true)).toBe(true);
-    expect(panelCanAskNext(panelView(lock, null), false)).toBe(false);
+  it("is offered on a Scout card before and after its reply is detected, like the desk", () => {
+    const scout = { view: "scout" as const, detected: false };
+    expect(panelCanAskNext(panelView(lock, scout), true, scout, lock.id)).toBe(true);
+    expect(panelCanAskNext(panelView(lock, scout), false, scout, lock.id)).toBe(true);
+    expect(panelCanAskNext(panelView(lock, null), false, null, null)).toBe(false);
+  });
+
+  it("waits for detection on a suggested reply and does not trust stale or missing desk state", () => {
+    const suggestion = { view: "suggestion" as const, detected: false };
+    const scout = { view: "scout" as const, detected: false };
+    expect(panelCanAskNext(panelView(lock, suggestion), false, suggestion, lock.id)).toBe(false);
+    expect(panelCanAskNext(panelView(lock, suggestion), false, null, null)).toBe(false);
+    expect(panelCanAskNext(panelView(lock, suggestion), false, scout, "other-card")).toBe(false);
+    expect(panelCanAskNext(panelView(lock, suggestion), true, suggestion, lock.id)).toBe(true);
   });
 
   it("is always offered on the For You card, like the desk", () => {
-    expect(panelCanAskNext(panelView(null, null), false)).toBe(true);
+    expect(panelCanAskNext(panelView(null, null), false, null, null)).toBe(true);
     expect(nextFromCardId(null)).toEqual({ forYou: true });
     expect(nextFromCardId(lock)).toEqual({ fromCardId: "123" });
   });
 
   it("is not offered on the Collecting card, which takes the next card by itself", () => {
-    expect(panelCanAskNext(panelView(null, { view: "collecting", detected: false }), false)).toBe(false);
+    const collecting = { view: "collecting" as const, detected: false };
+    expect(panelCanAskNext(panelView(null, collecting), false, collecting, null)).toBe(false);
   });
 
   it("explains when no desk is listening and when the desk is on another page", () => {
