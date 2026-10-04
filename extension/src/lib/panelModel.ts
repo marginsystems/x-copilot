@@ -146,7 +146,7 @@ export type NextOutcome = "no_desk" | "not_moved" | "no_card";
 
 export function panelNextNotice(outcome: NextOutcome): string {
   if (outcome === "no_desk") {
-    return "Open your desk dashboard in a tab, then press Next again. The desk picks the next card.";
+    return "No next card could be picked yet. Open your desk dashboard in a tab, then press Next again.";
   }
   if (outcome === "no_card") {
     return "No new card yet. Keep your desk dashboard open; the next card shows here when it is ready.";

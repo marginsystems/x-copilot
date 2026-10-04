@@ -395,16 +395,16 @@ await describe("desk events", async () => {
   await it("relays approach Next live to the user's open desks and reports delivery", async () => {
     const alice = signedInCookie("gid-next-a");
     const bob = signedInCookie("gid-next-b");
-    assert.deepEqual((await approachNext(alice.cookie, { fromCardId: "c1" })).json, { ok: true, delivered: false });
+    assert.deepEqual((await approachNext(alice.cookie, { fromCardId: "c1" })).json, { ok: true, delivered: false, advanced: false });
     const aliceDesk = subscribe(alice.cookie);
     const bobDesk = subscribe(bob.cookie);
     const sent = await approachNext(alice.cookie, { fromCardId: " c1 " });
     assert.equal(sent.status, 200);
-    assert.deepEqual(sent.json, { ok: true, delivered: true });
+    assert.deepEqual(sent.json, { ok: true, delivered: true, advanced: false });
     const frames = aliceDesk.chunks.join("");
     assert.match(frames, /event: approach_next\ndata: \{"fromCardId":"c1"\}/);
     const forYou = await approachNext(alice.cookie, { forYou: true });
-    assert.deepEqual(forYou.json, { ok: true, delivered: true });
+    assert.deepEqual(forYou.json, { ok: true, delivered: true, advanced: false });
     assert.match(aliceDesk.chunks.join(""), /event: approach_next\ndata: \{"forYou":true\}/);
     assert.doesNotMatch(bobDesk.chunks.join(""), /approach_next/);
   });

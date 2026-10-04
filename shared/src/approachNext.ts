@@ -21,9 +21,9 @@ export function parseApproachNextRequest(raw: unknown): ApproachNextRequest | nu
   return { fromCardId };
 }
 
-export function parseApproachNextResponse(raw: unknown): { delivered: boolean } | null {
+export function parseApproachNextResponse(raw: unknown): { delivered: boolean; advanced: boolean } | null {
   if (!isRecord(raw) || raw.ok !== true || typeof raw.delivered !== "boolean") return null;
-  return { delivered: raw.delivered };
+  return { delivered: raw.delivered, advanced: raw.advanced === true };
 }
 
 export function remoteNextApplies(

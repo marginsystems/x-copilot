@@ -424,6 +424,21 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
   }, [userId]);
 
   useEffect(() => {
+    if (userId === null) return undefined;
+    return onDeskEvent("ready", () => {
+      apiFetch(SCOUT_APPROACH_LOCK_PATH)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((raw: unknown) => {
+          const serverLock = serverOwnedLock(raw);
+          if (!serverLock || ownerRef.current !== userId) return;
+          writeApproachLock(userId, serverLock);
+          adoptServerLockRef.current(serverLock);
+        })
+        .catch(() => undefined);
+    });
+  }, [userId]);
+
+  useEffect(() => {
     if (!deskBootReady || !agendaReady || stateRef.current) return;
     const stored = readApproachLock(userId);
     const retained = readRetainedScout(userId);

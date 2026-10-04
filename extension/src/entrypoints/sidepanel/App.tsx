@@ -221,8 +221,9 @@ export function App() {
 
   async function findNext(): Promise<string | null> {
     const request = nextFromCardId(lock);
-    if (!(await askDeskForNext(pairing, request))) return panelNextNotice("no_desk");
-    const preloaded = preloadedNextCard(request, nextUp);
+    const taker = await askDeskForNext(pairing, request);
+    if (!taker) return panelNextNotice("no_desk");
+    const preloaded = taker === "server" ? null : preloadedNextCard(request, nextUp);
     if (preloaded) {
       pendingNextRef.current = { token: pairing.token, request, shown: preloaded.card };
       await show(preloaded.card, null).catch(() => undefined);

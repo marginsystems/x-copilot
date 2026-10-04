@@ -58,7 +58,9 @@ export async function signOutExtension(pairing: Pairing): Promise<void> {
   await apiRequest(pairing, EXTENSION_SESSION_PATH, { method: "DELETE" });
 }
 
-export async function askDeskForNext(pairing: Pairing, request: ApproachNextRequest): Promise<boolean> {
+export type NextTaker = "desk" | "server";
+
+export async function askDeskForNext(pairing: Pairing, request: ApproachNextRequest): Promise<NextTaker | null> {
   const response = parseApproachNextResponse(
     await apiRequest(pairing, APPROACH_NEXT_PATH, {
       method: "POST",
@@ -67,5 +69,6 @@ export async function askDeskForNext(pairing: Pairing, request: ApproachNextRequ
     }),
   );
   if (!response) throw new Error("The desk's Next answer came back malformed.");
-  return response.delivered;
+  if (response.delivered) return "desk";
+  return response.advanced ? "server" : null;
 }

@@ -24,7 +24,8 @@ await describe("remote approach Next", () => {
     for (const bad of [null, {}, { fromCardId: "" }, { fromCardId: 3 }, { fromCardId: "x".repeat(APPROACH_NEXT_ID_MAX + 1) }, { fromCardId: "c1", forYou: true }]) {
       assert.equal(parseApproachNextRequest(bad), null);
     }
-    assert.deepEqual(parseApproachNextResponse({ ok: true, delivered: false }), { delivered: false });
+    assert.deepEqual(parseApproachNextResponse({ ok: true, delivered: false }), { delivered: false, advanced: false });
+    assert.deepEqual(parseApproachNextResponse({ ok: true, delivered: false, advanced: true }), { delivered: false, advanced: true });
     assert.equal(parseApproachNextResponse({ ok: true }), null);
   }).catch(assert.fail);
 

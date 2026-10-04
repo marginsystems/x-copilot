@@ -692,4 +692,41 @@ describe("App", () => {
 
     await act(async () => root.unmount());
   });
+
+  it("shows the card the server picked when no desk is open, without flashing the stale preloaded one", async () => {
+    readPairing.mockResolvedValue(paired);
+    const now = Date.now();
+    storageData.lastReplySeenAt = now - 1_000;
+    storageData.panelCardSince = { key: "for_you", sinceMs: now - 5_000 };
+    const stale = { id: "42", conversationId: null, inReplyToId: null, surface: "reply", author: "@dana", url: null, text: "Stale preloaded post" };
+    const picked = { ...stale, id: "77", author: "@eve", text: "Picked by the server" };
+    loadPanelData.mockResolvedValue({ lock: null, lockSupported: true, nextUp: { card: stale }, replyAt: [], scout: null });
+    askDeskForNext.mockResolvedValue("server");
+    let confirm!: (value: unknown) => void;
+    waitForLockChange.mockReturnValue(new Promise((resolve) => { confirm = resolve; }));
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<App />);
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+    const next = Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Next");
+    await act(async () => {
+      expect(next).toBeDefined();
+      next?.click();
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+    expect(container.textContent).not.toContain("Stale preloaded post");
+    expect(container.textContent).not.toContain("Open your desk dashboard");
+
+    await act(async () => {
+      confirm({ card: picked, next: null, state: { view: "scout", detected: false }, supported: true, valid: true });
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+    expect(shownCard(container)?.textContent).toContain("Picked by the server");
+
+    await act(async () => root.unmount());
+  });
 });

@@ -3,6 +3,8 @@ import { allowRate } from "../auth/authGuard.js";
 import { getSessionUser } from "../auth/sessionCookie.js";
 import { BodyError, readBody, send } from "../http/httpJson.js";
 import { isRecord } from "../platform/unknownValue.js";
+import { publishScoutApproachLockChanged } from "../scout/scoutApproachLockEvents.js";
+import { advanceApproachOnServer } from "./approachServerNext.js";
 import { publishDeskEvent } from "./deskEvents.js";
 
 export const APPROACH_NEXT_PATH = "/api/desk/approach/next";
@@ -45,6 +47,15 @@ export async function tryHandleApproachNext(
     return true;
   }
   const delivered = publishDeskEvent(user.id, "approach_next", request) > 0;
-  send(req, res, 200, { ok: true, delivered }, { "Cache-Control": "no-store" });
+  let advanced = false;
+  if (!delivered) {
+    try {
+      advanced = await advanceApproachOnServer(user.id, request);
+    } catch (err) {
+      console.error("server approach next failed:", err);
+    }
+    if (advanced) publishScoutApproachLockChanged(user.id);
+  }
+  send(req, res, 200, { ok: true, delivered, advanced }, { "Cache-Control": "no-store" });
   return true;
 }

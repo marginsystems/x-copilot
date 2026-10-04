@@ -103,6 +103,23 @@ test("the extension's Next moves the desk off a replied Scout card", () => {
   expect(readApproachLock(user.id)?.cardId).not.toBe(cardA.id);
 });
 
+test("the desk takes the card the server moved to when its event stream reconnects", async () => {
+  const fetchMock = stubBrowser();
+  setup(new Set(), { keepBrowser: true });
+  expect(readApproachLock(user.id)?.cardId).toBe(cardA.id);
+
+  fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+    const isLockRead = String(input).includes("/api/scout-approach-lock") && (init?.method ?? "GET") === "GET";
+    const body = isLockRead
+      ? { ok: true, card: null, task: { lock: { phase: "scout_reply", cardId: cardB.id, surface: null }, version: 4, owner: "server" } }
+      : {};
+    return Promise.resolve(new Response(JSON.stringify(body)));
+  });
+  act(() => { liveStream().emit("ready", {}); });
+
+  await waitFor(() => expect(readApproachLock(user.id)?.cardId).toBe(cardB.id));
+});
+
 test("the extension's Next leaves an unreplied Scout card in place", () => {
   setup(new Set());
   act(() => { liveStream().emit("approach_next", { fromCardId: cardA.id }); });
