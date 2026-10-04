@@ -336,3 +336,104 @@ test("a paced For You card collapses to one gated button and splits back when th
   expect(glide?.keyframes[0]).toEqual({ transform: "translate(-180px, 0px)" });
   expect(container.querySelector(".row-action.is-leaving")).toBeNull();
 });
+
+function labelled(container: HTMLElement, label: string): HTMLButtonElement | undefined {
+  return [...container.querySelectorAll(".row-action:not(.is-leaving) button")].find(
+    (button): button is HTMLButtonElement => button.textContent === label,
+  );
+}
+
+function liveActions(container: HTMLElement): string {
+  return [...container.querySelectorAll(".row-action:not(.is-leaving)")]
+    .map((unit) => unit.textContent)
+    .join("|");
+}
+
+test("Next on an undetected For You card asks in place instead of advancing", () => {
+  const onNext = vi.fn();
+  const { container } = render(
+    <ForYouFeedRow status="Detecting" detected={false} onNext={onNext} />,
+  );
+
+  act(() => labelled(container, "Next")?.click());
+
+  expect(onNext).not.toHaveBeenCalled();
+  expect(liveActions(container)).toContain("No post detected yet. Skip this card?");
+  expect(labelled(container, "Skip card")?.className).toBe("primary");
+  expect(labelled(container, "Keep waiting")?.className).toBe("ghost");
+  expect(container.querySelector('.row-action:not(.is-leaving) a')).toBeNull();
+  expect(labelled(container, "Next")).toBeUndefined();
+  expect(document.activeElement).toBe(labelled(container, "Keep waiting"));
+});
+
+test("Keep waiting and Escape return to the normal buttons without advancing", () => {
+  const onNext = vi.fn();
+  const { container } = render(
+    <ForYouFeedRow status="Detecting" detected={false} onNext={onNext} />,
+  );
+
+  act(() => labelled(container, "Next")?.click());
+  act(() => labelled(container, "Keep waiting")?.click());
+  expect(liveActions(container)).not.toContain("Skip this card?");
+  expect(liveActions(container)).toContain("Open For You");
+  expect(document.activeElement).toBe(labelled(container, "Next"));
+
+  act(() => labelled(container, "Next")?.click());
+  act(() => {
+    labelled(container, "Keep waiting")?.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+    );
+  });
+  expect(liveActions(container)).not.toContain("Skip this card?");
+  expect(onNext).not.toHaveBeenCalled();
+});
+
+test("Skip card performs the real Next once", () => {
+  const onNext = vi.fn();
+  const { container } = render(
+    <ForYouFeedRow status="Detecting" detected={false} onNext={onNext} />,
+  );
+
+  act(() => labelled(container, "Next")?.click());
+  act(() => labelled(container, "Skip card")?.click());
+
+  expect(onNext).toHaveBeenCalledTimes(1);
+  expect(liveActions(container)).not.toContain("Skip this card?");
+});
+
+test("the question goes away when the post is detected while it shows", () => {
+  const onNext = vi.fn();
+  const { container, rerender } = render(
+    <ForYouFeedRow status="Detecting" detected={false} onNext={onNext} />,
+  );
+
+  act(() => labelled(container, "Next")?.click());
+  expect(liveActions(container)).toContain("Skip this card?");
+
+  rerender(<ForYouFeedRow detected activity={null} onNext={onNext} />);
+
+  expect(liveActions(container)).not.toContain("Skip this card?");
+  expect(labelled(container, "Next")?.classList.contains("primary")).toBe(true);
+});
+
+test("Next on a detected card advances with a single click", () => {
+  const onNext = vi.fn();
+  const { container } = render(<ForYouFeedRow detected activity={null} onNext={onNext} />);
+
+  act(() => labelled(container, "Next")?.click());
+
+  expect(onNext).toHaveBeenCalledTimes(1);
+  expect(liveActions(container)).not.toContain("Skip this card?");
+});
+
+test("a Scout row drops its Open button once the reply is detected", () => {
+  const thread = { id: "1", author: "@ada", text: "Hi", url: "https://x.com/ada/status/1" };
+  const props = { thread, busy: false, onSkip: vi.fn(), onDismiss: vi.fn(), onNext: vi.fn() };
+  const { container, rerender } = render(<ThreadRow {...props} interacted={false} />);
+  expect(liveActions(container)).toContain("Open on X");
+
+  rerender(<ThreadRow {...props} interacted />);
+
+  const labels = [...container.querySelectorAll(".row-action:not(.is-leaving)")].map((unit) => unit.textContent);
+  expect(labels).toEqual(["Next"]);
+});

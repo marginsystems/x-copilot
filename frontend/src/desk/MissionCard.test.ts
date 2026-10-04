@@ -197,7 +197,7 @@ await describe("Reply pace", async () => {
   });
   await it("never gates the open button before Next arms the minute", () => {
     const html = renderToStaticMarkup(MissionCard(missionProps({
-      phase: "scout_reply", scout: thread("current-scout", 100), scoutDetected: true,
+      phase: "scout_reply", scout: thread("current-scout", 100), scoutDetected: false,
       paceOverlayArmed: false, remainingMs: 42_000, clock: "0:42",
       onScoutNext() {},
     })));
@@ -267,7 +267,7 @@ await describe("Reply pace", async () => {
     );
     assert.match(html, /live-scout/);
     assert.doesNotMatch(html, /reply-pace|0:42/);
-    assert.match(html, /Open on X/);
+    assert.doesNotMatch(html, /Open on X/);
     assert.match(html, />Next</);
     assert.doesNotMatch(html, /<button[^>]*disabled=""[^>]*>Next/);
   });
@@ -303,7 +303,7 @@ await describe("Reply pace", async () => {
     assert.match(html, /A suggested reply/);
     assert.match(html, /class="mission-card approach-frame"/);
     assert.doesNotMatch(html, /reply-pace|0:42/);
-    assert.match(html, /Open on X/);
+    assert.doesNotMatch(html, /Open on X/);
     assert.match(html, />Next</);
     assert.doesNotMatch(html, /<button[^>]*disabled=""[^>]*>Next/);
   });
@@ -539,7 +539,7 @@ await describe("Approach flight frame", async () => {
     assert.doesNotMatch(html, /I posted on X/);
   });
 
-  await it("keeps Open and enabled Next after a Suggested reply is detected", () => {
+  await it("keeps only an enabled Next after a Suggested reply is detected", () => {
     const html = renderToStaticMarkup(
       MissionCard(
         missionProps({
@@ -552,7 +552,7 @@ await describe("Approach flight frame", async () => {
     assert.doesNotMatch(html, escapeRe(SCOUT_DETECTED_COPY));
     assert.doesNotMatch(html, escapeRe(FYP_DETECTING_COPY));
     assert.match(html, /chip-interacted/);
-    assert.match(html, /Open on X/);
+    assert.doesNotMatch(html, /Open on X/);
     assert.match(html, />Next</);
     assert.doesNotMatch(html, /<button[^>]*disabled=""[^>]*>Next/);
     assert.doesNotMatch(html, /Open original/);
@@ -603,7 +603,7 @@ await describe("Approach flight frame", async () => {
     assert.match(html, />Not interested</);
   });
 
-  await it("keeps Open and enabled Next on a detected retained Scout", () => {
+  await it("keeps only an enabled Next on a detected retained Scout", () => {
     const lead = thread("detected-lead", 42);
     const html = renderToStaticMarkup(
       MissionCard(
@@ -619,7 +619,7 @@ await describe("Approach flight frame", async () => {
     assert.doesNotMatch(html, escapeRe(FYP_DETECTING_COPY));
     assert.doesNotMatch(html, /mission-card-verb|mission-card-why/);
     assert.match(html, /chip-interacted/);
-    assert.match(html, /Open on X/);
+    assert.doesNotMatch(html, /Open on X/);
     assert.match(html, />Next</);
     assert.doesNotMatch(html, /<button[^>]*disabled=""[^>]*>Next/);
     assert.doesNotMatch(html, />Skip</);

@@ -52,6 +52,10 @@ function shownCard(container: HTMLElement): Element | null {
   return container.querySelector(".card-slide-item:not(.is-leaving)");
 }
 
+function buttonLabelled(container: HTMLElement, label: string): HTMLButtonElement | undefined {
+  return Array.from(container.querySelectorAll("button")).find((button) => button.textContent === label);
+}
+
 const paired = {
   token: "token",
   expiresAt: "2026-11-01T00:00:00.000Z",
@@ -69,6 +73,126 @@ describe("App", () => {
     tabsCreate.mockReset();
     for (const key of Object.keys(storageData)) delete storageData[key];
     document.body.replaceChildren();
+  });
+
+  async function mountPanel() {
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    await act(async () => {
+      root.render(<App />);
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+    return { container, root };
+  }
+
+  async function press(container: HTMLElement, label: string) {
+    await act(async () => {
+      buttonLabelled(container, label)?.click();
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+  }
+
+  it("fills Next and leaves every Open button hollow", async () => {
+    readPairing.mockResolvedValue(paired);
+    loadPanelData.mockResolvedValue({ lock: null, lockSupported: true, replyAt: [], scout: null });
+    const { container, root } = await mountPanel();
+
+    expect(buttonLabelled(container, "Open For You")?.className).toBe("ghost");
+    expect(buttonLabelled(container, "Open Inspiration")?.className).toBe("ghost");
+    expect(buttonLabelled(container, "Next")?.className).toBe("primary");
+    await act(async () => root.unmount());
+  });
+
+  it("asks before skipping a For You card whose post is not detected", async () => {
+    readPairing.mockResolvedValue(paired);
+    loadPanelData.mockResolvedValue({ lock: null, lockSupported: true, replyAt: [], scout: null });
+    askDeskForNext.mockResolvedValue(true);
+    waitForLockChange.mockResolvedValue(null);
+    const { container, root } = await mountPanel();
+
+    await press(container, "Next");
+
+    expect(askDeskForNext).not.toHaveBeenCalled();
+    expect(container.textContent).toContain("No post detected yet. Skip this card?");
+    expect(buttonLabelled(container, "Skip card")?.className).toBe("primary");
+    expect(buttonLabelled(container, "Keep waiting")?.className).toBe("ghost");
+    expect(buttonLabelled(container, "Open For You")).toBeUndefined();
+    expect(buttonLabelled(container, "Next")).toBeUndefined();
+    expect(document.activeElement).toBe(buttonLabelled(container, "Keep waiting"));
+
+    await press(container, "Keep waiting");
+
+    expect(askDeskForNext).not.toHaveBeenCalled();
+    expect(container.textContent).not.toContain("Skip this card?");
+    expect(buttonLabelled(container, "Open For You")).toBeDefined();
+    expect(document.activeElement).toBe(buttonLabelled(container, "Next"));
+
+    await press(container, "Next");
+    await press(container, "Skip card");
+
+    expect(askDeskForNext).toHaveBeenCalledTimes(1);
+    expect(askDeskForNext).toHaveBeenCalledWith(expect.anything(), { forYou: true });
+    await act(async () => root.unmount());
+  });
+
+  it("cancels the question with Escape", async () => {
+    readPairing.mockResolvedValue(paired);
+    loadPanelData.mockResolvedValue({ lock: null, lockSupported: true, replyAt: [], scout: null });
+    const { container, root } = await mountPanel();
+
+    await press(container, "Next");
+    await act(async () => {
+      buttonLabelled(container, "Keep waiting")?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
+
+    expect(container.textContent).not.toContain("Skip this card?");
+    expect(askDeskForNext).not.toHaveBeenCalled();
+    await act(async () => root.unmount());
+  });
+
+  it("drops the question when the desk reports the post detected", async () => {
+    readPairing.mockResolvedValue(paired);
+    loadPanelData
+      .mockResolvedValueOnce({ lock: null, lockSupported: true, replyAt: [], scout: null })
+      .mockResolvedValue({ lock: null, lockSupported: true, deskState: { view: "for_you", detected: true }, replyAt: [], scout: null });
+    const { container, root } = await mountPanel();
+
+    await press(container, "Next");
+    expect(container.textContent).toContain("Skip this card?");
+
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+
+    expect(container.textContent).not.toContain("Skip this card?");
+    expect(buttonLabelled(container, "Next")?.className).toBe("primary");
+    expect(buttonLabelled(container, "Open For You")).toBeUndefined();
+    await act(async () => root.unmount());
+  });
+
+  it("advances a detected card with one click and shows only Next", async () => {
+    readPairing.mockResolvedValue(paired);
+    const current = { id: "1", conversationId: null, inReplyToId: null, surface: "reply", author: "@ada", url: null, text: "Current post" };
+    loadPanelData.mockResolvedValue({
+      lock: current,
+      lockSupported: true,
+      deskState: { view: "scout", detected: true },
+      replyAt: [],
+      scout: null,
+    });
+    askDeskForNext.mockResolvedValue(true);
+    waitForLockChange.mockResolvedValue(null);
+    const { container, root } = await mountPanel();
+
+    expect(Array.from(container.querySelectorAll(".actions button")).map((button) => button.textContent)).toEqual(["Next"]);
+
+    await press(container, "Next");
+
+    expect(container.textContent).not.toContain("Skip this card?");
+    expect(askDeskForNext).toHaveBeenCalledWith(expect.anything(), { fromCardId: "1" });
+    await act(async () => root.unmount());
   });
 
   it("keeps a valid pairing out of the unpaired state when panel data fails to load", async () => {
@@ -149,7 +273,7 @@ describe("App", () => {
     });
 
     expect(container.textContent).toContain("Post detected");
-    const next = Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Next card");
+    const next = Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Next");
     expect(next).toBeDefined();
     await act(async () => {
       next?.click();
@@ -230,7 +354,7 @@ describe("App", () => {
     });
     expect(loadPanelData).toHaveBeenCalledTimes(2);
 
-    const next = Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Next card");
+    const next = Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Next");
     await act(async () => {
       next?.click();
       await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
@@ -243,7 +367,7 @@ describe("App", () => {
     });
 
     expect(shownCard(container)?.textContent).toContain("Second post");
-    expect(Array.from(shownCard(container)?.querySelectorAll("button") ?? []).some((button) => button.textContent === "Next card")).toBe(false);
+    expect(Array.from(shownCard(container)?.querySelectorAll("button") ?? []).some((button) => button.textContent === "Next")).toBe(false);
 
     await act(async () => root.unmount());
   });
@@ -332,9 +456,13 @@ describe("App", () => {
       root.render(<App />);
       await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
     });
-    const next = Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Next card");
+    const next = Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Next");
     await act(async () => {
       next?.click();
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+    await act(async () => {
+      buttonLabelled(container, "Skip card")?.click();
       await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
     });
 
@@ -368,7 +496,7 @@ describe("App", () => {
       root.render(<App />);
       await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
     });
-    const next = Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Next card");
+    const next = Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Next");
     await act(async () => {
       next?.click();
       await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
@@ -420,7 +548,7 @@ describe("App", () => {
     });
     expect(shownCard(container)?.textContent).toContain("Reply detected");
 
-    const next = Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Next card");
+    const next = Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Next");
     await act(async () => {
       next?.click();
       await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
@@ -454,9 +582,13 @@ describe("App", () => {
       root.render(<App />);
       await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
     });
-    const next = Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Next card");
+    const next = Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Next");
     await act(async () => {
       next?.click();
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+    await act(async () => {
+      buttonLabelled(container, "Skip card")?.click();
       await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
     });
 
@@ -489,9 +621,13 @@ describe("App", () => {
       root.render(<App />);
       await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
     });
-    const next = Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Next card");
+    const next = Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Next");
     await act(async () => {
       next?.click();
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+    await act(async () => {
+      buttonLabelled(container, "Skip card")?.click();
       await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
     });
 
@@ -527,14 +663,18 @@ describe("App", () => {
     expect(shownCard(container)?.textContent).toContain("Waiting for your post");
     expect(shownCard(container)?.textContent).not.toContain("Post detected");
 
-    const next = Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Next card");
+    const next = Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Next");
     await act(async () => {
       next?.click();
       await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
     });
+    await act(async () => {
+      buttonLabelled(container, "Skip card")?.click();
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
     expect(shownCard(container)?.textContent).toContain("Scout is collecting posts");
     expect(shownCard(container)?.textContent).toContain("Waiting for Scout");
-    expect(shownCard(container)?.textContent).not.toContain("Next card");
+    expect(shownCard(container)?.textContent).not.toContain("Next");
     expect(container.textContent).not.toContain("No new card yet");
     expect(tabsCreate).not.toHaveBeenCalled();
 

@@ -1,8 +1,23 @@
 import {
+  useEffect,
+  useId,
+  useRef,
+  useState,
   type CSSProperties,
+  type KeyboardEvent,
   type MouseEventHandler,
   type ReactNode,
 } from "react";
+import {
+  NEXT_CONFIRM_KEEP_LABEL,
+  NEXT_CONFIRM_SKIP_LABEL,
+  NEXT_LABEL,
+  nextAskActive,
+  nextClick,
+  nextConfirmCopy,
+  type NextAsk,
+  type NextConfirmSubject,
+} from "../../../shared/src/nextConfirm";
 import { DeskRowActions } from "./DeskRowActions";
 import { HasTipButton, HasTipLink } from "./HasTip";
 import { PacedOpenButton, ReadyOpenLink, type OpenPace } from "./RowOpen";
@@ -41,6 +56,50 @@ function ActionButton({
   );
 }
 
+export type AskBeforeNext = { subject: NextConfirmSubject; cardKey: string };
+
+function NextConfirm({
+  subject,
+  onSkip,
+  onKeep,
+}: {
+  subject: NextConfirmSubject;
+  onSkip: () => void;
+  onKeep: () => void;
+}) {
+  const noteId = useId();
+  const keepRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    keepRef.current?.focus();
+  }, []);
+
+  function onKeyDown(event: KeyboardEvent<HTMLElement>) {
+    if (event.key !== "Escape") return;
+    event.stopPropagation();
+    onKeep();
+  }
+
+  return (
+    <span
+      className="next-confirm"
+      role="group"
+      aria-describedby={noteId}
+      onKeyDown={onKeyDown}
+    >
+      <span id={noteId} className="next-confirm-note">
+        {nextConfirmCopy(subject)}
+      </span>
+      <button type="button" className="primary" onClick={onSkip}>
+        {NEXT_CONFIRM_SKIP_LABEL}
+      </button>
+      <button type="button" className="ghost" ref={keepRef} onClick={onKeep}>
+        {NEXT_CONFIRM_KEEP_LABEL}
+      </button>
+    </span>
+  );
+}
+
 export function DeskRow({
   className,
   lead,
@@ -57,6 +116,7 @@ export function DeskRow({
   secondaryOpenTip,
   openPace,
   onNext,
+  askBeforeNext,
   nextTip,
   nextDisabled = false,
   onPrimary,
@@ -87,6 +147,7 @@ export function DeskRow({
   secondaryOpenTip?: string;
   openPace?: OpenPace | null;
   onNext?: () => void;
+  askBeforeNext?: AskBeforeNext;
   nextTip?: string;
   nextDisabled?: boolean;
   onPrimary?: () => void;
@@ -102,6 +163,46 @@ export function DeskRow({
   index?: number;
   exiting?: boolean;
 }) {
+  const articleRef = useRef<HTMLElement>(null);
+  const [ask, setAsk] = useState<NextAsk | null>(null);
+  const restoreNextFocus = useRef(false);
+  const asking =
+    askBeforeNext !== undefined &&
+    onNext !== undefined &&
+    nextAskActive(ask, {
+      detected: false,
+      cardKey: askBeforeNext.cardKey,
+    });
+
+  if (ask !== null && !asking) setAsk(null);
+
+  useEffect(() => {
+    if (asking || !restoreNextFocus.current) return;
+    restoreNextFocus.current = false;
+    articleRef.current
+      ?.querySelector<HTMLElement>('[data-action="next"] button')
+      ?.focus();
+  }, [asking]);
+
+  function clickNext() {
+    if (!askBeforeNext) {
+      onNext?.();
+      return;
+    }
+    const outcome = nextClick({ detected: false, cardKey: askBeforeNext.cardKey });
+    if (outcome.action === "ask") setAsk(outcome.ask);
+  }
+
+  function keepWaiting() {
+    restoreNextFocus.current = true;
+    setAsk(null);
+  }
+
+  function confirmSkip() {
+    setAsk(null);
+    onNext?.();
+  }
+
   const classes = ["thread-row"];
   if (className) classes.push(className);
   if (exiting) classes.push("is-exiting");
@@ -112,6 +213,7 @@ export function DeskRow({
       : undefined;
   return (
     <article
+      ref={articleRef}
       className={classes.join(" ")}
       style={style}
       aria-busy={ariaBusy || undefined}
@@ -130,7 +232,21 @@ export function DeskRow({
         </div>
       </div>
       <DeskRowActions
-        actions={[
+        actions={
+          asking && askBeforeNext
+            ? [
+                {
+                  key: "next-confirm",
+                  node: (
+                    <NextConfirm
+                      subject={askBeforeNext.subject}
+                      onSkip={confirmSkip}
+                      onKeep={keepWaiting}
+                    />
+                  ),
+                },
+              ]
+            : [
           {
             key: "open",
             node: openPace && openLabel && openHref ? (
@@ -203,8 +319,8 @@ export function DeskRow({
               <ActionButton
                 className="primary"
                 disabled={busy || nextDisabled}
-                label="Next"
-                onClick={onNext}
+                label={NEXT_LABEL}
+                onClick={clickNext}
                 tip={nextTip}
               />
             ) : null,
@@ -243,7 +359,8 @@ export function DeskRow({
                 </>
               ) : null,
           },
-        ]}
+        ]
+        }
       />
     </article>
   );

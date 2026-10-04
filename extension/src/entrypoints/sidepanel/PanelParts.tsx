@@ -1,5 +1,11 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { browser } from "wxt/browser";
+import {
+  NEXT_CONFIRM_KEEP_LABEL,
+  NEXT_CONFIRM_SKIP_LABEL,
+  nextConfirmCopy,
+  type NextConfirmSubject,
+} from "../../../../shared/src/nextConfirm";
 import { DEFAULT_DESK_ORIGIN } from "../../lib/desks";
 
 export function openDeskPage(path: string): void {
@@ -51,6 +57,41 @@ export function CardSlide({ slideKey, children }: { slideKey: string; children: 
           {leaving.node}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+export function NextConfirm({
+  subject,
+  onSkip,
+  onKeep,
+}: {
+  subject: NextConfirmSubject;
+  onSkip: () => void;
+  onKeep: () => void;
+}) {
+  const noteId = useId();
+  const keepRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    keepRef.current?.focus();
+  }, []);
+
+  function onKeyDown(event: KeyboardEvent<HTMLElement>) {
+    if (event.key !== "Escape") return;
+    event.stopPropagation();
+    onKeep();
+  }
+
+  return (
+    <div className="next-confirm" role="group" aria-describedby={noteId} onKeyDown={onKeyDown}>
+      <p id={noteId} className="next-confirm-note">{nextConfirmCopy(subject)}</p>
+      <button type="button" className="primary" onClick={onSkip}>
+        {NEXT_CONFIRM_SKIP_LABEL}
+      </button>
+      <button type="button" className="ghost" ref={keepRef} onClick={onKeep}>
+        {NEXT_CONFIRM_KEEP_LABEL}
+      </button>
     </div>
   );
 }

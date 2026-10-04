@@ -10,8 +10,13 @@ import {
 } from "../../../shared/src/forYou";
 import type { OwnActivity } from "../../../shared/src/coaching";
 import { ApproachDetectingMark } from "./ApproachFrame";
-import { DeskRow } from "./DeskRow";
+import { DeskRow, type AskBeforeNext } from "./DeskRow";
 import type { OpenPace } from "./RowOpen";
+
+const FOR_YOU_ASK_BEFORE_NEXT: AskBeforeNext = {
+  subject: "post",
+  cardKey: "for_you",
+};
 
 export function ForYouFeedRow(props: {
   status?: string;
@@ -78,6 +83,7 @@ export function ForYouFeedRow(props: {
       secondaryOpenTip={FYP_INSPIRATION_TIP}
       openPace={props.openPace ?? null}
       onNext={props.onNext}
+      askBeforeNext={detected ? undefined : FOR_YOU_ASK_BEFORE_NEXT}
       nextTip={FYP_NEXT_TIP}
     />
   );

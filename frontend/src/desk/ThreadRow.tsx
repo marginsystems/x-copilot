@@ -70,8 +70,8 @@ export function ThreadRow({
           ) : null}
         </>
       }
-      openHref={thread.url}
-      openLabel="Open on X"
+      openHref={interacted ? null : thread.url}
+      openLabel={interacted ? undefined : "Open on X"}
       openTip="Open this reply on X."
       onOpen={onWatch}
       openPace={openPace}

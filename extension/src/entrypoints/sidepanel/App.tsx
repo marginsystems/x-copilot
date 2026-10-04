@@ -23,7 +23,8 @@ import { readReplySeenAt, trackCardSince } from "../../lib/detectionStore";
 import { readRepliedCardId } from "../../lib/repliedCardStore";
 import { readAttentionGate, writeAttentionGate } from "../../lib/settingsStore";
 import { repliesOnUtcDay, scoutLook } from "../../lib/scout";
-import { CardSlide, DESK_LINKS, FOOTER_LINKS, GearIcon, openDeskPage, PanelLinks, PanelShell } from "./PanelParts";
+import { NEXT_LABEL, nextAskActive, nextClick, type NextAsk } from "../../../../shared/src/nextConfirm";
+import { CardSlide, DESK_LINKS, FOOTER_LINKS, GearIcon, NextConfirm, openDeskPage, PanelLinks, PanelShell } from "./PanelParts";
 import { Scout } from "./Scout";
 import { watchLock } from "../../lib/lockStream";
 
@@ -62,11 +63,20 @@ export function App() {
   const [since, setSince] = useState<CardSince | null>(null);
   const [nextNotice, setNextNotice] = useState<string | null>(null);
   const [nextBusy, setNextBusy] = useState(false);
+  const [nextAsk, setNextAsk] = useState<NextAsk | null>(null);
+  const nextButtonRef = useRef<HTMLButtonElement>(null);
+  const restoreNextFocusRef = useRef(false);
   const pendingNextRef = useRef<PendingNext | null>(null);
   const lockVersionRef = useRef(0);
   const shownKeyRef = useRef<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const now = useNow();
+
+  useEffect(() => {
+    if (!restoreNextFocusRef.current || !nextButtonRef.current) return;
+    restoreNextFocusRef.current = false;
+    nextButtonRef.current.focus();
+  });
 
   useEffect(() => {
     readAttentionGate().then(setAttentionGate, () => undefined);
@@ -195,6 +205,8 @@ export function App() {
     seenHere: cardDetected({ lock, repliedCardId, replySeenAtMs, since }),
   });
   const canAskNext = panelCanAskNext(view, detected);
+  const asking = nextAskActive(nextAsk, { detected, cardKey: view.key });
+  if (nextAsk !== null && !asking) setNextAsk(null);
   const tag = view.collecting ? { label: "Waiting for Scout", detected: false } : detectionTag(lock, detected);
 
   async function show(next: ScoutApproachLockCard | null, nextState: DeskApproachState | null) {
@@ -252,6 +264,25 @@ export function App() {
         setNextBusy(false);
       })
       .catch(() => undefined);
+  }
+
+  function pressNext() {
+    const outcome = nextClick({ detected, cardKey: view.key });
+    if (outcome.action === "ask") {
+      setNextAsk(outcome.ask);
+      return;
+    }
+    askNext();
+  }
+
+  function skipCard() {
+    setNextAsk(null);
+    askNext();
+  }
+
+  function keepWaiting() {
+    restoreNextFocusRef.current = true;
+    setNextAsk(null);
   }
 
   const look = scoutLook({
@@ -334,7 +365,7 @@ export function App() {
           </span>
         </div>
         <h2>{card.title}</h2>
-        <p className="detail">{detected ? "Detected. Tap Next card for your next one." : card.detail}</p>
+        <p className="detail">{detected ? "Detected. Tap Next for your next one." : card.detail}</p>
         {pace ? (
           <p className="pace" role="timer" aria-live="off" title={pace.tip}>
             <span className="pace-label">Next reply in</span>
@@ -342,37 +373,44 @@ export function App() {
           </p>
         ) : null}
         <div className="actions">
-          {detected ? null : (
-            <button
-              type="button"
-              className="primary"
-              onClick={() => { openOnX(card.openUrl).catch(() => undefined); }}
-            >
-              {card.openLabel}
-            </button>
+          {asking ? (
+            <NextConfirm subject={lock ? "reply" : "post"} onSkip={skipCard} onKeep={keepWaiting} />
+          ) : (
+            <>
+              {detected ? null : (
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => { openOnX(card.openUrl).catch(() => undefined); }}
+                >
+                  {card.openLabel}
+                </button>
+              )}
+              {!detected && card.secondary ? (
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => {
+                    const url = card.secondary?.url;
+                    if (url) openOnX(url).catch(() => undefined);
+                  }}
+                >
+                  {card.secondary.label}
+                </button>
+              ) : null}
+              {canAskNext ? (
+                <button
+                  type="button"
+                  className="primary"
+                  ref={nextButtonRef}
+                  disabled={nextBusy}
+                  onClick={pressNext}
+                >
+                  {NEXT_LABEL}
+                </button>
+              ) : null}
+            </>
           )}
-          {!detected && card.secondary ? (
-            <button
-              type="button"
-              className="ghost"
-              onClick={() => {
-                const url = card.secondary?.url;
-                if (url) openOnX(url).catch(() => undefined);
-              }}
-            >
-              {card.secondary.label}
-            </button>
-          ) : null}
-          {canAskNext ? (
-            <button
-              type="button"
-              className={detected ? "primary" : "ghost"}
-              disabled={nextBusy}
-              onClick={askNext}
-            >
-              Next card
-            </button>
-          ) : null}
         </div>
         {nextNotice ? <p className="settings-help rise" role="status">{nextNotice}</p> : null}
       </section>

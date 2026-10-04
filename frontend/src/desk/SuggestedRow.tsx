@@ -40,6 +40,7 @@ export function SuggestedRow({
   const openUrl = forYouOpenUrl(row);
   const kindClass = forYouKindClass(row.kind);
   const detectsReply = row.kind === "reply" && Boolean(forYouTargetId(row));
+  const detected = interacted === true && detectsReply;
 
   return (
     <DeskRow
@@ -61,9 +62,9 @@ export function SuggestedRow({
           ) : null}
         </>
       }
-      openHref={openUrl}
+      openHref={detected ? null : openUrl}
       openPace={openPace}
-      openLabel="Open on X"
+      openLabel={detected ? undefined : "Open on X"}
       openTip={row.kind === "post" ? FYP_COMPOSE_TIP : "Open this post on X."}
       onNext={detectsReply ? onNext : undefined}
       nextTip={FYP_NEXT_TIP}
