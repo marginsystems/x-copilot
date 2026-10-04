@@ -35,8 +35,10 @@ describe("x content attention polling", () => {
   beforeEach(() => {
     state.intervalCallback = undefined;
     state.changeListener = undefined;
+    vi.restoreAllMocks();
     state.sendMessage.mockReset();
     state.sendMessage.mockResolvedValue({ ok: true });
+    vi.spyOn(document, "hasFocus").mockReturnValue(true);
     document.documentElement.innerHTML = "<head></head><body></body>";
     window.history.replaceState(null, "", "/home");
     window.sessionStorage.clear();
@@ -201,6 +203,100 @@ describe("x content attention polling", () => {
     expect(document.querySelectorAll('[data-x-copilot="attention"]')).toHaveLength(1);
 
     vi.restoreAllMocks();
+  });
+
+  it("counts reading time while the page lacks focus but its browser window is focused", async () => {
+    let nowMs = 0;
+    vi.spyOn(Date, "now").mockImplementation(() => nowMs);
+    vi.spyOn(document, "hasFocus").mockReturnValue(false);
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+    state.sendMessage.mockResolvedValue({ focused: true });
+
+    const box = (top: number, height: number) => ({
+      top,
+      bottom: top + height,
+      left: 10,
+      right: 300,
+      width: 290,
+      height,
+      x: 10,
+      y: top,
+      toJSON: () => ({}),
+    });
+    const post = document.createElement("article");
+    post.setAttribute("data-testid", "tweet");
+    vi.spyOn(post, "getBoundingClientRect").mockReturnValue(box(10, 90));
+    const composer = document.createElement("div");
+    composer.setAttribute("data-testid", "tweetTextarea_0");
+    vi.spyOn(composer, "getBoundingClientRect").mockReturnValue(box(200, 40));
+    document.body.append(post, composer);
+
+    const context = {
+      setInterval: (callback: () => void) => {
+        state.intervalCallback = callback;
+      },
+      onInvalidated: () => undefined,
+    } as unknown as NonNullable<Parameters<typeof contentScript.main>[0]>;
+    const attachShadow = vi.spyOn(Element.prototype, "attachShadow");
+    const chipText = () => attachShadow.mock.results[0]?.value.querySelector(".chip")?.textContent;
+    const tick = async (atMs: number) => {
+      nowMs = atMs;
+      state.intervalCallback?.();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    };
+
+    window.history.replaceState(null, "", "/user/status/321");
+    contentScript.main(context);
+    await tick(0);
+    expect(state.sendMessage).toHaveBeenCalledWith({ type: "x-copilot:window-focused" });
+    for (let second = 1; second <= 3; second += 1) await tick(second * 1_000);
+    expect(chipText()).toBe("Reading7s");
+
+    state.sendMessage.mockResolvedValue({ focused: false });
+    await tick(3_250);
+    for (let second = 4; second <= 6; second += 1) await tick(second * 1_000);
+    expect(chipText()).toBe("Reading7s");
+  });
+
+  it("does not request window focus while hidden or while the post is off screen", () => {
+    vi.spyOn(document, "hasFocus").mockReturnValue(false);
+    const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+    let postTop = 2_000;
+    const post = document.createElement("article");
+    post.setAttribute("data-testid", "tweet");
+    vi.spyOn(post, "getBoundingClientRect").mockImplementation(() => ({
+      top: postTop,
+      bottom: postTop + 90,
+      left: 10,
+      right: 300,
+      width: 290,
+      height: 90,
+      x: 10,
+      y: postTop,
+      toJSON: () => ({}),
+    }));
+    document.body.append(post);
+
+    const context = {
+      setInterval: (callback: () => void) => {
+        state.intervalCallback = callback;
+      },
+      onInvalidated: () => undefined,
+    } as unknown as NonNullable<Parameters<typeof contentScript.main>[0]>;
+
+    window.history.replaceState(null, "", "/user/status/654");
+    contentScript.main(context);
+    state.intervalCallback?.();
+    state.intervalCallback?.();
+    expect(state.sendMessage).not.toHaveBeenCalled();
+
+    visibility.mockReturnValue("visible");
+    state.intervalCallback?.();
+    expect(state.sendMessage).not.toHaveBeenCalled();
+
+    postTop = 10;
+    state.intervalCallback?.();
+    expect(state.sendMessage).toHaveBeenCalledWith({ type: "x-copilot:window-focused" });
   });
 
   it("reports added toast links without rescanning the document and dedupes sent links", async () => {

@@ -1,10 +1,11 @@
 import { browser } from "wxt/browser";
 import { defineBackground } from "wxt/utils/define-background";
-import { parseReplySeenMessage, parseStorePairingMessage } from "../lib/messages";
+import { isWindowFocusedMessage, parseReplySeenMessage, parseStorePairingMessage } from "../lib/messages";
 import { pairingFromDesk } from "../lib/pairing";
 import { writePairing } from "../lib/pairingStore";
 import { reportReply } from "../lib/reportReply";
 import { toggleSidebarOnToolbarClick } from "../lib/toolbar";
+import { senderWindowFocused } from "../lib/windowFocus";
 
 function senderOrigin(url: string | undefined): string | null {
   if (!url) return null;
@@ -31,6 +32,7 @@ export default defineBackground(() => {
         () => ({ ok: false }),
       );
     }
+    if (isWindowFocusedMessage(raw)) return senderWindowFocused(sender, (windowId) => browser.windows.get(windowId));
     const message = parseStorePairingMessage(raw);
     if (!message) return undefined;
     const origin = senderOrigin(sender.url);

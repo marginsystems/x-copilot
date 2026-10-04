@@ -2,6 +2,7 @@ import { browser } from "wxt/browser";
 import { defineContentScript } from "wxt/utils/define-content-script";
 import {
   IDLE_CLOCK,
+  attentionReady,
   attentionSecondsLeft,
   chipPhase,
   parseAttentionMemory,
@@ -10,7 +11,7 @@ import {
   statusIdFromPath,
   tickAttention,
 } from "../lib/attention";
-import { REPLY_SEEN } from "../lib/messages";
+import { REPLY_SEEN, WINDOW_FOCUSED } from "../lib/messages";
 import { postedStatusUrl } from "../lib/replySeen";
 import { ATTENTION_GATE_KEY, parseAttentionGate } from "../lib/settings";
 import { readAttentionGate } from "../lib/settingsStore";
@@ -208,15 +209,36 @@ export default defineContentScript({
     observer.observe(document.body, { childList: true, subtree: true });
     ctx.onInvalidated(() => observer.disconnect());
 
+    let windowFocused = false;
+    let askingWindowFocus = false;
+    function askWindowFocus() {
+      if (askingWindowFocus) return;
+      askingWindowFocus = true;
+      browser.runtime
+        .sendMessage({ type: WINDOW_FOCUSED })
+        .then(
+          (response) => { windowFocused = response?.focused === true; },
+          () => { windowFocused = false; },
+        )
+        .finally(() => { askingWindowFocus = false; });
+    }
+
     ctx.setInterval(() => {
       const statusId = statusIdFromPath(window.location.pathname);
       const nowMs = Date.now();
+      const pageFocused = document.hasFocus();
+      const visible = document.visibilityState === "visible";
+      const postIsInView = enabled && statusId !== null && (statusId === clock.statusId || (!pageFocused && visible))
+        ? postInView()
+        : false;
+      if (pageFocused) windowFocused = false;
+      else if (visible && postIsInView && !attentionReady(clock)) askWindowFocus();
       clock = tickAttention(clock, {
         statusId,
         nowMs,
-        visible: document.visibilityState === "visible",
-        focused: document.hasFocus(),
-        postInView: enabled && statusId !== null && statusId === clock.statusId ? postInView() : false,
+        visible,
+        focused: pageFocused || windowFocused,
+        postInView: postIsInView,
       }, memory);
       const remembered = rememberAttention(memory, clock);
       if (remembered !== memory) {

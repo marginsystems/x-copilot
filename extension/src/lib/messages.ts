@@ -17,3 +17,9 @@ export function parseReplySeenMessage(raw: unknown): ReplySeenMessage | null {
   const pageStatusId = typeof raw.pageStatusId === "string" ? raw.pageStatusId : null;
   return { type: REPLY_SEEN, replyUrl: raw.replyUrl, pageStatusId };
 }
+
+export const WINDOW_FOCUSED = "x-copilot:window-focused";
+
+export function isWindowFocusedMessage(raw: unknown): boolean {
+  return isRecord(raw) && raw.type === WINDOW_FOCUSED;
+}
