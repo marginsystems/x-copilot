@@ -95,7 +95,7 @@ describe("App", () => {
 
   it("fills Next and leaves every Open button hollow", async () => {
     readPairing.mockResolvedValue(paired);
-    loadPanelData.mockResolvedValue({ lock: null, lockSupported: true, replyAt: [], scout: null });
+    loadPanelData.mockResolvedValue({ lock: null, lockSupported: true, replyAt: [], repliesToday: null, scout: null });
     const { container, root } = await mountPanel();
 
     expect(buttonLabelled(container, "Open For You")?.className).toBe("ghost");
@@ -106,7 +106,7 @@ describe("App", () => {
 
   it("asks before skipping a For You card whose post is not detected", async () => {
     readPairing.mockResolvedValue(paired);
-    loadPanelData.mockResolvedValue({ lock: null, lockSupported: true, replyAt: [], scout: null });
+    loadPanelData.mockResolvedValue({ lock: null, lockSupported: true, replyAt: [], repliesToday: null, scout: null });
     askDeskForNext.mockResolvedValue(true);
     waitForLockChange.mockResolvedValue(null);
     const { container, root } = await mountPanel();
@@ -138,7 +138,7 @@ describe("App", () => {
 
   it("cancels the question with Escape", async () => {
     readPairing.mockResolvedValue(paired);
-    loadPanelData.mockResolvedValue({ lock: null, lockSupported: true, replyAt: [], scout: null });
+    loadPanelData.mockResolvedValue({ lock: null, lockSupported: true, replyAt: [], repliesToday: null, scout: null });
     const { container, root } = await mountPanel();
 
     await press(container, "Next");
@@ -154,8 +154,8 @@ describe("App", () => {
   it("drops the question when the desk reports the post detected", async () => {
     readPairing.mockResolvedValue(paired);
     loadPanelData
-      .mockResolvedValueOnce({ lock: null, lockSupported: true, replyAt: [], scout: null })
-      .mockResolvedValue({ lock: null, lockSupported: true, deskState: { view: "for_you", detected: true }, replyAt: [], scout: null });
+      .mockResolvedValueOnce({ lock: null, lockSupported: true, replyAt: [], repliesToday: null, scout: null })
+      .mockResolvedValue({ lock: null, lockSupported: true, deskState: { view: "for_you", detected: true }, replyAt: [], repliesToday: null, scout: null });
     const { container, root } = await mountPanel();
 
     await press(container, "Next");
@@ -227,7 +227,7 @@ describe("App", () => {
       apiBase: "https://api.xcopilot.dev",
       deskOrigin: "https://xcopilot.dev",
     });
-    loadPanelData.mockResolvedValue({ lock: null, lockSupported: false, replyAt: [], scout: null });
+    loadPanelData.mockResolvedValue({ lock: null, lockSupported: false, replyAt: [], repliesToday: null, scout: null });
     const container = document.createElement("div");
     document.body.append(container);
     const root = createRoot(container);
@@ -255,8 +255,8 @@ describe("App", () => {
     storageData.lastReplySeenAt = now - 1_000;
     storageData.panelCardSince = { key: "for_you", sinceMs: now - 5_000 };
     loadPanelData
-      .mockResolvedValueOnce({ lock: null, lockSupported: true, replyAt: [], scout: null })
-      .mockResolvedValueOnce({ lock: null, lockSupported: true, replyAt: [], scout: null });
+      .mockResolvedValueOnce({ lock: null, lockSupported: true, replyAt: [], repliesToday: null, scout: null })
+      .mockResolvedValueOnce({ lock: null, lockSupported: true, replyAt: [], repliesToday: null, scout: null });
     askDeskForNext.mockResolvedValue(true);
     waitForLockChange.mockResolvedValue({
       card: { id: "42", conversationId: null, inReplyToId: null, surface: "reply", author: "@dana", url: null, text: null },
@@ -299,8 +299,8 @@ describe("App", () => {
     const first = { id: "1", conversationId: null, inReplyToId: null, surface: "reply", author: "@ada", url: null, text: "First post" };
     const second = { ...first, id: "2", author: "@bob", text: "Second post" };
     loadPanelData
-      .mockResolvedValueOnce({ lock: first, lockSupported: true, replyAt: [], scout: null })
-      .mockResolvedValue({ lock: second, lockSupported: true, replyAt: [], scout: null });
+      .mockResolvedValueOnce({ lock: first, lockSupported: true, replyAt: [], repliesToday: null, scout: null })
+      .mockResolvedValue({ lock: second, lockSupported: true, replyAt: [], repliesToday: null, scout: null });
     const container = document.createElement("div");
     document.body.append(container);
     const root = createRoot(container);
@@ -336,7 +336,7 @@ describe("App", () => {
     const second = { ...first, id: "2", author: "@bob", text: "Second post" };
     let resolveRefresh!: (data: { lock: typeof first | null; lockSupported: boolean; replyAt: never[]; scout: null }) => void;
     loadPanelData
-      .mockResolvedValueOnce({ lock: first, lockSupported: true, replyAt: [], scout: null })
+      .mockResolvedValueOnce({ lock: first, lockSupported: true, replyAt: [], repliesToday: null, scout: null })
       .mockReturnValueOnce(new Promise((resolve) => { resolveRefresh = resolve; }));
     askDeskForNext.mockResolvedValue(true);
     waitForLockChange.mockResolvedValue({ card: second, supported: true, valid: true });
@@ -374,7 +374,7 @@ describe("App", () => {
 
   it("keeps the reading timer toggle behind the settings gear", async () => {
     readPairing.mockResolvedValue(paired);
-    loadPanelData.mockResolvedValue({ lock: null, lockSupported: true, replyAt: [], scout: null });
+    loadPanelData.mockResolvedValue({ lock: null, lockSupported: true, replyAt: [], repliesToday: null, scout: null });
     const container = document.createElement("div");
     document.body.append(container);
     const root = createRoot(container);
@@ -445,7 +445,7 @@ describe("App", () => {
   it("shows the preloaded next card at once, before the desk answers", async () => {
     readPairing.mockResolvedValue(paired);
     const upNext = { id: "42", conversationId: null, inReplyToId: null, surface: "reply", author: "@dana", url: null, text: "Preloaded post" };
-    loadPanelData.mockResolvedValue({ lock: null, lockSupported: true, nextUp: { card: upNext }, replyAt: [], scout: null });
+    loadPanelData.mockResolvedValue({ lock: null, lockSupported: true, nextUp: { card: upNext }, replyAt: [], repliesToday: null, scout: null });
     askDeskForNext.mockResolvedValue(true);
     waitForLockChange.mockReturnValue(new Promise(() => undefined));
     const container = document.createElement("div");
@@ -484,7 +484,7 @@ describe("App", () => {
     storageData.lastRepliedCardId = "1";
     const current = { id: "1", conversationId: null, inReplyToId: null, surface: "reply", author: "@ada", url: null, text: "Current post" };
     const preloaded = { ...current, id: "2", author: "@dana", text: "Preloaded post" };
-    loadPanelData.mockResolvedValue({ lock: current, lockSupported: true, nextUp: { card: preloaded }, replyAt: [], scout: null });
+    loadPanelData.mockResolvedValue({ lock: current, lockSupported: true, nextUp: { card: preloaded }, replyAt: [], repliesToday: null, scout: null });
     askDeskForNext.mockResolvedValue(true);
     let giveUp!: (value: null) => void;
     waitForLockChange.mockReturnValue(new Promise<null>((resolve) => { giveUp = resolve; }));
@@ -569,7 +569,7 @@ describe("App", () => {
     readPairing.mockResolvedValue(paired);
     const preloaded = { id: "42", conversationId: null, inReplyToId: null, surface: "reply", author: "@dana", url: null, text: "Preloaded post" };
     const confirmed = { ...preloaded, id: "43", author: "@lee", text: "Confirmed post" };
-    loadPanelData.mockResolvedValue({ lock: null, lockSupported: true, nextUp: { card: preloaded }, replyAt: [], scout: null });
+    loadPanelData.mockResolvedValue({ lock: null, lockSupported: true, nextUp: { card: preloaded }, replyAt: [], repliesToday: null, scout: null });
     askDeskForNext.mockResolvedValue(true);
     waitForLockChange.mockResolvedValue({ card: confirmed, supported: true, valid: true });
     let resolveTabs!: (tabs: never[]) => void;
@@ -611,7 +611,7 @@ describe("App", () => {
   it("stays on its card with a notice when no desk is open to take the Next", async () => {
     readPairing.mockResolvedValue(paired);
     const upNext = { id: "42", conversationId: null, inReplyToId: null, surface: "reply", author: "@dana", url: null, text: "Preloaded post" };
-    loadPanelData.mockResolvedValue({ lock: null, lockSupported: true, nextUp: { card: upNext }, replyAt: [], scout: null });
+    loadPanelData.mockResolvedValue({ lock: null, lockSupported: true, nextUp: { card: upNext }, replyAt: [], repliesToday: null, scout: null });
     askDeskForNext.mockResolvedValue(false);
     const container = document.createElement("div");
     document.body.append(container);
@@ -647,9 +647,9 @@ describe("App", () => {
     const found = { id: "77", conversationId: null, inReplyToId: null, surface: "reply", author: "@eve", url: null, text: "Fresh from Scout" };
     const collecting = { view: "collecting", detected: false };
     loadPanelData
-      .mockResolvedValueOnce({ lock: null, lockSupported: true, deskState: { view: "for_you", detected: false }, replyAt: [], scout: null })
-      .mockResolvedValueOnce({ lock: null, lockSupported: true, deskState: collecting, replyAt: [], scout: null })
-      .mockResolvedValue({ lock: found, lockSupported: true, deskState: { view: "scout", detected: false }, replyAt: [], scout: null });
+      .mockResolvedValueOnce({ lock: null, lockSupported: true, deskState: { view: "for_you", detected: false }, replyAt: [], repliesToday: null, scout: null })
+      .mockResolvedValueOnce({ lock: null, lockSupported: true, deskState: collecting, replyAt: [], repliesToday: null, scout: null })
+      .mockResolvedValue({ lock: found, lockSupported: true, deskState: { view: "scout", detected: false }, replyAt: [], repliesToday: null, scout: null });
     askDeskForNext.mockResolvedValue(true);
     waitForLockChange.mockResolvedValue({ card: null, next: null, state: collecting, supported: true, valid: true });
     const container = document.createElement("div");
@@ -700,7 +700,7 @@ describe("App", () => {
     storageData.panelCardSince = { key: "for_you", sinceMs: now - 5_000 };
     const stale = { id: "42", conversationId: null, inReplyToId: null, surface: "reply", author: "@dana", url: null, text: "Stale preloaded post" };
     const picked = { ...stale, id: "77", author: "@eve", text: "Picked by the server" };
-    loadPanelData.mockResolvedValue({ lock: null, lockSupported: true, nextUp: { card: stale }, replyAt: [], scout: null });
+    loadPanelData.mockResolvedValue({ lock: null, lockSupported: true, nextUp: { card: stale }, replyAt: [], repliesToday: null, scout: null });
     askDeskForNext.mockResolvedValue("server");
     let confirm!: (value: unknown) => void;
     waitForLockChange.mockReturnValue(new Promise((resolve) => { confirm = resolve; }));

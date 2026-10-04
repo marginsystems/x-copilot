@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   parseScoutStats,
   repliesOnUtcDay,
+  repliesTodayCount,
   SCOUT_MAX_CELL,
   SCOUT_MIN_CELL,
   SCOUT_SPRITE_SIZE,
@@ -27,6 +28,24 @@ describe("repliesOnUtcDay", () => {
     expect(
       repliesOnUtcDay(["2026-10-04T11:00:00.000Z", "2026-10-04T00:00:01.000Z", "2026-10-03T23:59:59.000Z"], now),
     ).toBe(2);
+  });
+});
+
+describe("repliesTodayCount", () => {
+  const now = Date.parse("2026-10-04T12:00:00.000Z");
+
+  it("uses the server's count for the day, not the one reply time the quick read carries", () => {
+    expect(repliesTodayCount(69, ["2026-10-04T11:00:00.000Z"], now)).toBe(69);
+  });
+
+  it("counts a reply the panel has seen that the server has not counted yet", () => {
+    const seen = ["2026-10-04T11:00:00.000Z", "2026-10-04T10:00:00.000Z", "2026-10-04T09:00:00.000Z"];
+    expect(repliesTodayCount(2, seen, now)).toBe(3);
+  });
+
+  it("falls back to the reply times on a server that sends no count", () => {
+    expect(repliesTodayCount(null, ["2026-10-04T11:00:00.000Z"], now)).toBe(1);
+    expect(repliesTodayCount(undefined, [], now)).toBe(0);
   });
 });
 

@@ -17,6 +17,7 @@ export type PanelData = {
   nextUp: ScoutApproachNext | null;
   deskState: DeskApproachState | null;
   replyAt: string[];
+  repliesToday: number | null;
   scout: ScoutStats | null;
 };
 
@@ -50,6 +51,7 @@ export async function loadPanelData(pairing: Pairing): Promise<PanelData> {
     nextUp: lock.next,
     deskState: lock.state,
     replyAt: parseCoachingPayload(coachingRaw)?.replyAt ?? [],
+    repliesToday: parseCoachingPayload(coachingRaw)?.repliesToday ?? null,
     scout,
   };
 }

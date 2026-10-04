@@ -578,6 +578,25 @@ export function newestInteractionPostedAtSince(opts: {
   return row.postedAt;
 }
 
+export function countInteractionsPostedSince(opts: {
+  userId: string;
+  sinceIso: string;
+}): number {
+  const userId = requireUserId(opts.userId);
+  const row: unknown = getPlatformDb()
+    .prepare(
+      `SELECT COUNT(*) AS total
+         FROM desk_interactions
+        WHERE user_id = ?
+          AND julianday(COALESCE(NULLIF(posted_at, ''), at)) >= julianday(?)`,
+    )
+    .get(userId, opts.sinceIso);
+  if (!isRecord(row) || typeof row.total !== "number") {
+    throw new TypeError("Invalid database row");
+  }
+  return row.total;
+}
+
 /**
  * Every user's rows (worker sweeps: stats due queue, projection retries).
  * Newest first, capped per call. Not for desk reads.

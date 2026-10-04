@@ -22,6 +22,14 @@ export function repliesOnUtcDay(replyAt: readonly string[], nowMs: number): numb
   return replyAt.filter((iso) => iso.slice(0, 10) === day).length;
 }
 
+export function repliesTodayCount(
+  serverCount: number | null | undefined,
+  replyAt: readonly string[],
+  nowMs: number,
+): number {
+  return Math.max(serverCount ?? 0, repliesOnUtcDay(replyAt, nowMs));
+}
+
 export const SCOUT_MIN_CELL = 3;
 export const SCOUT_MAX_CELL = 5;
 export const SCOUT_FULL_CHARGE_REPLIES = 6;

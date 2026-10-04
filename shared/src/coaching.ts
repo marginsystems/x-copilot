@@ -45,6 +45,8 @@ export type CoachingState = {
   postsToday?: number;
   /** own_posts originals today (not quotes). */
   originalsToday?: number;
+  /** Replies this UTC day, from the lite read. The full read carries replyAt instead. */
+  repliesToday?: number;
   /** Last 500 reply times on the desk, newest first. */
   replyAt?: string[];
   /** Last 500 original posted_at values. */
@@ -159,6 +161,7 @@ export function parseCoachingPayload(raw: unknown): CoachingState | null {
     beats: parseDeskBeats(row.beats),
     postsToday: finiteNonNeg(row.postsToday) ?? 0,
     originalsToday: finiteNonNeg(row.originalsToday) ?? 0,
+    ...(finiteNonNeg(row.repliesToday) === null ? {} : { repliesToday: finiteNonNeg(row.repliesToday) ?? 0 }),
     replyAt: parseIsoList(row.replyAt),
     originalAt: parseIsoList(row.originalAt),
     postAt: parseIsoList(row.postAt),

@@ -19,6 +19,11 @@ import { markInteracted } from "./interactionStore.ts";
 import { upsertOwnPost } from "./ownPostStore.ts";
 import type { ChatFn } from "../platform/llmJson.ts";
 
+function expectReplyTimes(value: unknown): unknown[] {
+  assert.ok(Array.isArray(value));
+  return value;
+}
+
 async function getCoaching(opts: {
   path?: string;
   cookie?: string;
@@ -106,11 +111,31 @@ await describe("GET /api/coaching", async () => {
     assert.equal(typeof response.body.originalsToday, "number");
     assert.ok(response.body.beats);
     assert.deepEqual(response.body.replyAt, []);
+    assert.equal(response.body.repliesToday, 0);
     assert.deepEqual(response.body.postAt, []);
     assert.equal(response.body.ownActivity, null);
     assert.equal("nextAction" in response.body, false);
     assert.equal("missions" in response.body, false);
     assert.equal("originalAt" in response.body, false);
+  });
+
+  await it("counts this UTC day's replies in lite, however many there are", async () => {
+    const nowMs = Date.now();
+    const startOfDay = Date.parse(`${new Date(nowMs).toISOString().slice(0, 10)}T00:00:00.000Z`);
+    for (const [threadId, postedMs] of [["t1", startOfDay], ["t2", startOfDay + 1], ["t3", nowMs], ["y1", startOfDay - 1]] as const) {
+      await markInteracted({
+        threadId,
+        author: `@${threadId}`,
+        userId,
+        replyId: threadId,
+        postedAt: new Date(postedMs).toISOString(),
+        nowMs: postedMs,
+      });
+    }
+    const response = await getCoaching({ path: "/api/coaching?lite=1", cookie });
+    assert.equal(response.status, 200);
+    assert.equal(response.body.repliesToday, 3);
+    assert.equal((expectReplyTimes(response.body.replyAt)).length, 1);
   });
 
   await it("returns the newest in-window lite instruments", async () => {

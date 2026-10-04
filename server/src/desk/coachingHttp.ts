@@ -14,6 +14,7 @@ import {
   loadNewestOwnActivity,
 } from "./coachingSnapshot.js";
 import { listMissionsWithProgress } from "./dailyMissions.js";
+import { countInteractionsPostedSince } from "./interactionStore.js";
 import { getDeskBeats } from "./deskBeats.js";
 import { send } from "../http/httpJson.js";
 import { getOrRefreshNextAction } from "./nextActionLlm.js";
@@ -55,6 +56,10 @@ export async function tryHandleCoaching(
         beats,
         postsToday: counts.postsToday,
         originalsToday: counts.originalsToday,
+        repliesToday: countInteractionsPostedSince({
+          userId: user.id,
+          sinceIso: `${counts.dayUtc}T00:00:00.000Z`,
+        }),
         replyAt: times.replyAt,
         postAt: times.postAt,
         ownActivity,
