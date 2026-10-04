@@ -1,9 +1,15 @@
 import { SCOUT_SPRITE_SIZE, scoutSprite, type ScoutLook } from "./scoutCompanion.ts";
 import {
+  scoutArriveRun,
   scoutHostWeight,
+  scoutLeaveRun,
   scoutSpeaker,
   scoutVisitorStep,
-  scoutVisitPhase,
+  SCOUT_VISIT_BACK_AT_MS,
+  SCOUT_VISIT_EXIT_AT_MS,
+  SCOUT_VISIT_GREET_AT_MS,
+  SCOUT_VISIT_GREET_MS,
+  SCOUT_VISIT_IN_AT_MS,
   SCOUT_VISIT_TOTAL_MS,
   type ScoutVisitSide,
 } from "./scoutVisit.ts";
@@ -11,7 +17,8 @@ import {
 export const SCOUT_STAGE_HEIGHT = 132;
 export const SCOUT_CANVAS_LABEL = "Scout, your X Copilot companion";
 
-const GROUND_INSET = 10;
+export const SCOUT_GROUND_INSET = 10;
+export const SCOUT_SHADOW_DEPTH = 3;
 const BLINK_EVERY_MS = 3_200;
 const BLINK_MS = 140;
 const BOB_MS = 520;
@@ -103,6 +110,8 @@ function hopLift(motion: ScoutMotion, timeMs: number, cell: number): number {
 
 type Pose = { left: number; facingLeft: boolean; lift: number; hidden: boolean };
 
+type PatrolAt = (timeMs: number) => Pose;
+
 function ease(progress: number): number {
   return progress * progress * (3 - 2 * progress);
 }
@@ -111,45 +120,38 @@ function mix(from: number, to: number, progress: number): number {
   return Math.round(from + (to - from) * ease(progress));
 }
 
-function travelLift(progress: number, cell: number): number {
-  return Math.round(Math.abs(Math.sin(progress * Math.PI * 2)) * 3) * cell;
+function runLift(hop: number, cell: number): number {
+  return Math.round(hop * 3) * cell;
 }
 
 function greetLift(progress: number, cell: number): number {
   return Math.round(Math.sin(progress * Math.PI) * 3) * cell;
 }
 
-function edgeLeft(edge: ScoutVisitSide, width: number, size: number): number {
-  return edge === "right" ? width : -size;
+function offStage(left: number, width: number, size: number): boolean {
+  return left + size * 3 <= 0 || left - size * 2 >= width;
 }
 
 function departPose(
   visit: Extract<ScoutVisitState, { role: "depart" }>,
-  patrol: Pose,
+  patrolAt: PatrolAt,
+  timeMs: number,
   width: number,
   size: number,
   cell: number,
 ): Pose {
-  const phase = scoutVisitPhase(visit.elapsedMs);
-  const edge = edgeLeft(visit.side, width, size);
-  if (phase.name === "leave") {
-    return {
-      left: mix(patrol.left, edge, phase.progress),
-      facingLeft: visit.side === "left",
-      lift: travelLift(phase.progress, cell),
-      hidden: false,
-    };
+  const startMs = timeMs - visit.elapsedMs;
+  const toLeft = visit.side === "left";
+  if (visit.elapsedMs < SCOUT_VISIT_BACK_AT_MS) {
+    const start = patrolAt(startMs).left;
+    const run = scoutLeaveRun(visit.elapsedMs, toLeft ? start : width - size - start);
+    const left = Math.round(toLeft ? start - run.offset : start + run.offset);
+    return { left, facingLeft: toLeft, lift: runLift(run.hop, cell), hidden: offStage(left, width, size) };
   }
-  if (phase.name === "stay") return { ...patrol, hidden: true };
-  if (phase.name === "return") {
-    return {
-      left: mix(edge, patrol.left, phase.progress),
-      facingLeft: visit.side === "right",
-      lift: travelLift(phase.progress, cell),
-      hidden: false,
-    };
-  }
-  return patrol;
+  const home = patrolAt(startMs + SCOUT_VISIT_TOTAL_MS).left;
+  const run = scoutArriveRun(visit.elapsedMs - SCOUT_VISIT_BACK_AT_MS, toLeft ? home + size : width - home, size);
+  const left = Math.round(toLeft ? run.offset - size : width - run.offset);
+  return { left, facingLeft: !toLeft, lift: runLift(run.hop, cell), hidden: offStage(left, width, size) };
 }
 
 function hostSpots(width: number, size: number, cell: number, entry: ScoutVisitSide) {
@@ -167,20 +169,22 @@ function guestPose(
   size: number,
   cell: number,
 ): Pose | null {
-  const step = scoutVisitorStep(visit.elapsedMs);
-  const edge = edgeLeft(visit.entry, width, size);
-  const inward = visit.entry === "right";
-  if (step.name === "enter") {
-    return { left: mix(edge, spot, step.progress), facingLeft: inward, lift: travelLift(step.progress, cell), hidden: false };
+  const { elapsedMs } = visit;
+  if (elapsedMs < SCOUT_VISIT_IN_AT_MS || elapsedMs >= SCOUT_VISIT_TOTAL_MS) return null;
+  const fromRight = visit.entry === "right";
+  if (elapsedMs < SCOUT_VISIT_GREET_AT_MS) {
+    const run = scoutArriveRun(elapsedMs - SCOUT_VISIT_IN_AT_MS, fromRight ? width - spot : spot + size, size);
+    const left = Math.round(fromRight ? width - run.offset : run.offset - size);
+    return { left, facingLeft: fromRight, lift: runLift(run.hop, cell), hidden: false };
   }
-  if (step.name === "greet") {
-    const lift = step.progress < 0.5 ? greetLift(step.progress * 2, cell) : 0;
-    return { left: spot, facingLeft: inward, lift, hidden: false };
+  if (elapsedMs < SCOUT_VISIT_EXIT_AT_MS) {
+    const progress = (elapsedMs - SCOUT_VISIT_GREET_AT_MS) / SCOUT_VISIT_GREET_MS;
+    const lift = progress < 0.5 ? greetLift(progress * 2, cell) : 0;
+    return { left: spot, facingLeft: fromRight, lift, hidden: false };
   }
-  if (step.name === "exit") {
-    return { left: mix(spot, edge, step.progress), facingLeft: !inward, lift: travelLift(step.progress, cell), hidden: false };
-  }
-  return null;
+  const run = scoutLeaveRun(elapsedMs - SCOUT_VISIT_EXIT_AT_MS, fromRight ? width - spot - size : spot);
+  const left = Math.round(fromRight ? spot + run.offset : spot - run.offset);
+  return { left, facingLeft: !fromRight, lift: runLift(run.hop, cell), hidden: offStage(left, width, size) };
 }
 
 function residentHostPose(
@@ -230,71 +234,51 @@ function drawBubble(ctx: ScoutBrush, speaker: ScoutPalette, centerX: number, bot
   });
 }
 
-export function paintScout(ctx: ScoutBrush, frame: ScoutFrame): void {
-  const { width, height, palette, look, motion, timeMs, still } = frame;
-  const visit = still ? null : (frame.visit ?? null);
+type Figure = { left: number; top: number; facingLeft: boolean; palette: ScoutPalette };
+
+type Scene = {
+  ctx: ScoutBrush;
+  look: ScoutLook;
+  timeMs: number;
+  still: boolean;
+  width: number;
+  ground: number;
+  size: number;
+  pulse: number;
+  blink: boolean;
+};
+
+function drawAura(scene: Scene, figure: Figure): void {
+  const { ctx, look, width, ground, size, pulse } = scene;
+  if (look.glow <= 0) return;
+  const centerX = figure.left + size / 2;
+  const centerY = figure.top + size / 2;
+  const reach = Math.min(centerY, size * (0.8 + look.glow * 0.5));
+  const aura = ctx.createRadialGradient(centerX, centerY, size * 0.2, centerX, centerY, reach);
+  aura.addColorStop(0, `rgba(125, 186, 138, ${(0.38 * look.glow * pulse).toFixed(3)})`);
+  aura.addColorStop(1, "rgba(125, 186, 138, 0)");
+  ctx.fillStyle = aura;
+  ctx.fillRect(0, 0, width, ground);
+}
+
+function drawBody(scene: Scene, figure: Figure): void {
+  const { ctx, look, timeMs, still, ground, size, pulse, blink } = scene;
+  const { left, top, facingLeft, palette } = figure;
   const cell = look.cell;
-  const size = SCOUT_SPRITE_SIZE * cell;
-  const ground = height - GROUND_INSET;
-  const roam = Math.max(0, (width - size) / 2 - cell * 4);
-  const swing = look.awake && !still ? Math.sin((timeMs / PATROL_MS) * Math.PI * 2) : 0;
-  const patrol: Pose = {
-    left: Math.round((width - size) / 2 + swing * roam),
-    facingLeft: look.awake && !still && Math.cos((timeMs / PATROL_MS) * Math.PI * 2) < 0,
-    lift: 0,
-    hidden: false,
-  };
-  const spots = visit?.role === "host" ? hostSpots(width, size, cell, visit.entry) : null;
-  let pose = patrol;
-  if (visit?.role === "depart") pose = departPose(visit, patrol, width, size, cell);
-  if (visit?.role === "host" && spots) pose = residentHostPose(visit, patrol, spots.resident, cell);
-  const { left, facingLeft, hidden } = pose;
-  const bob = still ? 0 : Math.floor(timeMs / BOB_MS) % 2 === 0 ? 0 : look.awake ? cell : 0;
-  const top = ground - size - bob - hopLift(motion, timeMs, cell) - pose.lift;
-  const pulse = still ? 1 : 0.75 + 0.25 * Math.sin(timeMs / 380);
-
-  ctx.clearRect(0, 0, width, height);
-
-  if (look.glow > 0 && !hidden) {
-    const centerX = left + size / 2;
-    const centerY = top + size / 2;
-    const reach = Math.min(centerY, size * (0.8 + look.glow * 0.5));
-    const aura = ctx.createRadialGradient(centerX, centerY, size * 0.2, centerX, centerY, reach);
-    aura.addColorStop(0, `rgba(125, 186, 138, ${(0.38 * look.glow * pulse).toFixed(3)})`);
-    aura.addColorStop(1, "rgba(125, 186, 138, 0)");
-    ctx.fillStyle = aura;
-    ctx.fillRect(0, 0, width, ground);
-  }
-
-  ctx.fillStyle = palette.ground;
-  ctx.fillRect(0, ground, width, 1);
-
-  const blink = !still && timeMs % BLINK_EVERY_MS < BLINK_MS;
-  const drawSprite = (
-    spriteLeft: number,
-    spriteTop: number,
-    mirrored: boolean,
-    colors: ScoutPalette,
-    bulb: string,
-    sprite: { scarf: boolean; bigBulb: boolean },
-  ) => {
-    ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
-    ctx.fillRect(spriteLeft + cell * 3, ground + 1, size - cell * 6, 2);
-    const rows = scoutSprite({ awake: look.awake, blink, scarf: sprite.scarf, bigBulb: sprite.bigBulb });
-    rows.forEach((row, y) => {
-      for (let x = 0; x < row.length; x += 1) {
-        const color = cellColor(row.charAt(mirrored ? row.length - 1 - x : x), bulb, colors);
-        if (!color) continue;
-        ctx.fillStyle = color;
-        ctx.fillRect(spriteLeft + x * cell, spriteTop + y * cell, cell, cell);
-      }
-    });
-  };
-
   const bulb = look.glow > 0 && pulse > 0.7 ? palette.bulbOn : look.glow > 0 ? palette.outline : palette.bulbOff;
-  if (!hidden) drawSprite(left, top, facingLeft, palette, bulb, look);
+  ctx.fillStyle = "rgba(0, 0, 0, 0.35)";
+  ctx.fillRect(left + cell * 3, ground + 1, size - cell * 6, SCOUT_SHADOW_DEPTH - 1);
+  const rows = scoutSprite({ awake: look.awake, blink, scarf: look.scarf, bigBulb: look.bigBulb });
+  rows.forEach((row, y) => {
+    for (let x = 0; x < row.length; x += 1) {
+      const color = cellColor(row.charAt(facingLeft ? row.length - 1 - x : x), bulb, palette);
+      if (!color) continue;
+      ctx.fillStyle = color;
+      ctx.fillRect(left + x * cell, top + y * cell, cell, cell);
+    }
+  });
 
-  for (let index = 0; index < look.sparkles && !hidden; index += 1) {
+  for (let index = 0; index < look.sparkles; index += 1) {
     const phase = still ? 1 : Math.sin(timeMs / 260 + index * 1.7);
     if (phase < 0.2) continue;
     const angle = index * 2.4 + (still ? 0 : timeMs / 5_000);
@@ -316,22 +300,61 @@ export function paintScout(ctx: ScoutBrush, frame: ScoutFrame): void {
     ctx.fillRect(zx + cell, zy + cell, cell, cell);
     ctx.fillRect(zx, zy + cell * 2, cell * 3, cell);
   }
+}
 
-  if (visit?.role === "host" && spots) {
-    const guest = guestPose(visit, spots.guest, width, size, cell);
-    if (guest) {
-      const guestTop = ground - size - bob - guest.lift;
-      drawSprite(guest.left, guestTop, guest.facingLeft, visit.guest, visit.guest.bulbOff, {
-        scarf: false,
-        bigBulb: false,
-      });
-      if (scoutSpeaker(scoutVisitorStep(visit.elapsedMs)) === "guest") {
-        drawBubble(ctx, visit.guest, guest.left + size / 2, guestTop - cell);
-      }
-    }
-    if (scoutSpeaker(scoutVisitorStep(visit.elapsedMs)) === "resident") {
-      drawBubble(ctx, palette, left + size / 2, top - cell);
-    }
+export function paintScout(ctx: ScoutBrush, frame: ScoutFrame): void {
+  const { width, height, palette, look, motion, timeMs, still } = frame;
+  const visit = still ? null : (frame.visit ?? null);
+  const cell = look.cell;
+  const size = SCOUT_SPRITE_SIZE * cell;
+  const ground = height - SCOUT_GROUND_INSET;
+  const roam = Math.max(0, (width - size) / 2 - cell * 4);
+  const moving = look.awake && !still;
+  const patrolAt: PatrolAt = (atMs) => ({
+    left: Math.round((width - size) / 2 + (moving ? Math.sin((atMs / PATROL_MS) * Math.PI * 2) : 0) * roam),
+    facingLeft: moving && Math.cos((atMs / PATROL_MS) * Math.PI * 2) < 0,
+    lift: 0,
+    hidden: false,
+  });
+  const patrol = patrolAt(timeMs);
+  const spots = visit?.role === "host" ? hostSpots(width, size, cell, visit.entry) : null;
+  let pose = patrol;
+  if (visit?.role === "depart") pose = departPose(visit, patrolAt, timeMs, width, size, cell);
+  if (visit?.role === "host" && spots) pose = residentHostPose(visit, patrol, spots.resident, cell);
+  const bob = still || visit?.role === "depart" ? 0 : Math.floor(timeMs / BOB_MS) % 2 === 0 ? 0 : look.awake ? cell : 0;
+  const top = ground - size - bob - hopLift(motion, timeMs, cell) - pose.lift;
+  const scene: Scene = {
+    ctx,
+    look,
+    timeMs,
+    still,
+    width,
+    ground,
+    size,
+    pulse: still ? 1 : 0.75 + 0.25 * Math.sin(timeMs / 380),
+    blink: !still && timeMs % BLINK_EVERY_MS < BLINK_MS,
+  };
+
+  ctx.clearRect(0, 0, width, height);
+  ctx.fillStyle = palette.ground;
+  ctx.fillRect(0, ground, width, 1);
+
+  const guest = visit?.role === "host" && spots ? guestPose(visit, spots.guest, width, size, cell) : null;
+  const guestBob = guest && visit && scoutVisitorStep(visit.elapsedMs).name === "greet" ? bob : 0;
+  const guestTop = ground - size - guestBob - (guest?.lift ?? 0);
+
+  const figures: Figure[] = [];
+  if (!pose.hidden) figures.push({ left: pose.left, top, facingLeft: pose.facingLeft, palette });
+  if (visit?.role === "host" && guest && !guest.hidden) {
+    figures.push({ left: guest.left, top: guestTop, facingLeft: guest.facingLeft, palette: visit.guest });
+  }
+  figures.forEach((figure) => drawAura(scene, figure));
+  figures.forEach((figure) => drawBody(scene, figure));
+
+  if (visit?.role === "host" && guest) {
+    const speaker = scoutSpeaker(scoutVisitorStep(visit.elapsedMs));
+    if (speaker === "guest") drawBubble(ctx, visit.guest, guest.left + size / 2, guestTop - cell);
+    if (speaker === "resident") drawBubble(ctx, palette, pose.left + size / 2, top - cell);
   }
 }
 

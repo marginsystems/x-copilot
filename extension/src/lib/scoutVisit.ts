@@ -1,7 +1,10 @@
+import { SCOUT_GROUND_INSET, SCOUT_SHADOW_DEPTH } from "../../../shared/src/scoutCompanionStage";
 import {
   parseScoutVisit,
+  scoutStageShift,
   SCOUT_VISIT,
   SCOUT_VISIT_ACCEPTED,
+  type ScoutVisit,
   type ScoutVisitAccepted,
   type ScoutVisitSide,
 } from "../../../shared/src/scoutVisit";
@@ -12,14 +15,28 @@ export function panelSide(): ScoutVisitSide {
 }
 
 export async function relayScoutVisit(
-  send: (message: { type: typeof SCOUT_VISIT }) => Promise<unknown>,
+  send: (message: ScoutVisit) => Promise<unknown>,
   side: ScoutVisitSide,
+  visit: ScoutVisit,
 ): Promise<ScoutVisitAccepted | null> {
-  const reply: unknown = await send({ type: SCOUT_VISIT }).catch(() => null);
+  const reply: unknown = await send({ type: SCOUT_VISIT, groundFromBottomPx: visit.groundFromBottomPx }).catch(() => null);
   return isRecord(reply) && reply.ok === true ? { type: SCOUT_VISIT_ACCEPTED, side } : null;
 }
 
-export function answerScoutVisit(raw: unknown, host: () => boolean): Promise<{ ok: true }> | undefined {
-  if (!parseScoutVisit(raw)) return undefined;
-  return host() ? Promise.resolve({ ok: true }) : undefined;
+export function answerScoutVisit(raw: unknown, host: (visit: ScoutVisit) => boolean): Promise<{ ok: true }> | undefined {
+  const visit = parseScoutVisit(raw);
+  if (!visit) return undefined;
+  return host(visit) ? Promise.resolve({ ok: true }) : undefined;
+}
+
+export function measureStageShift(canvas: HTMLElement, deskGroundPx: number | null, viewportHeight: number): number {
+  const rect = canvas.getBoundingClientRect();
+  const above = canvas.previousElementSibling?.getBoundingClientRect().bottom;
+  const below = canvas.parentElement?.nextElementSibling?.getBoundingClientRect().top;
+  return scoutStageShift({
+    deskGroundPx,
+    ownGroundPx: viewportHeight - (rect.bottom - SCOUT_GROUND_INSET),
+    roomUpPx: above === undefined ? 0 : Math.max(0, rect.top - above),
+    roomDownPx: SCOUT_GROUND_INSET - SCOUT_SHADOW_DEPTH + (below === undefined ? 0 : Math.max(0, below - rect.bottom)),
+  });
 }

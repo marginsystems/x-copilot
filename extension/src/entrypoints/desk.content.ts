@@ -8,7 +8,7 @@ import {
   type ExtensionHello,
   type ExtensionPaired,
 } from "../../../shared/src/extensionBridge";
-import { parseScoutVisit } from "../../../shared/src/scoutVisit";
+import { parseScoutVisit, type ScoutVisit } from "../../../shared/src/scoutVisit";
 import { isRecord } from "../../../shared/src/typeGuards";
 import { DESK_MATCHES } from "../lib/desks";
 import { STORE_PAIRING } from "../lib/messages";
@@ -42,8 +42,8 @@ export default defineContentScript({
       window.postMessage(paired, origin);
     }
 
-    async function relayVisit() {
-      const accepted = await relayScoutVisit((message) => browser.runtime.sendMessage(message), panelSide());
+    async function relayVisit(visit: ScoutVisit) {
+      const accepted = await relayScoutVisit((message) => browser.runtime.sendMessage(message), panelSide(), visit);
       if (accepted) window.postMessage(accepted, origin);
     }
 
@@ -53,8 +53,9 @@ export default defineContentScript({
         announce().catch(() => undefined);
         return;
       }
-      if (parseScoutVisit(event.data)) {
-        relayVisit().catch(() => undefined);
+      const visit = parseScoutVisit(event.data);
+      if (visit) {
+        relayVisit(visit).catch(() => undefined);
         return;
       }
       if (parseExtensionPair(event.data)) {

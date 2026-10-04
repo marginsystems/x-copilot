@@ -4,6 +4,7 @@ import { repliesTodayCount, scoutCheersFor, scoutLook, type ScoutCardWatch } fro
 import {
   SCOUT_CANVAS_LABEL,
   SCOUT_DESK_PALETTE,
+  SCOUT_GROUND_INSET,
   startScoutStage,
   type ScoutPalette,
   type ScoutStage,
@@ -35,14 +36,25 @@ function deskPalette(node: Element): ScoutPalette {
   };
 }
 
-let visitAskedThisLoad = false;
+const VISIT_SETTLE_MS = 1_200;
 
-function askForVisit(): void {
+let visitAskedThisLoad = false;
+let visitTimeout: number | null = null;
+
+function askForVisit(canvas: HTMLCanvasElement): void {
   if (visitAskedThisLoad) return;
   visitAskedThisLoad = true;
   if (typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-  const ask: ScoutVisit = { type: SCOUT_VISIT };
-  window.postMessage(ask, window.location.origin);
+  visitTimeout = window.setTimeout(() => {
+    visitTimeout = null;
+    if (!canvas.isConnected) {
+      visitAskedThisLoad = false;
+      return;
+    }
+    const groundFromBottomPx = window.innerHeight - (canvas.getBoundingClientRect().bottom - SCOUT_GROUND_INSET);
+    const ask: ScoutVisit = { type: SCOUT_VISIT, groundFromBottomPx };
+    window.postMessage(ask, window.location.origin);
+  }, VISIT_SETTLE_MS);
 }
 
 function useThemeName(): string {
@@ -98,7 +110,7 @@ export function ScoutCompanion({ coaching, gamification, card = NO_CARD }: Scout
       palette: deskPalette(canvas),
     });
     stageThemeRef.current = theme;
-    askForVisit();
+    askForVisit(canvas);
   }, [look, theme]);
 
   const { cardKey, detected } = card;
@@ -121,6 +133,11 @@ export function ScoutCompanion({ coaching, gamification, card = NO_CARD }: Scout
 
   useEffect(
     () => () => {
+      if (visitTimeout !== null) {
+        window.clearTimeout(visitTimeout);
+        visitTimeout = null;
+        visitAskedThisLoad = false;
+      }
       stageRef.current?.stop();
       stageRef.current = null;
     },
