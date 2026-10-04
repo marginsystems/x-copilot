@@ -6,10 +6,28 @@ import {
   nextConfirmCopy,
   type NextConfirmSubject,
 } from "../../../../shared/src/nextConfirm";
-import { DEFAULT_DESK_ORIGIN } from "../../lib/desks";
+import { DEFAULT_DESK_ORIGIN, DESK_TARGETS } from "../../lib/desks";
+import { planOpenDesk } from "../../lib/openDesk";
+
+async function showDeskPage(path: string): Promise<void> {
+  const deskOrigins = DESK_TARGETS.map((target) => target.deskOrigin);
+  const here = await browser.tabs.query({ currentWindow: true });
+  const nearby = planOpenDesk(here, path, deskOrigins, DEFAULT_DESK_ORIGIN);
+  const plan = nearby.kind === "focus"
+    ? nearby
+    : planOpenDesk(await browser.tabs.query({}), path, deskOrigins, DEFAULT_DESK_ORIGIN);
+  if (plan.kind === "create") {
+    await browser.tabs.create({ url: plan.url });
+    return;
+  }
+  await browser.tabs.update(plan.tabId, plan.url ? { url: plan.url, active: true } : { active: true });
+  if (plan.windowId !== null) await browser.windows.update(plan.windowId, { focused: true });
+}
 
 export function openDeskPage(path: string): void {
-  browser.tabs.create({ url: `${DEFAULT_DESK_ORIGIN}${path}` }).catch(() => undefined);
+  showDeskPage(path).catch(() => {
+    browser.tabs.create({ url: `${DEFAULT_DESK_ORIGIN}${path}` }).catch(() => undefined);
+  });
 }
 
 export function PanelHeader({ connected, children }: { connected: boolean | null; children?: ReactNode }) {
