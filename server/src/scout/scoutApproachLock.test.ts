@@ -153,7 +153,7 @@ await describe("scoutApproachLock", async () => {
 
   await it("reads back the current lock for this user only", async () => {
     const b = signIn("b");
-    assert.deepEqual((await call("GET", undefined, a.cookie)).json, { ok: true, card: null, next: null });
+    assert.deepEqual((await call("GET", undefined, a.cookie)).json, { ok: true, card: null, next: null, state: null });
     assert.equal(
       (await call("PUT", { card: { id: "c9", conversationId: "conv-9", author: "@dana", url: "https://x.com/dana/status/9", text: "hi", surface: "reply" } }, a.cookie)).status,
       200,
@@ -172,10 +172,11 @@ await describe("scoutApproachLock", async () => {
         text: "hi",
       },
       next: null,
+      state: null,
     });
-    assert.deepEqual((await call("GET", undefined, b.cookie)).json, { ok: true, card: null, next: null });
+    assert.deepEqual((await call("GET", undefined, b.cookie)).json, { ok: true, card: null, next: null, state: null });
     assert.equal((await call("PUT", { card: null }, a.cookie)).status, 200);
-    assert.deepEqual((await call("GET", undefined, a.cookie)).json, { ok: true, card: null, next: null });
+    assert.deepEqual((await call("GET", undefined, a.cookie)).json, { ok: true, card: null, next: null, state: null });
   });
 
   await it("publishes the card the desk would lock after Next beside the current lock", async () => {
@@ -187,7 +188,7 @@ await describe("scoutApproachLock", async () => {
     assert.deepEqual((await call("GET", undefined, a.cookie)).json.next, { card: null });
 
     assert.equal((await call("PUT", { card: null, next: { card: upNext } }, a.cookie)).status, 200);
-    assert.deepEqual((await call("GET", undefined, a.cookie)).json, { ok: true, card: null, next: { card: upNext } });
+    assert.deepEqual((await call("GET", undefined, a.cookie)).json, { ok: true, card: null, next: { card: upNext }, state: null });
   });
 
   await it("forgets the next card when a write does not name one", async () => {
@@ -197,6 +198,15 @@ await describe("scoutApproachLock", async () => {
     assert.equal((await call("GET", undefined, a.cookie)).json.next, null);
     assert.equal((await call("PUT", { card: { id: "c10" }, next: { card: { id: " " } } }, a.cookie)).status, 200);
     assert.equal((await call("GET", undefined, a.cookie)).json.next, null);
+  });
+
+  await it("publishes which card the desk is showing and whether the desk detected it", async () => {
+    assert.equal((await call("PUT", { card: null, state: { view: "for_you", detected: true } }, a.cookie)).status, 200);
+    assert.deepEqual((await call("GET", undefined, a.cookie)).json.state, { view: "for_you", detected: true });
+    assert.equal((await call("PUT", { card: null, state: { view: "collecting", detected: false } }, a.cookie)).status, 200);
+    assert.deepEqual((await call("GET", undefined, a.cookie)).json.state, { view: "collecting", detected: false });
+    assert.equal((await call("PUT", { card: { id: "c9" }, state: { view: "nope", detected: false } }, a.cookie)).status, 200);
+    assert.equal((await call("GET", undefined, a.cookie)).json.state, null);
   });
 
   await it("expires the next card with the lock's TTL", async () => {

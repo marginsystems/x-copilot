@@ -1,5 +1,5 @@
 import { StrictMode, type ReactNode } from "react";
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import { SessionBoundary } from "../../src/auth/session";
 import type { AuthSessionUser } from "../../src/auth/types";
@@ -54,7 +54,9 @@ function wrapper({ children }: { children: ReactNode }) {
 function stubBrowser() {
   FakeEventSource.instances = [];
   vi.stubGlobal("EventSource", FakeEventSource);
-  vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response("{}"))));
+  const fetchMock = vi.fn((_input: RequestInfo | URL, _init?: RequestInit) => Promise.resolve(new Response("{}")));
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
 }
 
 function mountStreamOnly(ownerId = user.id) {
@@ -105,6 +107,46 @@ test("the extension's Next leaves an unreplied Scout card in place", () => {
   setup(new Set());
   act(() => { liveStream().emit("approach_next", { fromCardId: cardA.id }); });
   expect(readApproachLock(user.id)?.cardId).toBe(cardA.id);
+});
+
+test("publishes Collecting when an empty Scout lock has no locked card", async () => {
+  const fetchMock = stubBrowser();
+  writeApproachLock(user.id, { phase: "scout_reply", cardId: null, surface: null });
+  const task = renderHook(() => useApproachTask({
+    authUser: user,
+    writesEnabled: true,
+    deskBootReady: true,
+    agendaReady: true,
+    agenda: "Help developers build reliable software and share useful engineering ideas.",
+    curatedThreads: [],
+    forYouSuggestions: [],
+    interactedIds: new Set(),
+    interactedRetainedHistory: [],
+    dismissedHistory: [],
+    dismissThread: null,
+    searching: false,
+    actForYou: vi.fn(),
+    onSkip: vi.fn(),
+    onDismiss: vi.fn(),
+    onRefreshCoaching: vi.fn(),
+    onHydrateInteracted: vi.fn(),
+    onPollInteracted: vi.fn(),
+  }), { wrapper });
+
+  await waitFor(() => {
+    expect(fetchMock.mock.calls.some(([url, init]) =>
+      String(url).includes("/api/scout-approach-lock") && init?.method === "PUT",
+    )).toBe(true);
+  });
+  const put = fetchMock.mock.calls.find(([url, init]) =>
+    String(url).includes("/api/scout-approach-lock") && init?.method === "PUT",
+  );
+  expect(JSON.parse(String(put?.[1]?.body))).toMatchObject({
+    card: null,
+    state: { view: "collecting", detected: false },
+  });
+
+  task.unmount();
 });
 
 test("a Scout card id equal to the old For You sentinel still applies as a Scout request", () => {

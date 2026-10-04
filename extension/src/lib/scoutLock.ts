@@ -3,6 +3,7 @@ import {
   parseScoutApproachLockResponse,
   SCOUT_APPROACH_LOCK_PATH,
   type ScoutApproachLockCard,
+  type DeskApproachState,
   type ScoutApproachNext,
 } from "../../../shared/src/scoutApproachLock";
 import type { ApproachNextRequest } from "../../../shared/src/approachNext";
@@ -15,6 +16,7 @@ export const OLDER_SERVER_NOTICE =
 export type ScoutLockRead = {
   card: ScoutApproachLockCard | null;
   next: ScoutApproachNext | null;
+  state: DeskApproachState | null;
   supported: boolean;
   valid: boolean;
 };
@@ -28,12 +30,12 @@ export async function readScoutLock(pairing: Pairing): Promise<ScoutLockRead> {
   try {
     raw = await apiRequest(pairing, SCOUT_APPROACH_LOCK_PATH);
   } catch (err) {
-    if (serverLacksLockRead(err)) return { card: null, next: null, supported: false, valid: false };
+    if (serverLacksLockRead(err)) return { card: null, next: null, state: null, supported: false, valid: false };
     throw err;
   }
   const parsed = parseScoutApproachLockResponse(raw);
-  if (!parsed) return { card: null, next: null, supported: true, valid: false };
-  return { card: parsed.card, next: parsed.next, supported: true, valid: true };
+  if (!parsed) return { card: null, next: null, state: null, supported: true, valid: false };
+  return { card: parsed.card, next: parsed.next, state: parsed.state, supported: true, valid: true };
 }
 
 export const NEXT_POLL_MS = 600;
@@ -55,6 +57,7 @@ export async function waitForLockChange(
     const lock = await readScoutLock(pairing);
     if (!lock.supported || !lock.valid) continue;
     if (lockMovedAfterNext(request, lock.card)) return lock;
+    if ("forYou" in request && lock.state?.view === "collecting") return lock;
   }
   return null;
 }

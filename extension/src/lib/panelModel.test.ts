@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { X_FOR_YOU_URL, X_INSPIRATION_URL } from "../../../shared/src/forYou";
 import { REPLY_PACE_MS } from "../../../shared/src/replyPace";
-import { shownAfterRefresh, nextFromCardId, panelCanAskNext, panelCard, panelNextNotice, panelPace, preloadedNextCard, scoutOpenUrl } from "./panelModel";
+import { shownAfterRefresh, nextFromCardId, panelCanAskNext, panelDetected, panelView, panelCard, panelNextNotice, panelPace, preloadedNextCard, scoutOpenUrl } from "./panelModel";
 
 const lock = {
   id: "123",
@@ -58,16 +58,19 @@ describe("panelPace", () => {
 });
 
 describe("panel Next", () => {
-  it("is offered only for the Scout card the extension saw a reply to", () => {
-    expect(panelCanAskNext(lock, "123")).toBe(true);
-    expect(panelCanAskNext(lock, "999")).toBe(false);
-    expect(panelCanAskNext(lock, null)).toBe(false);
+  it("is offered on a Scout card only once its reply is detected", () => {
+    expect(panelCanAskNext(panelView(lock, null), true)).toBe(true);
+    expect(panelCanAskNext(panelView(lock, null), false)).toBe(false);
   });
 
   it("is always offered on the For You card, like the desk", () => {
-    expect(panelCanAskNext(null, null)).toBe(true);
+    expect(panelCanAskNext(panelView(null, null), false)).toBe(true);
     expect(nextFromCardId(null)).toEqual({ forYou: true });
     expect(nextFromCardId(lock)).toEqual({ fromCardId: "123" });
+  });
+
+  it("is not offered on the Collecting card, which takes the next card by itself", () => {
+    expect(panelCanAskNext(panelView(null, { view: "collecting", detected: false }), false)).toBe(false);
   });
 
   it("explains when no desk is listening and when the desk is on another page", () => {
@@ -115,5 +118,56 @@ describe("shownAfterRefresh", () => {
     const pending = { token: "t", request: { forYou: true as const }, shown: other };
     expect(shownAfterRefresh(pending, "t", null)).toBe(other);
     expect(shownAfterRefresh(pending, "t", lock)).toBe(lock);
+  });
+});
+
+describe("panelView", () => {
+  it("shows the desk's Collecting card when the desk is collecting and no card is locked", () => {
+    const view = panelView(null, { view: "collecting", detected: false });
+    expect(view).toMatchObject({ collecting: true, key: "collecting" });
+    expect(view.card).toMatchObject({ kind: "collecting", verb: "Collecting" });
+  });
+
+  it("shows For You or the locked card otherwise, each with its own slide key", () => {
+    expect(panelView(null, { view: "for_you", detected: false })).toMatchObject({ collecting: false, key: "for_you" });
+    expect(panelView(null, null)).toMatchObject({ collecting: false, key: "for_you" });
+    expect(panelView(lock, { view: "collecting", detected: false })).toMatchObject({ collecting: false, key: "card:123" });
+  });
+});
+
+describe("panelDetected", () => {
+  const forYou = (detected: boolean) => ({ view: "for_you" as const, detected });
+
+  it("follows the desk's own For You detection instead of what the panel saw", () => {
+    expect(panelDetected({ view: panelView(null, forYou(false)), deskState: forYou(false), deskCardId: null, seenHere: true })).toBe(false);
+    expect(panelDetected({ view: panelView(null, forYou(true)), deskState: forYou(true), deskCardId: null, seenHere: false })).toBe(true);
+  });
+
+  it("uses what the panel saw when the desk has not published its state", () => {
+    expect(panelDetected({ view: panelView(null, null), deskState: null, deskCardId: null, seenHere: true })).toBe(true);
+    expect(panelDetected({ view: panelView(lock, null), deskState: null, deskCardId: null, seenHere: false })).toBe(false);
+  });
+
+  it("marks a Scout card detected when either the panel or the desk saw the reply", () => {
+    const scout = (detected: boolean) => ({ view: "scout" as const, detected });
+    expect(panelDetected({ view: panelView(lock, scout(true)), deskState: scout(true), deskCardId: lock.id, seenHere: false })).toBe(true);
+    expect(panelDetected({ view: panelView(lock, scout(false)), deskState: scout(false), deskCardId: lock.id, seenHere: true })).toBe(true);
+    expect(panelDetected({ view: panelView(lock, scout(false)), deskState: scout(false), deskCardId: lock.id, seenHere: false })).toBe(false);
+  });
+
+  it("does not transfer the desk's detection to a preloaded card", () => {
+    const scout = { view: "scout" as const, detected: true };
+    const preloaded = { ...lock, id: "456" };
+    expect(panelDetected({
+      view: panelView(preloaded, scout),
+      deskState: scout,
+      deskCardId: lock.id,
+      seenHere: false,
+    })).toBe(false);
+  });
+
+  it("never marks the Collecting card detected", () => {
+    const collecting = { view: "collecting" as const, detected: false };
+    expect(panelDetected({ view: panelView(null, collecting), deskState: collecting, deskCardId: null, seenHere: true })).toBe(false);
   });
 });

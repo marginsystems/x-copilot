@@ -3,6 +3,7 @@ import { isRecord } from "../../../shared/src/typeGuards";
 
 export const CARD_SINCE_KEY = "panelCardSince";
 export const FOR_YOU_CARD_KEY = "for_you";
+export const COLLECTING_CARD_KEY = "collecting";
 
 export type CardSince = { key: string; sinceMs: number };
 

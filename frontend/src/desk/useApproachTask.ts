@@ -49,6 +49,7 @@ import {
   upNextLock,
   type ApproachNextRequest,
 } from "../../../shared/src/approachNext";
+import { deskApproachState } from "../../../shared/src/scoutApproachLock";
 import { vanishEvent } from "../lib/vanishEvent";
 import { apiFetch } from "../lib/apiBase";
 import { presentApproach, type ApproachCardInput } from "../../../shared/src/approachPresenter";
@@ -513,12 +514,23 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     return JSON.stringify({ card: null });
   }
 
+  const deskStateJson = lock
+    ? JSON.stringify(deskApproachState({
+        phase: lock.phase,
+        cardId: lock.cardId,
+        forYouTask: isForYouTask(lock),
+        scoutDetected,
+        suggestionDetected,
+        forYouDetected: presentation.forYou?.detected === true,
+      }))
+    : "";
+
   const ready = lock !== null;
   const lockGeneration = session.capture();
   useEffect(() => {
     if (!authUser?.id || !ready || !writesEnabled) return;
     if (!session.isCurrent(lockGeneration)) return;
-    if (phase === "scout_reply" && !lockedScout) return;
+    if (phase === "scout_reply" && !lockedScout && lock?.cardId !== null) return;
     const suggestedTarget =
       phase === "organic_reply" &&
       lockedSuggestion?.kind === "reply" &&
@@ -560,9 +572,10 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
             }
           : suggestedTarget,
         ...(upNextJson ? { next: JSON.parse(upNextJson) as unknown } : {}),
+        ...(deskStateJson ? { state: JSON.parse(deskStateJson) as unknown } : {}),
       }),
     }).catch(() => {});
-  }, [authUser?.id, lockedScout, lockedSuggestion, phase, ready, writesEnabled, lockGeneration, session, upNextJson]);
+  }, [authUser?.id, lockedScout, lockedSuggestion, phase, ready, writesEnabled, lockGeneration, session, upNextJson, deskStateJson]);
 
   const pendingDismissIdRef = useRef<string | null>(null);
 

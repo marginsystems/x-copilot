@@ -19,7 +19,7 @@ describe("readScoutLock", () => {
 
   it("reads the locked card from a current server", async () => {
     state.apiRequest.mockResolvedValue({ ok: true, card });
-    await expect(readScoutLock(pairing)).resolves.toEqual({ card, next: null, supported: true, valid: true });
+    await expect(readScoutLock(pairing)).resolves.toEqual({ card, next: null, state: null, supported: true, valid: true });
   });
 
   it("reads the card the desk has lined up after Next", async () => {
@@ -30,14 +30,14 @@ describe("readScoutLock", () => {
 
   it.each([404, 405])("treats %i from an older server as no Scout lock", async (status) => {
     state.apiRequest.mockRejectedValue(new ApiStatusError("/api/scout-approach-lock", status));
-    await expect(readScoutLock(pairing)).resolves.toEqual({ card: null, next: null, supported: false, valid: false });
+    await expect(readScoutLock(pairing)).resolves.toEqual({ card: null, next: null, state: null, supported: false, valid: false });
   });
 
   it("still fails on server errors and degrades malformed answers to no lock", async () => {
     state.apiRequest.mockRejectedValueOnce(new ApiStatusError("/api/scout-approach-lock", 500));
     await expect(readScoutLock(pairing)).rejects.toThrow("failed (500)");
     state.apiRequest.mockResolvedValueOnce({ ok: true, card: { id: "" } });
-    await expect(readScoutLock(pairing)).resolves.toEqual({ card: null, next: null, supported: true, valid: false });
+    await expect(readScoutLock(pairing)).resolves.toEqual({ card: null, next: null, state: null, supported: true, valid: false });
   });
 });
 
@@ -53,7 +53,7 @@ describe("waitForLockChange", () => {
     state.apiRequest
       .mockResolvedValueOnce({ ok: true, card })
       .mockResolvedValueOnce({ ok: true, card: other });
-    await expect(waitForLockChange(pairing, { fromCardId: "1" }, noSleep)).resolves.toEqual({ card: other, next: null, supported: true, valid: true });
+    await expect(waitForLockChange(pairing, { fromCardId: "1" }, noSleep)).resolves.toEqual({ card: other, next: null, state: null, supported: true, valid: true });
     expect(state.apiRequest).toHaveBeenCalledTimes(2);
   });
 
@@ -69,13 +69,13 @@ describe("waitForLockChange", () => {
   ])("continues polling after a $kind lock read", async ({ firstRead }) => {
     firstRead();
     state.apiRequest.mockResolvedValueOnce({ ok: true, card: other });
-    await expect(waitForLockChange(pairing, { fromCardId: "1" }, noSleep)).resolves.toEqual({ card: other, next: null, supported: true, valid: true });
+    await expect(waitForLockChange(pairing, { fromCardId: "1" }, noSleep)).resolves.toEqual({ card: other, next: null, state: null, supported: true, valid: true });
     expect(state.apiRequest).toHaveBeenCalledTimes(2);
   });
 
   it("treats a cleared lock as moved, to For You", async () => {
     state.apiRequest.mockResolvedValue({ ok: true, card: null });
-    await expect(waitForLockChange(pairing, { fromCardId: "1" }, noSleep)).resolves.toEqual({ card: null, next: null, supported: true, valid: true });
+    await expect(waitForLockChange(pairing, { fromCardId: "1" }, noSleep)).resolves.toEqual({ card: null, next: null, state: null, supported: true, valid: true });
   });
 
   it("after a For You Next, waits for a card to appear", async () => {
@@ -101,5 +101,16 @@ describe("waitForLockChange", () => {
     expect(waits[0]).toBe(NEXT_POLL_FAST_MS);
     expect(waits.at(-1)).toBe(NEXT_POLL_MS);
     expect(NEXT_POLL_FAST_MS).toBeLessThan(NEXT_POLL_MS);
+  });
+
+  it("after a For You Next, counts the desk moving to its Collecting card as moved", async () => {
+    state.apiRequest
+      .mockResolvedValueOnce({ ok: true, card: null, state: { view: "for_you", detected: true } })
+      .mockResolvedValueOnce({ ok: true, card: null, state: { view: "collecting", detected: false } });
+    await expect(waitForLockChange(pairing, { forYou: true }, noSleep)).resolves.toMatchObject({
+      card: null,
+      state: { view: "collecting", detected: false },
+    });
+    expect(state.apiRequest).toHaveBeenCalledTimes(2);
   });
 });

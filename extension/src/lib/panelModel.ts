@@ -8,12 +8,14 @@ import {
 } from "../../../shared/src/replyPace";
 import {
   lockMovedAfterNext,
+  type DeskApproachState,
   type ScoutApproachLockCard,
   type ScoutApproachNext,
 } from "../../../shared/src/scoutApproachLock";
+import { cardKey, COLLECTING_CARD_KEY } from "./detection";
 
 export type PanelCard = {
-  kind: "scout" | "for_you";
+  kind: "scout" | "for_you" | "collecting";
   verb: string;
   title: string;
   detail: string;
@@ -84,9 +86,52 @@ export function shownAfterRefresh(
   return lockMovedAfterNext(pending.request, serverLock) ? serverLock : pending.shown;
 }
 
-export function panelCanAskNext(lock: ScoutApproachLockCard | null, repliedCardId: string | null): boolean {
-  if (lock === null) return true;
-  return repliedCardId !== null && lock.id === repliedCardId;
+export const COLLECTING_CARD: PanelCard = {
+  kind: "collecting",
+  verb: "Collecting",
+  title: "Scout is collecting posts",
+  detail: "Your next card shows here as soon as Scout has one. Keep your desk dashboard open.",
+  openUrl: X_FOR_YOU_URL,
+  openLabel: "Open For You",
+  secondary: null,
+};
+
+export type PanelView = {
+  lock: ScoutApproachLockCard | null;
+  collecting: boolean;
+  key: string;
+  card: PanelCard;
+};
+
+export function panelView(
+  shown: ScoutApproachLockCard | null,
+  deskState: DeskApproachState | null | undefined,
+): PanelView {
+  const collecting = shown === null && deskState?.view === "collecting";
+  return {
+    lock: shown,
+    collecting,
+    key: collecting ? COLLECTING_CARD_KEY : cardKey(shown),
+    card: collecting ? COLLECTING_CARD : panelCard(shown),
+  };
+}
+
+export function panelDetected(opts: {
+  view: PanelView;
+  deskState: DeskApproachState | null | undefined;
+  deskCardId: string | null;
+  seenHere: boolean;
+}): boolean {
+  if (opts.view.collecting) return false;
+  const desk = opts.deskState;
+  if (opts.view.lock === null) return desk?.view === "for_you" ? desk.detected : opts.seenHere;
+  const deskOnCard = desk?.view === "scout" || desk?.view === "suggestion";
+  return opts.seenHere || (deskOnCard && desk.detected && opts.deskCardId === opts.view.lock.id);
+}
+
+export function panelCanAskNext(view: PanelView, detected: boolean): boolean {
+  if (view.collecting) return false;
+  return view.lock === null || detected;
 }
 
 export function preloadedNextCard(

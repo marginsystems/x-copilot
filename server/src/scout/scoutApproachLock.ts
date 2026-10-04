@@ -162,6 +162,51 @@ export function setScoutApproachNext(
   ).run(userId, next.card ? JSON.stringify(next.card) : null, new Date().toISOString());
 }
 
+const DESK_APPROACH_VIEWS = ["scout", "suggestion", "for_you", "collecting", "other"] as const;
+
+export type DeskApproachState = { view: (typeof DESK_APPROACH_VIEWS)[number]; detected: boolean };
+
+function deskStateFromBody(value: unknown): DeskApproachState | null {
+  if (!isRecord(value) || typeof value.detected !== "boolean") return null;
+  const view = DESK_APPROACH_VIEWS.find((candidate) => candidate === value.view);
+  return view ? { view, detected: value.detected } : null;
+}
+
+export function getDeskApproachState(
+  userId: string,
+  nowMs: number = Date.now(),
+): DeskApproachState | null {
+  const row: unknown = getPlatformDb()
+    .prepare(`SELECT state_json, updated_at FROM scout_approach_state WHERE user_id = ?`)
+    .get(userId);
+  if (!isRecord(row) || typeof row.updated_at !== "string" || typeof row.state_json !== "string") return null;
+  const updatedAt = Date.parse(row.updated_at);
+  if (!Number.isFinite(updatedAt) || nowMs - updatedAt > SCOUT_APPROACH_LOCK_TTL_MS) return null;
+  try {
+    return deskStateFromBody(JSON.parse(row.state_json));
+  } catch {
+    return null;
+  }
+}
+
+export function setDeskApproachState(
+  userId: string,
+  state: DeskApproachState | null,
+): void {
+  const db = getPlatformDb();
+  if (!state) {
+    db.prepare(`DELETE FROM scout_approach_state WHERE user_id = ?`).run(userId);
+    return;
+  }
+  db.prepare(
+    `INSERT INTO scout_approach_state (user_id, state_json, updated_at)
+     VALUES (?, ?, ?)
+     ON CONFLICT(user_id) DO UPDATE SET
+       state_json = excluded.state_json,
+       updated_at = excluded.updated_at`,
+  ).run(userId, JSON.stringify(state), new Date().toISOString());
+}
+
 export async function tryHandleScoutApproachLock(
   req: IncomingMessage,
   res: ServerResponse,
@@ -186,6 +231,7 @@ export async function tryHandleScoutApproachLock(
       ok: true,
       card: getScoutApproachLock(user.id),
       next: getScoutApproachNext(user.id),
+      state: getDeskApproachState(user.id),
     });
     return true;
   }
@@ -211,6 +257,7 @@ export async function tryHandleScoutApproachLock(
   if (body.card === null) {
     setScoutApproachLock(user.id, null);
     setScoutApproachNext(user.id, nextFromBody(body.next));
+    setDeskApproachState(user.id, deskStateFromBody(body.state));
     send(req, res, 200, { ok: true });
     return true;
   }
@@ -238,6 +285,7 @@ export async function tryHandleScoutApproachLock(
     text,
   });
   setScoutApproachNext(user.id, nextFromBody(body.next));
+  setDeskApproachState(user.id, deskStateFromBody(body.state));
   try {
     await retainScoutContextForTarget({
       userId: user.id,

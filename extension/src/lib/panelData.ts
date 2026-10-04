@@ -5,7 +5,7 @@ import {
   type ApproachNextRequest,
 } from "../../../shared/src/approachNext";
 import { EXTENSION_SESSION_PATH } from "../../../shared/src/extensionBridge";
-import type { ScoutApproachLockCard, ScoutApproachNext } from "../../../shared/src/scoutApproachLock";
+import type { DeskApproachState, ScoutApproachLockCard, ScoutApproachNext } from "../../../shared/src/scoutApproachLock";
 import { apiRequest, UnpairedError } from "./api";
 import type { Pairing } from "./pairing";
 import { GAMIFICATION_PATH, parseScoutStats, type ScoutStats } from "./scout";
@@ -15,6 +15,7 @@ export type PanelData = {
   lock: ScoutApproachLockCard | null;
   lockSupported: boolean;
   nextUp: ScoutApproachNext | null;
+  deskState: DeskApproachState | null;
   replyAt: string[];
   scout: ScoutStats | null;
 };
@@ -47,6 +48,7 @@ export async function loadPanelData(pairing: Pairing): Promise<PanelData> {
     lock: lock.card,
     lockSupported: lock.supported,
     nextUp: lock.next,
+    deskState: lock.state,
     replyAt: parseCoachingPayload(coachingRaw)?.replyAt ?? [],
     scout,
   };

@@ -394,6 +394,49 @@ describe("App", () => {
     await act(async () => root.unmount());
   });
 
+  it("does not show the desk's detection on a preloaded next card", async () => {
+    readPairing.mockResolvedValue(paired);
+    storageData.lastRepliedCardId = "another-card";
+    const current = { id: "1", conversationId: null, inReplyToId: null, surface: "reply", author: "@ada", url: null, text: "Current post" };
+    const preloaded = { ...current, id: "2", author: "@dana", text: "Preloaded post" };
+    loadPanelData.mockResolvedValue({
+      lock: current,
+      lockSupported: true,
+      nextUp: { card: preloaded },
+      deskState: { view: "scout", detected: true },
+      replyAt: [],
+      scout: null,
+    });
+    askDeskForNext.mockResolvedValue(true);
+    let confirmNext!: (value: { card: typeof preloaded; state: { view: "scout"; detected: false }; supported: true; valid: true }) => void;
+    waitForLockChange.mockReturnValue(new Promise((resolve) => { confirmNext = resolve; }));
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<App />);
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+    expect(shownCard(container)?.textContent).toContain("Reply detected");
+
+    const next = Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Next card");
+    await act(async () => {
+      next?.click();
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+
+    expect(shownCard(container)?.textContent).toContain("Preloaded post");
+    expect(shownCard(container)?.textContent).not.toContain("Reply detected");
+    expect(Array.from(container.querySelectorAll("button")).some((button) => button.textContent === "Open post on X")).toBe(true);
+
+    await act(async () => {
+      confirmNext({ card: preloaded, state: { view: "scout", detected: false }, supported: true, valid: true });
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+    await act(async () => root.unmount());
+  });
+
   it("opens the preloaded card before waiting for and opening the confirmed card", async () => {
     readPairing.mockResolvedValue(paired);
     const preloaded = { id: "42", conversationId: null, inReplyToId: null, surface: "reply", author: "@dana", url: null, text: "Preloaded post" };
@@ -456,6 +499,56 @@ describe("App", () => {
     expect(container.querySelector(".is-leaving")).toBeNull();
     expect(container.textContent).toContain("Open For You");
     expect(container.textContent).toContain("Open your desk dashboard in a tab");
+
+    await act(async () => root.unmount());
+  });
+
+  it("shows the desk's own For You detection and its Collecting card, then the card Scout finds", async () => {
+    readPairing.mockResolvedValue(paired);
+    const now = Date.now();
+    storageData.lastReplySeenAt = now - 1_000;
+    storageData.panelCardSince = { key: "for_you", sinceMs: now - 5_000 };
+    const found = { id: "77", conversationId: null, inReplyToId: null, surface: "reply", author: "@eve", url: null, text: "Fresh from Scout" };
+    const collecting = { view: "collecting", detected: false };
+    loadPanelData
+      .mockResolvedValueOnce({ lock: null, lockSupported: true, deskState: { view: "for_you", detected: false }, replyAt: [], scout: null })
+      .mockResolvedValueOnce({ lock: null, lockSupported: true, deskState: collecting, replyAt: [], scout: null })
+      .mockResolvedValue({ lock: found, lockSupported: true, deskState: { view: "scout", detected: false }, replyAt: [], scout: null });
+    askDeskForNext.mockResolvedValue(true);
+    waitForLockChange.mockResolvedValue({ card: null, next: null, state: collecting, supported: true, valid: true });
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<App />);
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+    expect(shownCard(container)?.textContent).toContain("Waiting for your post");
+    expect(shownCard(container)?.textContent).not.toContain("Post detected");
+
+    const next = Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Next card");
+    await act(async () => {
+      next?.click();
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+    expect(shownCard(container)?.textContent).toContain("Scout is collecting posts");
+    expect(shownCard(container)?.textContent).toContain("Waiting for Scout");
+    expect(shownCard(container)?.textContent).not.toContain("Next card");
+    expect(container.textContent).not.toContain("No new card yet");
+    expect(tabsCreate).not.toHaveBeenCalled();
+
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+    expect(shownCard(container)?.textContent).toContain("Scout is collecting posts");
+
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+    expect(shownCard(container)?.textContent).toContain("Fresh from Scout");
 
     await act(async () => root.unmount());
   });
