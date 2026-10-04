@@ -35,6 +35,7 @@ vi.mock("../../lib/lockStream", () => ({ watchLock: () => () => undefined }));
 
 vi.mock("wxt/browser", () => ({
   browser: {
+    runtime: { onMessage: { addListener: vi.fn(), removeListener: vi.fn() } },
     storage: {
       local: {
         get: vi.fn(async (key: string) => ({ [key]: storageData[key] })),

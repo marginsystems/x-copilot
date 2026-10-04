@@ -92,6 +92,12 @@ export function scoutLook(opts: {
   };
 }
 
+export type ScoutCardWatch = { cardKey: string | null; detected: boolean };
+
+export function scoutCheersFor(previous: ScoutCardWatch, next: ScoutCardWatch): boolean {
+  return next.detected && !previous.detected && next.cardKey !== null && previous.cardKey === next.cardKey;
+}
+
 export const SCOUT_SPRITE_SIZE = 16;
 
 const BODY_ROWS: readonly string[] = [

@@ -7,6 +7,7 @@ import {
   SCOUT_MAX_CELL,
   SCOUT_MIN_CELL,
   SCOUT_SPRITE_SIZE,
+  scoutCheersFor,
   scoutLook,
   scoutSprite,
 } from "./scoutCompanion.ts";
@@ -101,6 +102,17 @@ await describe("scoutLook", () => {
     assert.deepEqual(scoutLook({ connected: true, repliesToday: 2, stats: null }).facts, [
       { label: "Today", value: "2" },
     ]);
+  }).catch(assert.fail);
+});
+
+await describe("scoutCheersFor", () => {
+  it("cheers only when the card it was already watching becomes detected", () => {
+    const waiting = { cardKey: "scout:1", detected: false };
+    assert.equal(scoutCheersFor(waiting, { cardKey: "scout:1", detected: true }), true);
+    assert.equal(scoutCheersFor(waiting, waiting), false);
+    assert.equal(scoutCheersFor({ cardKey: "scout:1", detected: true }, { cardKey: "scout:1", detected: true }), false);
+    assert.equal(scoutCheersFor(waiting, { cardKey: "scout:2", detected: true }), false);
+    assert.equal(scoutCheersFor({ cardKey: null, detected: false }, { cardKey: null, detected: true }), false);
   }).catch(assert.fail);
 });
 

@@ -429,7 +429,7 @@ export function App() {
       </section>
       </CardSlide>
       <PanelLinks links={FOOTER_LINKS} />
-      <Scout look={look} />
+      <Scout look={look} card={{ cardKey: view.key, detected }} />
       <p className="footnote">X Copilot never types or posts for you.</p>
     </PanelShell>
   );

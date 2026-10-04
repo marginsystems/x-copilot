@@ -8,10 +8,12 @@ import {
   type ExtensionHello,
   type ExtensionPaired,
 } from "../../../shared/src/extensionBridge";
+import { parseScoutVisit } from "../../../shared/src/scoutVisit";
 import { isRecord } from "../../../shared/src/typeGuards";
 import { DESK_MATCHES } from "../lib/desks";
 import { STORE_PAIRING } from "../lib/messages";
 import { readPairing } from "../lib/pairingStore";
+import { panelSide, relayScoutVisit } from "../lib/scoutVisit";
 
 export default defineContentScript({
   matches: DESK_MATCHES,
@@ -40,10 +42,19 @@ export default defineContentScript({
       window.postMessage(paired, origin);
     }
 
+    async function relayVisit() {
+      const accepted = await relayScoutVisit((message) => browser.runtime.sendMessage(message), panelSide());
+      if (accepted) window.postMessage(accepted, origin);
+    }
+
     window.addEventListener("message", (event: MessageEvent) => {
       if (event.source !== window || event.origin !== origin) return;
       if (parseExtensionPing(event.data)) {
         announce().catch(() => undefined);
+        return;
+      }
+      if (parseScoutVisit(event.data)) {
+        relayVisit().catch(() => undefined);
         return;
       }
       if (parseExtensionPair(event.data)) {

@@ -609,16 +609,21 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
   const lockJson = lock
     ? JSON.stringify({ phase: lock.phase, cardId: lock.cardId, surface: lock.surface })
     : "";
-  const deskStateJson = lock
-    ? JSON.stringify(deskApproachState({
+  const deskState = lock
+    ? deskApproachState({
         phase: lock.phase,
         cardId: lock.cardId,
         forYouTask: isForYouTask(lock),
         scoutDetected,
         suggestionDetected,
         forYouDetected: presentation.forYou?.detected === true,
-      }))
-    : "";
+      })
+    : null;
+  const deskStateJson = deskState ? JSON.stringify(deskState) : "";
+  const scoutCard = {
+    cardKey: lock && deskState ? `${deskState.view}:${lock.cardId ?? ""}` : null,
+    detected: deskState?.detected === true,
+  };
 
   const ready = lock !== null;
   const lockGeneration = session.capture();
@@ -724,6 +729,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     presentation,
     badge,
     clock: pace.clock,
+    scoutCard,
     exitingIds,
     onScoutSkip(thread: ThreadCard) {
       beginExit(thread.id, async () => {

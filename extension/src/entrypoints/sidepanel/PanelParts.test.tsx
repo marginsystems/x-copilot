@@ -17,6 +17,7 @@ vi.mock("../../lib/pairingStore", () => ({ clearPairing: vi.fn(), readPairing })
 vi.mock("../../lib/panelData", () => ({ loadPanelData: vi.fn(), signOutExtension: vi.fn() }));
 vi.mock("wxt/browser", () => ({
   browser: {
+    runtime: { onMessage: { addListener: vi.fn(), removeListener: vi.fn() } },
     storage: { onChanged: { addListener: vi.fn(), removeListener: vi.fn() } },
     tabs: { create, query, update },
     windows: { update: focusWindow },

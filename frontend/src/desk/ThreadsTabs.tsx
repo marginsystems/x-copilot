@@ -362,7 +362,7 @@ export function ThreadsTabs({
           </div>
         )}
         {threadsTab === "curated" ? (
-          <ScoutCompanion coaching={coaching} gamification={gamification} />
+          <ScoutCompanion coaching={coaching} gamification={gamification} card={task.scoutCard} />
         ) : null}
       </div>
     </>
