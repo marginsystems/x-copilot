@@ -24,7 +24,19 @@ import { readRepliedCardId } from "../../lib/repliedCardStore";
 import { readAttentionGate, writeAttentionGate } from "../../lib/settingsStore";
 import { repliesTodayCount, scoutLook } from "../../../../shared/src/scoutCompanion";
 import { NEXT_LABEL, nextAskActive, nextClick, type NextAsk } from "../../../../shared/src/nextConfirm";
-import { CardSlide, DESK_LINKS, FOOTER_LINKS, GearIcon, NextConfirm, openDeskPage, PanelLinks, PanelShell } from "./PanelParts";
+import {
+  ACCOUNT_LINKS,
+  ACCOUNT_PATH,
+  BackIcon,
+  CardSlide,
+  DESK_LINKS,
+  DeskButton,
+  GearIcon,
+  NextConfirm,
+  openDeskPage,
+  PanelLinks,
+  PanelShell,
+} from "./PanelParts";
 import { Scout } from "./Scout";
 import { watchLock } from "../../lib/lockStream";
 
@@ -183,7 +195,7 @@ export function App() {
 
   if (state.kind === "error") {
     return (
-      <PanelShell connected>
+      <PanelShell connected headSide={<DeskButton />}>
         <p className="status-line rise" role="status">{state.notice}</p>
         <section className="card" aria-label="Approach card">
           <p className="section-title">Approach</p>
@@ -192,7 +204,7 @@ export function App() {
             Retry
           </button>
         </section>
-        <PanelLinks links={FOOTER_LINKS} />
+        <PanelLinks links={ACCOUNT_LINKS} />
       </PanelShell>
     );
   }
@@ -304,22 +316,25 @@ export function App() {
     stats: state.data.scout ?? null,
   });
 
-  const settingsButton = (
-    <button
-      type="button"
-      className="ghost icon-btn"
-      aria-label="Settings"
-      aria-pressed={settingsOpen}
-      title="Settings"
-      onClick={() => setSettingsOpen((open) => !open)}
-    >
-      <GearIcon />
-    </button>
+  const settingsLabel = settingsOpen ? "Back" : "Settings";
+  const headSide = (
+    <>
+      <DeskButton />
+      <button
+        type="button"
+        className="ghost icon-btn"
+        aria-label={settingsLabel}
+        title={settingsLabel}
+        onClick={() => setSettingsOpen((open) => !open)}
+      >
+        {settingsOpen ? <BackIcon /> : <GearIcon />}
+      </button>
+    </>
   );
 
   if (settingsOpen) {
     return (
-      <PanelShell connected headSide={settingsButton}>
+      <PanelShell connected headSide={headSide}>
         <section className="card rise" aria-label="Settings">
           <p className="section-title">Settings</p>
           <label className="toggle">
@@ -336,8 +351,8 @@ export function App() {
           </label>
           <p className="settings-help">Holds the reply box on x.com for 10 seconds so you read the post first.</p>
           <div className="actions">
-            <button type="button" className="primary" onClick={() => setSettingsOpen(false)}>
-              Done
+            <button type="button" className="ghost" onClick={() => openDeskPage(ACCOUNT_PATH)}>
+              Account
             </button>
             <button
               type="button"
@@ -357,7 +372,6 @@ export function App() {
             </button>
           </div>
         </section>
-        <PanelLinks links={FOOTER_LINKS} />
         <Scout look={look} />
         <p className="footnote">X Copilot never types or posts for you.</p>
       </PanelShell>
@@ -365,7 +379,7 @@ export function App() {
   }
 
   return (
-    <PanelShell connected headSide={settingsButton}>
+    <PanelShell connected headSide={headSide}>
       {state.error ? <p className="status-line rise" role="status">{state.error}</p> : null}
       {state.data.lockSupported ? null : <p className="status-line rise" role="status">{OLDER_SERVER_NOTICE}</p>}
       <CardSlide slideKey={view.key}>
@@ -428,7 +442,6 @@ export function App() {
         {nextNotice ? <p className="settings-help rise" role="status">{nextNotice}</p> : null}
       </section>
       </CardSlide>
-      <PanelLinks links={FOOTER_LINKS} />
       <Scout look={look} card={{ cardKey: view.key, detected }} />
       <p className="footnote">X Copilot never types or posts for you.</p>
     </PanelShell>

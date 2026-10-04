@@ -216,6 +216,15 @@ h2 {
   flex: 1 1 auto;
 }
 
+.actions > .primary {
+  flex-basis: 100%;
+}
+
+.actions > .ghost {
+  flex: 1 1 0;
+  white-space: nowrap;
+}
+
 .next-confirm {
   display: flex;
   flex: 1 1 100%;
@@ -311,11 +320,6 @@ button.icon-btn {
   height: 26px;
   padding: 0;
   color: var(--muted);
-}
-
-button.icon-btn[aria-pressed="true"] {
-  color: var(--accent);
-  border-color: var(--accent-dim);
 }
 
 .scout {

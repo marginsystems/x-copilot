@@ -431,6 +431,9 @@ describe("App", () => {
 
     expect(container.querySelector("input[type=checkbox]")).toBeNull();
     expect(container.textContent).not.toContain("Reading timer");
+    expect(buttonLabelled(container, "Account")).toBeUndefined();
+    expect(buttonLabelled(container, "Open desk")).toBeUndefined();
+    expect(container.querySelector("button[aria-label=Back]")).toBeNull();
     const gear = container.querySelector<HTMLButtonElement>("button[aria-label=Settings]");
     expect(gear?.querySelector("svg")).not.toBeNull();
 
@@ -443,10 +446,44 @@ describe("App", () => {
     await act(async () => toggle?.click());
     expect(storageData.attentionGate).toBe(false);
 
-    const done = Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Done");
-    await act(async () => done?.click());
+    expect(container.querySelector("button[aria-label=Settings]")).toBeNull();
+    await act(async () => {
+      buttonLabelled(container, "Account")?.click();
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+    expect(tabsCreate).toHaveBeenCalledWith({ url: "https://xcopilot.dev/account" });
+
+    const back = container.querySelector<HTMLButtonElement>("button[aria-label=Back]");
+    expect(back?.querySelector("svg")).not.toBeNull();
+    await act(async () => back?.click());
     expect(container.querySelector("input[type=checkbox]")).toBeNull();
+    expect(container.querySelector("button[aria-label=Back]")).toBeNull();
+    expect(container.querySelector("button[aria-label=Settings]")).not.toBeNull();
     expect(container.textContent).toContain("Open For You");
+
+    await act(async () => root.unmount());
+  });
+
+  it("opens the desk from an icon button in the header", async () => {
+    readPairing.mockResolvedValue(paired);
+    loadPanelData.mockResolvedValue({ lock: null, lockSupported: true, replyAt: [], repliesToday: null, scout: null });
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<App />);
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+
+    const desk = container.querySelector<HTMLButtonElement>(".panel-head button[aria-label='Open desk']");
+    expect(desk?.querySelector("svg")).not.toBeNull();
+    expect(container.querySelector(".panel-links")).toBeNull();
+    await act(async () => {
+      desk?.click();
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+    expect(tabsCreate).toHaveBeenCalledWith({ url: "https://xcopilot.dev/dashboard" });
 
     await act(async () => root.unmount());
   });

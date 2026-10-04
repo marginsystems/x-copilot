@@ -123,6 +123,41 @@ export function GearIcon() {
   );
 }
 
+export function BackIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M19 12H5" />
+      <path d="M11 6l-6 6 6 6" />
+    </svg>
+  );
+}
+
+export function DeskIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="7" y="3" width="10" height="7" rx="1" />
+      <path d="M12 10v3" />
+      <path d="M2 13h20" />
+      <path d="M5 13v8" />
+      <path d="M19 13v8" />
+    </svg>
+  );
+}
+
+export function DeskButton() {
+  return (
+    <button
+      type="button"
+      className="ghost icon-btn"
+      aria-label="Open desk"
+      title="Open desk"
+      onClick={() => openDeskPage("/dashboard")}
+    >
+      <DeskIcon />
+    </button>
+  );
+}
+
 export type PanelLink = { label: string; path: string };
 
 export const DESK_LINKS: readonly PanelLink[] = [
@@ -130,9 +165,10 @@ export const DESK_LINKS: readonly PanelLink[] = [
   { label: "Learn", path: "/learn" },
 ];
 
-export const FOOTER_LINKS: readonly PanelLink[] = [
-  { label: "Open desk", path: "/dashboard" },
-  { label: "Account", path: "/account" },
+export const ACCOUNT_PATH = "/account";
+
+export const ACCOUNT_LINKS: readonly PanelLink[] = [
+  { label: "Account", path: ACCOUNT_PATH },
 ];
 
 export function PanelLinks({ links }: { links: readonly PanelLink[] }) {
