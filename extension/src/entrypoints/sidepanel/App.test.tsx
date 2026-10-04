@@ -65,6 +65,7 @@ const paired = {
 
 describe("App", () => {
   afterEach(() => {
+    vi.useRealTimers();
     readPairing.mockReset();
     loadPanelData.mockReset();
     askDeskForNext.mockReset();
@@ -726,6 +727,133 @@ describe("App", () => {
       await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
     });
     expect(shownCard(container)?.textContent).toContain("Picked by the server");
+
+    await act(async () => root.unmount());
+  });
+
+  it("shows the reply timer only after Next, like the desk, and hides it when the minute ends", async () => {
+    vi.useFakeTimers();
+    readPairing.mockResolvedValue(paired);
+    const now = Date.now();
+    storageData.lastReplySeenAt = now - 1_000;
+    storageData.panelCardSince = { key: "for_you", sinceMs: now - 5_000 };
+    const justReplied = new Date(now - 5_000).toISOString();
+    const nextCard = { id: "77", conversationId: null, inReplyToId: null, surface: "reply", author: "@eve", url: null, text: "Next post" };
+    loadPanelData.mockResolvedValue({ lock: null, lockSupported: true, replyAt: [justReplied], repliesToday: 1, scout: null });
+    askDeskForNext.mockResolvedValue("server");
+    waitForLockChange.mockResolvedValue({ card: nextCard, next: null, state: { view: "scout", detected: false }, supported: true, valid: true });
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<App />);
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(container.textContent).toContain("Post detected");
+    expect(container.querySelector("[role=timer]")).toBeNull();
+
+    const next = Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Next");
+    await act(async () => {
+      next?.click();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(shownCard(container)?.textContent).toContain("Next post");
+    expect(shownCard(container)?.querySelector("[role=timer]")?.textContent).toContain("Next reply in");
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(55_000);
+    });
+    expect(shownCard(container)?.querySelector("[role=timer]")).toBeNull();
+
+    loadPanelData.mockResolvedValueOnce({
+      lock: null,
+      lockSupported: true,
+      replyAt: [new Date(Date.now() - 1_000).toISOString()],
+      repliesToday: 2,
+      scout: null,
+    });
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(shownCard(container)?.querySelector("[role=timer]")).toBeNull();
+
+    await act(async () => root.unmount());
+  });
+
+  it("does not arm the reply timer when Next completes after the reply minute ends", async () => {
+    vi.useFakeTimers();
+    readPairing.mockResolvedValue(paired);
+    const now = Date.now();
+    storageData.lastReplySeenAt = now - 1_000;
+    storageData.panelCardSince = { key: "for_you", sinceMs: now - 5_000 };
+    const nextCard = { id: "77", conversationId: null, inReplyToId: null, surface: "reply", author: "@eve", url: null, text: "Next post" };
+    loadPanelData.mockResolvedValue({ lock: null, lockSupported: true, replyAt: [new Date(now - 55_000).toISOString()], repliesToday: 1, scout: null });
+    askDeskForNext.mockResolvedValue("server");
+    let confirm!: (value: unknown) => void;
+    waitForLockChange.mockReturnValue(new Promise((resolve) => { confirm = resolve; }));
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<App />);
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    const next = Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Next");
+    await act(async () => {
+      next?.click();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(6_000);
+    });
+    await act(async () => {
+      confirm({ card: nextCard, next: null, state: { view: "scout", detected: false }, supported: true, valid: true });
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(shownCard(container)?.textContent).toContain("Next post");
+    expect(shownCard(container)?.querySelector("[role=timer]")).toBeNull();
+
+    loadPanelData.mockResolvedValueOnce({
+      lock: null,
+      lockSupported: true,
+      replyAt: [new Date(Date.now() - 1_000).toISOString()],
+      repliesToday: 2,
+      scout: null,
+    });
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(shownCard(container)?.querySelector("[role=timer]")).toBeNull();
+
+    await act(async () => root.unmount());
+  });
+
+  it("does not show the reply timer when Next could not move the card", async () => {
+    readPairing.mockResolvedValue(paired);
+    const now = Date.now();
+    storageData.lastReplySeenAt = now - 1_000;
+    storageData.panelCardSince = { key: "for_you", sinceMs: now - 5_000 };
+    loadPanelData.mockResolvedValue({ lock: null, lockSupported: true, replyAt: [new Date(now - 5_000).toISOString()], repliesToday: 1, scout: null });
+    askDeskForNext.mockResolvedValue(null);
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<App />);
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+    const next = Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Next");
+    await act(async () => {
+      next?.click();
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+    expect(container.textContent).toContain("No next card could be picked yet");
+    expect(container.querySelector("[role=timer]")).toBeNull();
 
     await act(async () => root.unmount());
   });

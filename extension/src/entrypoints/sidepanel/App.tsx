@@ -70,6 +70,7 @@ export function App() {
   const lockVersionRef = useRef(0);
   const shownKeyRef = useRef<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [paceArmed, setPaceArmed] = useState(false);
   const now = useNow();
 
   useEffect(() => {
@@ -138,6 +139,11 @@ export function App() {
     if (!liveApiBase || !liveToken) return undefined;
     return watchLock({ apiBase: liveApiBase, token: liveToken }, () => { refresh().catch(() => undefined); });
   }, [liveApiBase, liveToken, refresh]);
+
+  const paceRunning = state.kind === "ready" && panelPace(state.data.replyAt, now) !== null;
+  useEffect(() => {
+    if (!paceRunning) setPaceArmed(false);
+  }, [paceRunning]);
 
   if (state.kind === "loading") {
     return (
@@ -261,6 +267,7 @@ export function App() {
     findNext()
       .catch((err: unknown) => (err instanceof Error ? err.message : String(err)))
       .then((notice) => {
+        if (!notice && state.kind === "ready" && panelPace(state.data.replyAt, Date.now()) !== null) setPaceArmed(true);
         if (notice) setNextNotice(notice);
         setNextBusy(false);
       })
@@ -367,7 +374,7 @@ export function App() {
         </div>
         <h2>{card.title}</h2>
         <p className="detail">{detected ? "Detected. Tap Next for your next one." : card.detail}</p>
-        {pace ? (
+        {pace && paceArmed ? (
           <p className="pace" role="timer" aria-live="off" title={pace.tip}>
             <span className="pace-label">Next reply in</span>
             <span className="pace-clock">{pace.clock}</span>
