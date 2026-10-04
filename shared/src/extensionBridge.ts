@@ -48,3 +48,5 @@ export function parseExtensionSessionGrant(raw: unknown): { token: string; expir
   if (typeof expiresAt !== "string" || !Number.isFinite(Date.parse(expiresAt))) return null;
   return { token, expiresAt };
 }
+
+export const OWN_POST_SEEN_PATH = "/api/desk/own-posts/seen";

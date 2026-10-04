@@ -4,7 +4,11 @@ import { expect, test, vi } from "vitest";
 import { SessionBoundary } from "../../src/auth/session";
 import type { AuthSessionUser } from "../../src/auth/types";
 import { useApproachTask } from "../../src/desk/useApproachTask";
-import { useDeskHistory } from "../../src/desk/useDeskHistory";
+import {
+  OWN_POST_CONFIRMED_STATUS,
+  OWN_POST_UNCONFIRMED_STATUS,
+  useDeskHistory,
+} from "../../src/desk/useDeskHistory";
 import { readApproachLock } from "../../src/lib/approachLockStore";
 import type { CoachingState, OwnActivity } from "../../../shared/src/coaching";
 import { emptyDeskBeats } from "../../../shared/src/deskPhase";
@@ -64,9 +68,10 @@ function setup(nowMs: number) {
     ownActivity: onscreen,
   };
   const onRefreshCoaching = vi.fn();
+  const setStatus = vi.fn();
   const hook = renderHook(() => {
     const history = useDeskHistory({
-      setStatus: vi.fn(), setThreads: vi.fn(), setActionBusy: vi.fn(), settings: DEFAULT_SETTINGS,
+      setStatus, setThreads: vi.fn(), setActionBusy: vi.fn(), settings: DEFAULT_SETTINGS,
     }, user.id);
     return useApproachTask({
       authUser: user, writesEnabled: true, deskBootReady: true, agendaReady: true,
@@ -78,7 +83,7 @@ function setup(nowMs: number) {
       onRefreshCoaching, onHydrateInteracted: vi.fn(), onPollInteracted: vi.fn(),
     });
   }, { wrapper });
-  return { ...hook, fetch, onRefreshCoaching, onscreen };
+  return { ...hook, fetch, onRefreshCoaching, onscreen, setStatus };
 }
 
 test("an own_post wake marks the For You card detected without a coaching request", () => {
@@ -106,4 +111,44 @@ test("an own_post wake marks the For You card detected without a coaching reques
   expect(onRefreshCoaching).not.toHaveBeenCalled();
   expect(fetch.mock.calls.map(([url]) => String(url)).filter((url) => /coaching|interacted/.test(url))).toEqual([]);
   expect(readApproachLock(user.id)).toEqual(lock);
+});
+
+test("a post the extension saw marks the For You card detected and X's confirmation of it changes nothing", () => {
+  const nowMs = Date.now();
+  const { result, onRefreshCoaching, setStatus } = setup(nowMs);
+  const seen = {
+    id: "post-seen", kind: "original", postedAt: new Date(nowMs + 5_000).toISOString(),
+    url: "https://x.com/owner/status/post-seen", text: "",
+  };
+
+  act(() => { liveStream().emit("own_post", { ...seen, provisional: true }, "boot.1"); });
+  expect(result.current.cardInput.forYou).toEqual({ detected: true, activity: seen });
+
+  act(() => {
+    liveStream().emit("own_post", { ...seen, text: "confirmed by X" }, "boot.2");
+  });
+  expect(result.current.cardInput.forYou).toEqual({ detected: true, activity: seen });
+  expect(onRefreshCoaching).not.toHaveBeenCalled();
+  expect(setStatus).not.toHaveBeenCalled();
+});
+
+test("a post X has not confirmed shows a status notice until X confirms it", () => {
+  const nowMs = Date.now();
+  const { setStatus } = setup(nowMs);
+  const seen = {
+    id: "post-seen", kind: "original", postedAt: new Date(nowMs + 5_000).toISOString(),
+    url: "https://x.com/owner/status/post-seen", text: "",
+  };
+
+  act(() => { liveStream().emit("own_post", seen, "boot.1"); });
+  act(() => {
+    liveStream().emit("own_post_unconfirmed", { id: seen.id, url: seen.url, seenAt: seen.postedAt }, "boot.2");
+  });
+  expect(setStatus.mock.calls).toEqual([[OWN_POST_UNCONFIRMED_STATUS]]);
+
+  act(() => { liveStream().emit("own_post", { ...seen, provisional: true }, "boot.3"); });
+  expect(setStatus.mock.calls).toEqual([[OWN_POST_UNCONFIRMED_STATUS]]);
+
+  act(() => { liveStream().emit("own_post", { ...seen, text: "confirmed late" }, "boot.4"); });
+  expect(setStatus.mock.calls).toEqual([[OWN_POST_UNCONFIRMED_STATUS], [OWN_POST_CONFIRMED_STATUS]]);
 });

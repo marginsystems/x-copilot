@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { postedStatusUrl, replyReport } from "./replySeen";
+import { postedStatusUrl, replyReport, seenPostBody } from "./replySeen";
 
 const lock = {
   id: "100",
@@ -21,6 +21,25 @@ describe("postedStatusUrl", () => {
     expect(postedStatusUrl("/me")).toBeNull();
     expect(postedStatusUrl("https://evil.example/me/status/555")).toBeNull();
     expect(postedStatusUrl(null)).toBeNull();
+  });
+});
+
+describe("seenPostBody", () => {
+  it("reports every post with its id and the status page it was written on", () => {
+    expect(seenPostBody("https://x.com/me/status/555", "100")).toEqual({
+      postId: "555",
+      url: "https://x.com/me/status/555",
+      pageStatusId: "100",
+    });
+  });
+
+  it("leaves the page out for a post written off a status page or on its own page", () => {
+    expect(seenPostBody("/me/status/555", null)).toEqual({ postId: "555", url: "https://x.com/me/status/555" });
+    expect(seenPostBody("/me/status/555", "555")).toEqual({ postId: "555", url: "https://x.com/me/status/555" });
+  });
+
+  it("reports nothing for a link that is not an x.com status", () => {
+    expect(seenPostBody("https://evil.example/me/status/555", "100")).toBeNull();
   });
 });
 

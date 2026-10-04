@@ -32,6 +32,15 @@ export function postedStatusUrl(href: string | null | undefined): string | null 
   }
 }
 
+export type SeenPostBody = { postId: string; url: string; pageStatusId?: string };
+
+export function seenPostBody(replyUrl: string, pageStatusId: string | null): SeenPostBody | null {
+  const url = postedStatusUrl(replyUrl);
+  const postId = url ? statusIdFromPath(new URL(url).pathname) : null;
+  if (!url || !postId) return null;
+  return pageStatusId && pageStatusId !== postId ? { postId, url, pageStatusId } : { postId, url };
+}
+
 export function replyReport(
   lock: ScoutApproachLockCard | null,
   pageStatusId: string | null,

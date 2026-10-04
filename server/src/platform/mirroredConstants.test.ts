@@ -29,6 +29,8 @@ import { SCOUT_APPROACH_LOCK_PATH as sharedScoutApproachLockPath } from "../../.
 import { SCOUT_APPROACH_LOCK_PATH as apiScoutApproachLockPath } from "../scout/scoutApproachLock.ts";
 import { APPROACH_NEXT_ID_MAX as sharedApproachNextIdMax, APPROACH_NEXT_PATH as sharedApproachNextPath } from "../../../shared/src/approachNext.ts";
 import { APPROACH_NEXT_ID_MAX as apiApproachNextIdMax, APPROACH_NEXT_PATH as apiApproachNextPath } from "../desk/approachNextHttp.ts";
+import { OWN_POST_SEEN_PATH as apiOwnPostSeenPath } from "../desk/ownPostSeen.ts";
+import { OWN_POST_SEEN_PATH as sharedOwnPostSeenPath } from "../../../shared/src/extensionBridge.ts";
 
 const require = createRequire(import.meta.url);
 const ecosystem = expectRecord(require("../../../ecosystem.config.example.cjs"));
@@ -48,6 +50,10 @@ await describe("mirrored SPA/API constants", async () => {
 
   await it("keeps the scout approach lock path equal on both sides", () => {
     assert.equal(sharedScoutApproachLockPath, apiScoutApproachLockPath);
+  });
+
+  await it("keeps the extension's seen-post path equal on both sides", () => {
+    assert.equal(sharedOwnPostSeenPath, apiOwnPostSeenPath);
   });
 
   await it("keeps the approach Next path and id limit equal on both sides", () => {

@@ -33,6 +33,8 @@ import {
 
 export const INTERACTED_PAGE_SIZE = 10;
 export const INTERACTED_FALLBACK_POLL_MS = 30_000;
+export const OWN_POST_UNCONFIRMED_STATUS = "X has not confirmed your post yet.";
+export const OWN_POST_CONFIRMED_STATUS = "X confirmed your post.";
 
 export function parseInteractedHistory(
   raw: unknown,
@@ -389,8 +391,8 @@ export function useDeskHistory(
 
   useRehydrateOnVisible(hydrateInteracted);
   useDeskEventStream(verifiedOwnerId);
-  const deskEventHandlersRef = useRef({ applyInteractedEvent, pollInteracted });
-  deskEventHandlersRef.current = { applyInteractedEvent, pollInteracted };
+  const deskEventHandlersRef = useRef({ applyInteractedEvent, pollInteracted, setStatus });
+  deskEventHandlersRef.current = { applyInteractedEvent, pollInteracted, setStatus };
   useEffect(() => {
     if (!verifiedOwnerId) return;
     const poll = () => {
@@ -400,10 +402,28 @@ export function useDeskHistory(
       deskEventHandlersRef.current.applyInteractedEvent(data);
     });
     const offReady = onDeskEvent("ready", poll);
+    let unconfirmedPostId: string | null = null;
+    const offUnconfirmed = onDeskEvent("own_post_unconfirmed", (data) => {
+      if (!isRecord(data) || typeof data.id !== "string") return;
+      unconfirmedPostId = data.id;
+      deskEventHandlersRef.current.setStatus(OWN_POST_UNCONFIRMED_STATUS);
+    });
+    const offConfirmed = onDeskEvent("own_post", (data) => {
+      if (
+        !unconfirmedPostId ||
+        !isRecord(data) ||
+        data.provisional === true ||
+        data.id !== unconfirmedPostId
+      ) return;
+      unconfirmedPostId = null;
+      deskEventHandlersRef.current.setStatus(OWN_POST_CONFIRMED_STATUS);
+    });
     const interval = window.setInterval(poll, INTERACTED_FALLBACK_POLL_MS);
     return () => {
       offInteracted();
       offReady();
+      offUnconfirmed();
+      offConfirmed();
       window.clearInterval(interval);
     };
   }, [verifiedOwnerId]);

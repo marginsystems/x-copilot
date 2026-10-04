@@ -30,6 +30,7 @@ import { tryHandleUsage } from "./billing/usageHttp.js";
 import { tryHandleApproachNext } from "./desk/approachNextHttp.js";
 import { tryHandleHistory } from "./desk/historyHttp.js";
 import { tryHandleInteracted } from "./desk/interactedHttp.js";
+import { startOwnPostConfirmSweep, tryHandleOwnPostSeen } from "./desk/ownPostSeen.js";
 import { tryHandleCircle } from "./circle/circleHttp.js";
 import {
   tryHandleOwnPostCatchUp,
@@ -171,6 +172,9 @@ async function handleRequest(
       if (await tryHandleOwnPostCatchUp(req, res, url)) {
         return;
       }
+      if (await tryHandleOwnPostSeen(req, res, url)) {
+        return;
+      }
       if (await tryHandleApproachNext(req, res, url)) {
         return;
       }
@@ -226,6 +230,7 @@ server.listen(PORT, bindHost(), () => {
       ? "X API: bearer configured (run npm run test:x-api to verify)"
       : "X API: missing — set X_API_BEARER_TOKEN in .env",
   );
+  startOwnPostConfirmSweep();
   void resumeDueSubscriptions().catch((err) => {
     console.warn("[xaa] resume subscriptions", err);
   });
