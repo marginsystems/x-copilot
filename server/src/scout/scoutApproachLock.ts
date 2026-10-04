@@ -261,7 +261,15 @@ export async function tryHandleScoutApproachLock(
   }
 
   const taskLock = approachTaskLockFromBody(body.lock);
-  if (taskLock) setApproachTask(user.id, taskLock, "desk");
+  if (taskLock) {
+    const currentTask = getApproachTask(user.id);
+    const acknowledgesServerLock =
+      currentTask?.owner === "server" &&
+      currentTask.lock.phase === taskLock.phase &&
+      currentTask.lock.cardId === taskLock.cardId &&
+      currentTask.lock.surface === taskLock.surface;
+    if (!acknowledgesServerLock) setApproachTask(user.id, taskLock, "desk");
+  }
 
   if (body.card === null) {
     setScoutApproachLock(user.id, null);

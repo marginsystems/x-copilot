@@ -71,6 +71,6 @@ export async function askDeskForNext(pairing: Pairing, request: ApproachNextRequ
     }),
   );
   if (!response) throw new Error("The desk's Next answer came back malformed.");
-  if (response.delivered) return "desk";
-  return response.advanced ? "server" : null;
+  if (response.advanced) return "server";
+  return response.delivered ? "desk" : null;
 }

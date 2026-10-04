@@ -47,6 +47,12 @@ function liveStream(): FakeEventSource {
   return open[0]!;
 }
 
+function publishedLockCardId(body: unknown): unknown {
+  if (typeof body !== "object" || body === null || !("lock" in body)) return undefined;
+  const { lock } = body;
+  return typeof lock === "object" && lock !== null && "cardId" in lock ? lock.cardId : undefined;
+}
+
 function wrapper({ children }: { children: ReactNode }) {
   return <StrictMode><SessionBoundary>{children}</SessionBoundary></StrictMode>;
 }
@@ -118,6 +124,32 @@ test("the desk takes the card the server moved to when its event stream reconnec
   act(() => { liveStream().emit("ready", {}); });
 
   await waitFor(() => expect(readApproachLock(user.id)?.cardId).toBe(cardB.id));
+});
+
+test("a stale Next for the previous card cannot move the server-adopted lock", async () => {
+  const fetchMock = stubBrowser();
+  setup(new Set([cardB.id]), { keepBrowser: true });
+  expect(readApproachLock(user.id)?.cardId).toBe(cardA.id);
+
+  fetchMock.mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
+    const isLockRead = String(input).includes("/api/scout-approach-lock") && (init?.method ?? "GET") === "GET";
+    const body = isLockRead
+      ? { ok: true, card: null, task: { lock: { phase: "scout_reply", cardId: cardB.id, surface: null }, version: 5, owner: "server" } }
+      : {};
+    return Promise.resolve(new Response(JSON.stringify(body)));
+  });
+  act(() => { liveStream().emit("approach_task", { version: 5 }); });
+
+  await waitFor(() => expect(readApproachLock(user.id)?.cardId).toBe(cardB.id));
+  await waitFor(() => {
+    const published = fetchMock.mock.calls
+      .filter(([url, init]) => String(url).includes("/api/scout-approach-lock") && init?.method === "PUT")
+      .map(([, init]): unknown => JSON.parse(String(init?.body)));
+    expect(published.map(publishedLockCardId)).toContain(cardB.id);
+  });
+
+  act(() => { liveStream().emit("approach_next", { fromCardId: cardA.id }); });
+  expect(readApproachLock(user.id)?.cardId).toBe(cardB.id);
 });
 
 test("the extension's Next leaves an unreplied Scout card in place", () => {

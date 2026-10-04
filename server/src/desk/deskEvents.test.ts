@@ -24,6 +24,7 @@ import { SESSION_COOKIE } from "../auth/sessionCookie.ts";
 import { createSession } from "../auth/sessionStore.ts";
 import { resetRateLimiterForTests } from "../auth/authGuard.ts";
 import { APPROACH_NEXT_RATE, tryHandleApproachNext } from "./approachNextHttp.ts";
+import { getApproachTask, setApproachTask } from "./approachTaskStore.ts";
 
 function mockRes(opts: { slow?: boolean } = {}) {
   let status = 0;
@@ -407,6 +408,28 @@ await describe("desk events", async () => {
     assert.deepEqual(forYou.json, { ok: true, delivered: true, advanced: false });
     assert.match(aliceDesk.chunks.join(""), /event: approach_next\ndata: \{"forYou":true\}/);
     assert.doesNotMatch(bobDesk.chunks.join(""), /approach_next/);
+  });
+
+  await it("moves the card on the server first, even with a desk open, and tells the desk to take it", async () => {
+    const alice = signedInCookie("gid-next-server");
+    setApproachTask(alice.userId, { phase: "hold", cardId: null, surface: "for_you" }, "desk");
+    const desk = subscribe(alice.cookie);
+    const sent = await approachNext(alice.cookie, { forYou: true });
+    assert.deepEqual(sent.json, { ok: true, delivered: true, advanced: true });
+    assert.equal(getApproachTask(alice.userId)?.owner, "server");
+    const frames = desk.chunks.join("");
+    assert.match(frames, /event: approach_task\ndata: \{"version":2\}/);
+    assert.doesNotMatch(frames, /event: approach_next/);
+  });
+
+  await it("hands a Next the server cannot apply to the open desk, as before", async () => {
+    const alice = signedInCookie("gid-next-fallback");
+    setApproachTask(alice.userId, { phase: "scout_reply", cardId: "c1", surface: null }, "desk");
+    const desk = subscribe(alice.cookie);
+    const sent = await approachNext(alice.cookie, { fromCardId: "c1" });
+    assert.deepEqual(sent.json, { ok: true, delivered: true, advanced: false });
+    assert.equal(getApproachTask(alice.userId)?.owner, "desk");
+    assert.match(desk.chunks.join(""), /event: approach_next\ndata: \{"fromCardId":"c1"\}/);
   });
 
   await it("never replays approach Next to a desk that reconnects later", async () => {

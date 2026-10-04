@@ -20,6 +20,7 @@ import {
   tryHandleScoutApproachLock,
 } from "./scoutApproachLock.ts";
 import { readRetainedTargetContext } from "./scoutEvidenceContext.ts";
+import { getApproachTask, setApproachTask } from "../desk/approachTaskStore.ts";
 
 function signIn(tag: string): { userId: string; cookie: string } {
   const user = upsertOauthUser({
@@ -227,6 +228,17 @@ await describe("scoutApproachLock", async () => {
     const moved = expectRecord((await call("GET", undefined, a.cookie)).json.task);
     assert.deepEqual(moved.lock, scout);
     assert.equal(moved.version, 2);
+  });
+
+  await it("keeps server ownership when the desk acknowledges the same lock", async () => {
+    const lock = { phase: "scout_reply" as const, cardId: "c9", surface: null };
+    setApproachTask(a.userId, lock, "server");
+
+    assert.equal((await call("PUT", { card: null, lock }, a.cookie)).status, 200);
+    const task = getApproachTask(a.userId);
+    assert.deepEqual(task?.lock, lock);
+    assert.equal(task?.version, 1);
+    assert.equal(task?.owner, "server");
   });
 
   await it("expires the next card with the lock's TTL", async () => {

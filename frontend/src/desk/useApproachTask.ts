@@ -425,7 +425,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
 
   useEffect(() => {
     if (userId === null) return undefined;
-    return onDeskEvent("ready", () => {
+    const takeServerLock = () => {
       apiFetch(SCOUT_APPROACH_LOCK_PATH)
         .then((res) => (res.ok ? res.json() : null))
         .then((raw: unknown) => {
@@ -435,7 +435,13 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
           adoptServerLockRef.current(serverLock);
         })
         .catch(() => undefined);
-    });
+    };
+    const stopReady = onDeskEvent("ready", takeServerLock);
+    const stopTask = onDeskEvent("approach_task", takeServerLock);
+    return () => {
+      stopReady();
+      stopTask();
+    };
   }, [userId]);
 
   useEffect(() => {
@@ -463,6 +469,9 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
   const adoptServerLockRef = useRef((serverLock: ApproachLock) => {
     const current = stateRef.current;
     if (!current || sameApproachLock(current.lock, serverLock)) return;
+    if (current.lock.cardId && current.lock.cardId !== serverLock.cardId) {
+      releasedIdsRef.current.add(current.lock.cardId);
+    }
     commitRef.current(
       restoreApproachTask({
         stored: serverLock,
