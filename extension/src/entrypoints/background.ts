@@ -4,6 +4,7 @@ import { parseReplySeenMessage, parseStorePairingMessage } from "../lib/messages
 import { pairingFromDesk } from "../lib/pairing";
 import { writePairing } from "../lib/pairingStore";
 import { reportReply } from "../lib/reportReply";
+import { toggleSidebarOnToolbarClick } from "../lib/toolbar";
 
 function senderOrigin(url: string | undefined): string | null {
   if (!url) return null;
@@ -17,6 +18,8 @@ function senderOrigin(url: string | undefined): string | null {
 export default defineBackground(() => {
   if (import.meta.env.CHROME || import.meta.env.EDGE) {
     browser.sidePanel?.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => undefined);
+  } else {
+    toggleSidebarOnToolbarClick(browser);
   }
 
   browser.runtime.onMessage.addListener((raw, sender) => {

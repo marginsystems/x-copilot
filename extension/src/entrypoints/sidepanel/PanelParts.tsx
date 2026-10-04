@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { browser } from "wxt/browser";
 import { DEFAULT_DESK_ORIGIN } from "../../lib/desks";
 
@@ -16,6 +16,42 @@ export function PanelHeader({ connected, children }: { connected: boolean | null
       </span>
       {children ? <div className="panel-head-side">{children}</div> : null}
     </header>
+  );
+}
+
+export const CARD_SLIDE_OUT_MS = 380;
+
+export function CardSlide({ slideKey, children }: { slideKey: string; children: ReactNode }) {
+  const [current, setCurrent] = useState({ key: slideKey, moved: false });
+  const [leaving, setLeaving] = useState<{ key: string; node: ReactNode } | null>(null);
+  const lastNode = useRef<ReactNode>(children);
+
+  if (current.key !== slideKey) {
+    setLeaving({ key: current.key, node: lastNode.current });
+    setCurrent({ key: slideKey, moved: true });
+  }
+
+  useEffect(() => {
+    lastNode.current = children;
+  });
+
+  useEffect(() => {
+    if (!leaving) return;
+    const timer = window.setTimeout(() => setLeaving(null), CARD_SLIDE_OUT_MS);
+    return () => window.clearTimeout(timer);
+  }, [leaving]);
+
+  return (
+    <div className="card-slide">
+      <div key={slideKey} className={`card-slide-item${current.moved ? " is-entering" : ""}`}>
+        {children}
+      </div>
+      {leaving ? (
+        <div key={`out:${leaving.key}`} className="card-slide-item is-leaving" aria-hidden="true" {...{ inert: "" }}>
+          {leaving.node}
+        </div>
+      ) : null}
+    </div>
   );
 }
 

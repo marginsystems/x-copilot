@@ -65,13 +65,28 @@ export function panelPace(replyAt: readonly string[] | undefined, nowMs: number)
   return { remainingMs, clock, tip: replyPaceTip(clock) };
 }
 
+export function nextFromCardId(lock: ScoutApproachLockCard | null): ApproachNextRequest {
+  return lock ? { fromCardId: lock.id } : { forYou: true };
+}
+
+export type PendingNext = {
+  token: string;
+  request: ApproachNextRequest;
+  shown: ScoutApproachLockCard | null;
+};
+
+export function shownAfterRefresh(
+  pending: PendingNext | null,
+  token: string,
+  serverLock: ScoutApproachLockCard | null,
+): ScoutApproachLockCard | null {
+  if (!pending || pending.token !== token) return serverLock;
+  return lockMovedAfterNext(pending.request, serverLock) ? serverLock : pending.shown;
+}
+
 export function panelCanAskNext(lock: ScoutApproachLockCard | null, repliedCardId: string | null): boolean {
   if (lock === null) return true;
   return repliedCardId !== null && lock.id === repliedCardId;
-}
-
-export function nextFromCardId(lock: ScoutApproachLockCard | null): ApproachNextRequest {
-  return lock ? { fromCardId: lock.id } : { forYou: true };
 }
 
 export function preloadedNextCard(

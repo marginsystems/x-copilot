@@ -1,24 +1,28 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ApproachNextRequest } from "../../../../shared/src/approachNext";
-import {
-  lockMovedAfterNext,
-  type ScoutApproachLockCard,
-  type ScoutApproachNext,
-} from "../../../../shared/src/scoutApproachLock";
+import type { ScoutApproachLockCard } from "../../../../shared/src/scoutApproachLock";
 import { browser } from "wxt/browser";
 import { UnpairedError } from "../../lib/api";
 import { planOpenOnX } from "../../lib/openOnX";
 import type { Pairing } from "../../lib/pairing";
 import { clearPairing, readPairing } from "../../lib/pairingStore";
 import { askDeskForNext, loadPanelData, signOutExtension, type PanelData } from "../../lib/panelData";
-import { nextFromCardId, panelCanAskNext, panelCard, panelNextNotice, panelPace, preloadedNextCard } from "../../lib/panelModel";
+import {
+  nextFromCardId,
+  panelCanAskNext,
+  panelCard,
+  panelNextNotice,
+  panelPace,
+  preloadedNextCard,
+  shownAfterRefresh,
+  type PendingNext,
+} from "../../lib/panelModel";
 import { OLDER_SERVER_NOTICE, waitForLockChange } from "../../lib/scoutLock";
 import { cardDetected, cardKey, detectionTag, type CardSince } from "../../lib/detection";
-import { readReplySeenAt, restoreCardSince, trackCardSince } from "../../lib/detectionStore";
+import { readReplySeenAt, trackCardSince } from "../../lib/detectionStore";
 import { readRepliedCardId } from "../../lib/repliedCardStore";
 import { readAttentionGate, writeAttentionGate } from "../../lib/settingsStore";
 import { repliesOnUtcDay, scoutLook } from "../../lib/scout";
-import { DESK_LINKS, FOOTER_LINKS, GearIcon, openDeskPage, PanelLinks, PanelShell } from "./PanelParts";
+import { CardSlide, DESK_LINKS, FOOTER_LINKS, GearIcon, openDeskPage, PanelLinks, PanelShell } from "./PanelParts";
 import { Scout } from "./Scout";
 import { watchLock } from "../../lib/lockStream";
 
@@ -28,7 +32,7 @@ type PanelState =
   | { kind: "loading" }
   | { kind: "unpaired"; notice: string | null }
   | { kind: "error"; notice: string }
-  | { kind: "ready"; pairing: Pairing; data: PanelData; error: string | null };
+  | { kind: "ready"; pairing: Pairing; data: PanelData; shown: ScoutApproachLockCard | null; error: string | null };
 
 async function openOnX(url: string): Promise<void> {
   const tabs = await browser.tabs.query({ currentWindow: true });
@@ -56,8 +60,10 @@ export function App() {
   const [replySeenAtMs, setReplySeenAtMs] = useState<number | null>(null);
   const [since, setSince] = useState<CardSince | null>(null);
   const [nextNotice, setNextNotice] = useState<string | null>(null);
-  const [nextBusy, setNextBusy] = useState<"idle" | "finding" | "confirming">("idle");
-  const pendingNextRef = useRef<ApproachNextRequest | null>(null);
+  const [nextBusy, setNextBusy] = useState(false);
+  const pendingNextRef = useRef<PendingNext | null>(null);
+  const lockVersionRef = useRef(0);
+  const shownKeyRef = useRef<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const now = useNow();
 
@@ -74,16 +80,20 @@ export function App() {
     setRepliedCardId(await readRepliedCardId().catch(() => null));
     setReplySeenAtMs(await readReplySeenAt().catch(() => null));
     try {
+      const lockVersion = lockVersionRef.current;
       const data = await loadPanelData(pairing);
-      if (pendingNextRef.current && !lockMovedAfterNext(pendingNextRef.current, data.lock)) return;
-      setSince(await trackCardSince(cardKey(data.lock), Date.now()).catch(() => null));
+      if (lockVersionRef.current !== lockVersion) return;
+      const shown = shownAfterRefresh(pendingNextRef.current, pairing.token, data.lock);
+      setSince(await trackCardSince(cardKey(shown), Date.now()).catch(() => null));
+      if (lockVersionRef.current !== lockVersion) return;
+      if (shownKeyRef.current !== cardKey(shown)) setNextNotice(null);
+      shownKeyRef.current = cardKey(shown);
       setState((prev) => {
-        if (prev.kind === "ready" && prev.data.lock?.id !== data.lock?.id) setNextNotice(null);
         const previousReplies = prev.kind === "ready" && prev.pairing.token === pairing.token ? prev.data.replyAt : [];
         const replyAt = [...data.replyAt, ...previousReplies]
           .filter((at, index, all) => all.indexOf(at) === index)
           .slice(0, 2000);
-        return { kind: "ready", pairing, data: { ...data, replyAt }, error: null };
+        return { kind: "ready", pairing, data: { ...data, replyAt }, shown, error: null };
       });
     } catch (err) {
       if (err instanceof UnpairedError) {
@@ -133,7 +143,7 @@ export function App() {
   if (state.kind === "unpaired") {
     return (
       <PanelShell connected={false}>
-        {state.notice ? <p className="status-line" role="status">{state.notice}</p> : null}
+        {state.notice ? <p className="status-line rise" role="status">{state.notice}</p> : null}
         <section className="card" aria-label="Connect your desk">
           <p className="section-title">Connect your desk</p>
           <p className="detail">Connect this extension to your desk account to see your approach card here.</p>
@@ -156,7 +166,7 @@ export function App() {
   if (state.kind === "error") {
     return (
       <PanelShell connected>
-        <p className="status-line" role="status">{state.notice}</p>
+        <p className="status-line rise" role="status">{state.notice}</p>
         <section className="card" aria-label="Approach card">
           <p className="section-title">Approach</p>
           <p className="detail">Your extension is connected, but the approach card could not be loaded.</p>
@@ -169,53 +179,59 @@ export function App() {
     );
   }
 
-  const card = panelCard(state.data.lock);
-  const pace = panelPace(state.data.replyAt, now);
   const pairing = state.pairing;
-  const lock = state.data.lock;
+  const lock = state.shown;
+  const nextUp = state.data.nextUp;
+  const card = panelCard(lock);
+  const pace = panelPace(state.data.replyAt, now);
   const canAskNext = panelCanAskNext(lock, repliedCardId);
   const detected = cardDetected({ lock, repliedCardId, replySeenAtMs, since });
   const tag = detectionTag(lock, detected);
 
-  function askNext() {
-    if (pendingNextRef.current) return;
-    const request = nextFromCardId(lock);
-    const preloaded = preloadedNextCard(request, state.kind === "ready" ? state.data.nextUp : null);
-    pendingNextRef.current = request;
-    setNextBusy(preloaded ? "confirming" : "finding");
+  async function show(next: ScoutApproachLockCard | null) {
+    lockVersionRef.current += 1;
+    shownKeyRef.current = cardKey(next);
     setNextNotice(null);
+    setState((prev) => (prev.kind === "ready" ? { ...prev, shown: next } : prev));
+    setSince(await trackCardSince(cardKey(next), Date.now()).catch(() => null));
+    await openOnX(panelCard(next).openUrl);
+  }
 
-    const show = async (card: ScoutApproachLockCard | null, nextUp: ScoutApproachNext | null) => {
-      setState((prev) => (prev.kind === "ready" ? { ...prev, data: { ...prev.data, lock: card, nextUp } } : prev));
-      setSince(await trackCardSince(cardKey(card), Date.now()).catch(() => null));
-      await openOnX(panelCard(card).openUrl);
-    };
-    const settle = async (notice: string | null) => {
+  async function findNext(): Promise<string | null> {
+    const request = nextFromCardId(lock);
+    if (!(await askDeskForNext(pairing, request))) return panelNextNotice("no_desk");
+    const preloaded = preloadedNextCard(request, nextUp);
+    if (preloaded) {
+      pendingNextRef.current = { token: pairing.token, request, shown: preloaded.card };
+      await show(preloaded.card).catch(() => undefined);
+    }
+    const moved = await waitForLockChange(pairing, request).finally(() => {
       pendingNextRef.current = null;
-      if (notice && preloaded) {
-        const nextUp = state.kind === "ready" ? state.data.nextUp : null;
-        setState((prev) => (prev.kind === "ready" ? { ...prev, data: { ...prev.data, lock, nextUp } } : prev));
-        setSince(since);
-        await restoreCardSince(since).catch(() => undefined);
-      }
-      if (notice) setNextNotice(notice);
-      setNextBusy("idle");
-    };
+    });
+    if (!moved) {
+      if (preloaded) await refresh().catch(() => undefined);
+      return panelNextNotice(lock ? "not_moved" : "no_card");
+    }
+    lockVersionRef.current += 1;
+    setState((prev) =>
+      prev.kind === "ready"
+        ? { ...prev, data: { ...prev.data, lock: moved.card, nextUp: moved.next, lockSupported: moved.supported } }
+        : prev,
+    );
+    if (!preloaded || moved.card?.id !== preloaded.card?.id) await show(moved.card);
+    return null;
+  }
 
-    if (preloaded) show(preloaded.card, null).catch(() => undefined);
-    askDeskForNext(pairing, request)
-      .then(async (delivered) => {
-        if (!delivered) return panelNextNotice("no_desk");
-        const moved = await waitForLockChange(pairing, request);
-        if (!moved) return panelNextNotice(lock ? "not_moved" : "no_card");
-        if (preloaded && moved.card?.id === preloaded.card?.id) {
-          setState((prev) => (prev.kind === "ready" ? { ...prev, data: { ...prev.data, nextUp: moved.next } } : prev));
-          return null;
-        }
-        await show(moved.card, moved.next);
-        return null;
+  function askNext() {
+    if (nextBusy) return;
+    setNextBusy(true);
+    setNextNotice(null);
+    findNext()
+      .catch((err: unknown) => (err instanceof Error ? err.message : String(err)))
+      .then((notice) => {
+        if (notice) setNextNotice(notice);
+        setNextBusy(false);
       })
-      .then(settle, (err: unknown) => settle(err instanceof Error ? err.message : String(err)))
       .catch(() => undefined);
   }
 
@@ -241,7 +257,7 @@ export function App() {
   if (settingsOpen) {
     return (
       <PanelShell connected headSide={settingsButton}>
-        <section className="card" aria-label="Settings">
+        <section className="card rise" aria-label="Settings">
           <p className="section-title">Settings</p>
           <label className="toggle">
             <input
@@ -287,8 +303,9 @@ export function App() {
 
   return (
     <PanelShell connected headSide={settingsButton}>
-      {state.error ? <p className="status-line" role="status">{state.error}</p> : null}
-      {state.data.lockSupported ? null : <p className="status-line" role="status">{OLDER_SERVER_NOTICE}</p>}
+      {state.error ? <p className="status-line rise" role="status">{state.error}</p> : null}
+      {state.data.lockSupported ? null : <p className="status-line rise" role="status">{OLDER_SERVER_NOTICE}</p>}
+      <CardSlide slideKey={cardKey(lock)}>
       <section className={`card card-${card.kind}`} aria-label="Approach card">
         <div className="card-head">
           <p className="verb">{card.verb}</p>
@@ -331,15 +348,16 @@ export function App() {
             <button
               type="button"
               className={detected ? "primary" : "ghost"}
-              disabled={nextBusy !== "idle"}
+              disabled={nextBusy}
               onClick={askNext}
             >
-              {nextBusy === "finding" ? "Finding next…" : "Next card"}
+              Next card
             </button>
           ) : null}
         </div>
-        {nextNotice ? <p className="settings-help" role="status">{nextNotice}</p> : null}
+        {nextNotice ? <p className="settings-help rise" role="status">{nextNotice}</p> : null}
       </section>
+      </CardSlide>
       <PanelLinks links={FOOTER_LINKS} />
       <Scout look={look} />
       <p className="footnote">X Copilot never types or posts for you.</p>

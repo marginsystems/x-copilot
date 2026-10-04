@@ -93,8 +93,9 @@ describe("App live card", () => {
       lockChanged();
       await settle();
     });
-    expect(container.textContent).toContain("@erin");
-    expect(container.textContent).not.toContain("@dana");
+    const shown = container.querySelector(".card-slide-item:not(.is-leaving)");
+    expect(shown?.textContent).toContain("@erin");
+    expect(shown?.textContent).not.toContain("@dana");
     expect(watchLock).toHaveBeenCalledOnce();
 
     await act(async () => root.unmount());

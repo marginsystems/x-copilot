@@ -5,11 +5,13 @@ import { App } from "./App";
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
-const { readPairing, loadPanelData, askDeskForNext, waitForLockChange, storageData } = vi.hoisted(() => ({
+const { readPairing, loadPanelData, askDeskForNext, waitForLockChange, tabsQuery, tabsCreate, storageData } = vi.hoisted(() => ({
   readPairing: vi.fn(),
   loadPanelData: vi.fn(),
   askDeskForNext: vi.fn(),
   waitForLockChange: vi.fn(),
+  tabsQuery: vi.fn().mockResolvedValue([]),
+  tabsCreate: vi.fn(),
   storageData: {} as Record<string, unknown>,
 }));
 
@@ -40,11 +42,15 @@ vi.mock("wxt/browser", () => ({
       },
       onChanged: { addListener: vi.fn(), removeListener: vi.fn() },
     },
-    tabs: { create: vi.fn(), query: vi.fn().mockResolvedValue([]), update: vi.fn() },
+    tabs: { create: tabsCreate, query: tabsQuery, update: vi.fn() },
   },
 }));
 
 HTMLCanvasElement.prototype.getContext = () => null;
+
+function shownCard(container: HTMLElement): Element | null {
+  return container.querySelector(".card-slide-item:not(.is-leaving)");
+}
 
 const paired = {
   token: "token",
@@ -59,6 +65,8 @@ describe("App", () => {
     loadPanelData.mockReset();
     askDeskForNext.mockReset();
     waitForLockChange.mockReset();
+    tabsQuery.mockReset().mockResolvedValue([]);
+    tabsCreate.mockReset();
     for (const key of Object.keys(storageData)) delete storageData[key];
     document.body.replaceChildren();
   });
@@ -149,16 +157,94 @@ describe("App", () => {
     });
 
     expect(storageData.panelCardSince).toMatchObject({ key: "card:42" });
-    expect(container.textContent).toContain("Waiting for your reply");
+    expect(shownCard(container)?.textContent).toContain("Waiting for your reply");
 
     await act(async () => {
       window.dispatchEvent(new Event("focus"));
       await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
     });
 
-    expect(container.textContent).toContain("Waiting for your post");
-    expect(container.textContent).not.toContain("Post detected");
-    expect(container.textContent).toContain("Open For You");
+    expect(shownCard(container)?.textContent).toContain("Waiting for your post");
+    expect(shownCard(container)?.textContent).not.toContain("Post detected");
+    expect(shownCard(container)?.textContent).toContain("Open For You");
+    await act(async () => root.unmount());
+  });
+
+  it("follows the desk to its new card with a slide, without opening a tab", async () => {
+    readPairing.mockResolvedValue(paired);
+    const first = { id: "1", conversationId: null, inReplyToId: null, surface: "reply", author: "@ada", url: null, text: "First post" };
+    const second = { ...first, id: "2", author: "@bob", text: "Second post" };
+    loadPanelData
+      .mockResolvedValueOnce({ lock: first, lockSupported: true, replyAt: [], scout: null })
+      .mockResolvedValue({ lock: second, lockSupported: true, replyAt: [], scout: null });
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<App />);
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+    expect(shownCard(container)?.textContent).toContain("First post");
+    expect(container.querySelector(".is-leaving")).toBeNull();
+
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+
+    expect(askDeskForNext).not.toHaveBeenCalled();
+    expect(tabsCreate).not.toHaveBeenCalled();
+    expect(shownCard(container)?.textContent).toContain("Second post");
+    expect(shownCard(container)?.className).toContain("is-entering");
+    const leaving = container.querySelector(".is-leaving");
+    expect(leaving?.textContent).toContain("First post");
+    expect(leaving?.hasAttribute("aria-hidden")).toBe(true);
+    expect(leaving?.hasAttribute("inert")).toBe(true);
+
+    await act(async () => root.unmount());
+  });
+
+  it.each(["previous card", "cleared lock"])("does not let a refresh started before Next restore the server lock after a %s response", async (staleLock) => {
+    readPairing.mockResolvedValue(paired);
+    storageData.lastRepliedCardId = "1";
+    const first = { id: "1", conversationId: null, inReplyToId: null, surface: "reply", author: "@ada", url: null, text: "First post" };
+    const second = { ...first, id: "2", author: "@bob", text: "Second post" };
+    let resolveRefresh!: (data: { lock: typeof first | null; lockSupported: boolean; replyAt: never[]; scout: null }) => void;
+    loadPanelData
+      .mockResolvedValueOnce({ lock: first, lockSupported: true, replyAt: [], scout: null })
+      .mockReturnValueOnce(new Promise((resolve) => { resolveRefresh = resolve; }));
+    askDeskForNext.mockResolvedValue(true);
+    waitForLockChange.mockResolvedValue({ card: second, supported: true, valid: true });
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<App />);
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+    expect(loadPanelData).toHaveBeenCalledTimes(2);
+
+    const next = Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Next card");
+    await act(async () => {
+      next?.click();
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+    expect(shownCard(container)?.textContent).toContain("Second post");
+
+    await act(async () => {
+      resolveRefresh({ lock: staleLock === "cleared lock" ? null : first, lockSupported: true, replyAt: [], scout: null });
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+
+    expect(shownCard(container)?.textContent).toContain("Second post");
+    expect(Array.from(shownCard(container)?.querySelectorAll("button") ?? []).some((button) => button.textContent === "Next card")).toBe(false);
+
     await act(async () => root.unmount());
   });
 
@@ -236,7 +322,8 @@ describe("App", () => {
     readPairing.mockResolvedValue(paired);
     const upNext = { id: "42", conversationId: null, inReplyToId: null, surface: "reply", author: "@dana", url: null, text: "Preloaded post" };
     loadPanelData.mockResolvedValue({ lock: null, lockSupported: true, nextUp: { card: upNext }, replyAt: [], scout: null });
-    askDeskForNext.mockReturnValue(new Promise(() => undefined));
+    askDeskForNext.mockResolvedValue(true);
+    waitForLockChange.mockReturnValue(new Promise(() => undefined));
     const container = document.createElement("div");
     document.body.append(container);
     const root = createRoot(container);
@@ -251,21 +338,102 @@ describe("App", () => {
       await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
     });
 
-    expect(container.textContent).toContain("@dana");
-    expect(container.textContent).toContain("Preloaded post");
-    expect(container.textContent).not.toContain("Finding next");
-    expect(waitForLockChange).not.toHaveBeenCalled();
+    expect(shownCard(container)?.textContent).toContain("@dana");
+    expect(shownCard(container)?.textContent).toContain("Preloaded post");
+    expect(waitForLockChange).toHaveBeenCalledOnce();
 
     await act(async () => {
       window.dispatchEvent(new Event("focus"));
       await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
     });
-    expect(container.textContent).toContain("Preloaded post");
+    expect(shownCard(container)?.textContent).toContain("Preloaded post");
 
     await act(async () => root.unmount());
   });
 
-  it("goes back to the desk's card with a notice when no desk is open to confirm the preloaded one", async () => {
+  it("returns to the desk's card with a notice when the desk never confirms a preloaded Next", async () => {
+    readPairing.mockResolvedValue(paired);
+    storageData.lastRepliedCardId = "1";
+    const current = { id: "1", conversationId: null, inReplyToId: null, surface: "reply", author: "@ada", url: null, text: "Current post" };
+    const preloaded = { ...current, id: "2", author: "@dana", text: "Preloaded post" };
+    loadPanelData.mockResolvedValue({ lock: current, lockSupported: true, nextUp: { card: preloaded }, replyAt: [], scout: null });
+    askDeskForNext.mockResolvedValue(true);
+    let giveUp!: (value: null) => void;
+    waitForLockChange.mockReturnValue(new Promise<null>((resolve) => { giveUp = resolve; }));
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<App />);
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+    const next = Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Next card");
+    await act(async () => {
+      next?.click();
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+    expect(shownCard(container)?.textContent).toContain("Preloaded post");
+
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+    expect(shownCard(container)?.textContent).toContain("Preloaded post");
+
+    await act(async () => {
+      giveUp(null);
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+
+    expect(shownCard(container)?.textContent).toContain("@ada");
+    expect(shownCard(container)?.textContent).not.toContain("Preloaded post");
+    expect(shownCard(container)?.textContent).toContain("as soon as its dashboard is showing");
+    expect(tabsCreate).toHaveBeenCalledOnce();
+
+    await act(async () => root.unmount());
+  });
+
+  it("opens the preloaded card before waiting for and opening the confirmed card", async () => {
+    readPairing.mockResolvedValue(paired);
+    const preloaded = { id: "42", conversationId: null, inReplyToId: null, surface: "reply", author: "@dana", url: null, text: "Preloaded post" };
+    const confirmed = { ...preloaded, id: "43", author: "@lee", text: "Confirmed post" };
+    loadPanelData.mockResolvedValue({ lock: null, lockSupported: true, nextUp: { card: preloaded }, replyAt: [], scout: null });
+    askDeskForNext.mockResolvedValue(true);
+    waitForLockChange.mockResolvedValue({ card: confirmed, supported: true, valid: true });
+    let resolveTabs!: (tabs: never[]) => void;
+    tabsQuery.mockReturnValueOnce(new Promise<never[]>((resolve) => { resolveTabs = resolve; }));
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(<App />);
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+    const next = Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Next card");
+    await act(async () => {
+      next?.click();
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+
+    expect(waitForLockChange).not.toHaveBeenCalled();
+    expect(shownCard(container)?.textContent).toContain("Preloaded post");
+
+    await act(async () => {
+      resolveTabs([]);
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+
+    expect(waitForLockChange).toHaveBeenCalledOnce();
+    expect(tabsCreate).toHaveBeenNthCalledWith(1, { url: "https://x.com/i/status/42", active: true });
+    expect(tabsCreate).toHaveBeenNthCalledWith(2, { url: "https://x.com/i/status/43", active: true });
+    expect(shownCard(container)?.textContent).toContain("Confirmed post");
+
+    await act(async () => root.unmount());
+  });
+
+  it("stays on its card with a notice when no desk is open to take the Next", async () => {
     readPairing.mockResolvedValue(paired);
     const upNext = { id: "42", conversationId: null, inReplyToId: null, surface: "reply", author: "@dana", url: null, text: "Preloaded post" };
     loadPanelData.mockResolvedValue({ lock: null, lockSupported: true, nextUp: { card: upNext }, replyAt: [], scout: null });
@@ -285,6 +453,7 @@ describe("App", () => {
     });
 
     expect(container.textContent).not.toContain("Preloaded post");
+    expect(container.querySelector(".is-leaving")).toBeNull();
     expect(container.textContent).toContain("Open For You");
     expect(container.textContent).toContain("Open your desk dashboard in a tab");
 

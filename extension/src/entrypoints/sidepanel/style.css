@@ -13,6 +13,8 @@
   --gauge-warn: #d9a441;
   --on-accent: #161310;
   --radius: 4px;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
   --font-head: "Space Grotesk", "Segoe UI", sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
   font-family: var(--font-mono);
@@ -41,6 +43,12 @@ body {
 button {
   font: inherit;
   border-radius: var(--radius);
+  transition:
+    background-color 160ms var(--ease-out),
+    border-color 160ms var(--ease-out),
+    color 160ms var(--ease-out),
+    filter 160ms var(--ease-out),
+    opacity 160ms var(--ease-out);
 }
 
 .panel {
@@ -435,4 +443,79 @@ button.icon-btn[aria-pressed="true"] {
 
 .detect-tag.is-detected .detect-dot {
   background: var(--gain);
+}
+
+.card-slide {
+  display: grid;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+.card-slide-item {
+  grid-area: 1 / 1;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.card-slide-item.is-entering {
+  animation: card-in 420ms var(--ease-out) both;
+}
+
+.card-slide-item.is-leaving {
+  animation: card-out 380ms var(--ease-in-out) both;
+  pointer-events: none;
+}
+
+.rise {
+  animation: rise-in 260ms var(--ease-out) both;
+}
+
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateX(-12%);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes card-out {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateX(12%);
+  }
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-slide-item.is-entering,
+  .card-slide-item.is-leaving,
+  .rise {
+    animation: none;
+  }
+
+  .card-slide-item.is-leaving {
+    display: none;
+  }
+
+  button {
+    transition: none;
+  }
 }

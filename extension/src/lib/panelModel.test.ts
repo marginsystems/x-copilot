@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { X_FOR_YOU_URL, X_INSPIRATION_URL } from "../../../shared/src/forYou";
 import { REPLY_PACE_MS } from "../../../shared/src/replyPace";
-import { nextFromCardId, panelCanAskNext, panelCard, panelNextNotice, panelPace, preloadedNextCard, scoutOpenUrl } from "./panelModel";
+import { shownAfterRefresh, nextFromCardId, panelCanAskNext, panelCard, panelNextNotice, panelPace, preloadedNextCard, scoutOpenUrl } from "./panelModel";
 
 const lock = {
   id: "123",
@@ -91,5 +91,29 @@ describe("preloadedNextCard", () => {
     expect(preloadedNextCard({ fromCardId: "123" }, undefined)).toBeNull();
     expect(preloadedNextCard({ fromCardId: "123" }, { card: lock })).toBeNull();
     expect(preloadedNextCard({ forYou: true }, { card: null })).toBeNull();
+  });
+});
+
+describe("shownAfterRefresh", () => {
+  const other = { ...lock, id: "456" };
+
+  it("always shows the desk's card when no Next is waiting to be confirmed", () => {
+    expect(shownAfterRefresh(null, "t", lock)).toBe(lock);
+    expect(shownAfterRefresh(null, "t", null)).toBeNull();
+    expect(shownAfterRefresh({ token: "old", request: { fromCardId: "123" }, shown: other }, "t", lock)).toBe(lock);
+  });
+
+  it("keeps the preloaded card until the desk has moved off the card Next was pressed on", () => {
+    const pending = { token: "t", request: { fromCardId: "123" }, shown: other };
+    expect(shownAfterRefresh(pending, "t", lock)).toBe(other);
+    expect(shownAfterRefresh(pending, "t", null)).toBeNull();
+    const third = { ...lock, id: "789" };
+    expect(shownAfterRefresh(pending, "t", third)).toBe(third);
+  });
+
+  it("keeps the preloaded card after a For You Next until the desk locks a card", () => {
+    const pending = { token: "t", request: { forYou: true as const }, shown: other };
+    expect(shownAfterRefresh(pending, "t", null)).toBe(other);
+    expect(shownAfterRefresh(pending, "t", lock)).toBe(lock);
   });
 });
