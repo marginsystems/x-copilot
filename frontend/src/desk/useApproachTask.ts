@@ -18,6 +18,8 @@ import {
   adoptEmptyScoutCollecting,
   reconcileApproachGate,
   restoreApproachTask,
+  sameApproachLock,
+  serverOwnedLock,
   transitionApproachTask,
   type ApproachNormalizeContext,
   type ApproachTaskState,
@@ -49,7 +51,7 @@ import {
   upNextLock,
   type ApproachNextRequest,
 } from "../../../shared/src/approachNext";
-import { deskApproachState } from "../../../shared/src/scoutApproachLock";
+import { deskApproachState, SCOUT_APPROACH_LOCK_PATH } from "../../../shared/src/scoutApproachLock";
 import { vanishEvent } from "../lib/vanishEvent";
 import { apiFetch } from "../lib/apiBase";
 import { presentApproach, type ApproachCardInput } from "../../../shared/src/approachPresenter";
@@ -78,6 +80,8 @@ import type {
 import { useDeskRowExit } from "./useDeskRowExit";
 import { useReplyPace } from "./useReplyPace";
 import { watchDeskThreads } from "./watch";
+
+export const SERVER_TASK_CHECK_MS = 4_000;
 
 export type UseApproachTaskOpts = {
   authUser: AuthSessionUser | null;
@@ -388,6 +392,37 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     setOwnPostActivity(null);
   }, [owner]);
 
+  const [serverTaskChecked, setServerTaskChecked] = useState(userId === null);
+  useEffect(() => {
+    if (userId === null) {
+      setServerTaskChecked(true);
+      return undefined;
+    }
+    let live = true;
+    setServerTaskChecked(false);
+    const giveUp = window.setTimeout(() => {
+      if (live) setServerTaskChecked(true);
+    }, SERVER_TASK_CHECK_MS);
+    apiFetch(SCOUT_APPROACH_LOCK_PATH)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((raw: unknown) => {
+        if (!live) return;
+        const serverLock = serverOwnedLock(raw);
+        if (serverLock) {
+          writeApproachLock(userId, serverLock);
+          adoptServerLockRef.current(serverLock);
+        }
+        setServerTaskChecked(true);
+      })
+      .catch(() => {
+        if (live) setServerTaskChecked(true);
+      });
+    return () => {
+      live = false;
+      window.clearTimeout(giveUp);
+    };
+  }, [userId]);
+
   useEffect(() => {
     if (!deskBootReady || !agendaReady || stateRef.current) return;
     const stored = readApproachLock(userId);
@@ -409,6 +444,20 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
       }),
     );
   }, [agendaReady, deskBootReady, owner, userId]);
+
+  const adoptServerLockRef = useRef((serverLock: ApproachLock) => {
+    const current = stateRef.current;
+    if (!current || sameApproachLock(current.lock, serverLock)) return;
+    commitRef.current(
+      restoreApproachTask({
+        stored: serverLock,
+        storedWait: readForYouWait(ownerRef.current),
+        normalize: normalizeRef.current,
+        paceLocked: paceLockedRef.current,
+        task: { owner: ownerRef.current, cursor: cursorRef.current },
+      }),
+    );
+  });
 
   useEffect(() => {
     const current = stateRef.current;
@@ -531,7 +580,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
   const ready = lock !== null;
   const lockGeneration = session.capture();
   useEffect(() => {
-    if (!authUser?.id || !ready || !writesEnabled) return;
+    if (!authUser?.id || !ready || !writesEnabled || !serverTaskChecked) return;
     if (!session.isCurrent(lockGeneration)) return;
     if (phase === "scout_reply" && !lockedScout && lock?.cardId !== null) return;
     const suggestedTarget =
@@ -579,7 +628,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
         ...(lockJson ? { lock: JSON.parse(lockJson) as unknown } : {}),
       }),
     }).catch(() => {});
-  }, [authUser?.id, lockedScout, lockedSuggestion, phase, ready, writesEnabled, lockGeneration, session, upNextJson, deskStateJson, lockJson]);
+  }, [authUser?.id, lockedScout, lockedSuggestion, phase, ready, writesEnabled, lockGeneration, session, upNextJson, deskStateJson, lockJson, serverTaskChecked]);
 
   const pendingDismissIdRef = useRef<string | null>(null);
 

@@ -14,6 +14,8 @@ import {
   type ApproachInventory,
   type ApproachLock,
 } from "./deskPhase";
+import { parseApproachLock } from "./approachLock";
+import { isRecord } from "./typeGuards";
 import {
   openForYouWait,
   type ActivityCursor,
@@ -130,4 +132,14 @@ export function reconcileApproachGate(
   const lock = normalizeApproachLock(state.lock, normalize);
   if (lock === state.lock) return state;
   return { lock, wait: waitFor(lock, ctx) };
+}
+
+/** The lock the server moved to while no desk was open, or null when the desk still owns it. */
+export function serverOwnedLock(raw: unknown): ApproachLock | null {
+  if (!isRecord(raw) || !isRecord(raw.task) || raw.task.owner !== "server") return null;
+  return parseApproachLock(JSON.stringify(raw.task.lock));
+}
+
+export function sameApproachLock(a: ApproachLock, b: ApproachLock): boolean {
+  return a.phase === b.phase && a.cardId === b.cardId && a.surface === b.surface;
 }

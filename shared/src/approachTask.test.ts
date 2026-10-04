@@ -6,6 +6,8 @@ import {
   restoreApproachTask,
   transitionApproachTask,
   type ApproachTaskState,
+  sameApproachLock,
+  serverOwnedLock,
 } from "./approachTask.ts";
 import { eligibleScoutCards, shouldArmScoutOnBoot, shouldBackgroundScout } from "./deskRefuel.ts";
 import { advanceApproach, type ApproachLock } from "./deskPhase.ts";
@@ -775,5 +777,26 @@ await describe("Collecting refill handoff", () => {
     handledThisOpen = false;
     boot(true);
     assert.equal(searches, 2);
+  }).catch(assert.fail);
+});
+
+await describe("server-owned lock", () => {
+  const lock = { phase: "scout_reply", cardId: "c2", surface: null };
+
+  it("reads the lock only when the server, not a desk, last moved it", () => {
+    assert.deepEqual(serverOwnedLock({ ok: true, task: { lock, version: 2, owner: "server" } }), lock);
+    assert.equal(serverOwnedLock({ ok: true, task: { lock, version: 2, owner: "desk" } }), null);
+  }).catch(assert.fail);
+
+  it("ignores a missing or malformed task", () => {
+    for (const raw of [null, {}, { task: null }, { task: { owner: "server" } }, { task: { owner: "server", lock: { phase: "nope", cardId: null, surface: null } } }]) {
+      assert.equal(serverOwnedLock(raw), null);
+    }
+  }).catch(assert.fail);
+
+  it("compares locks by phase, card and surface", () => {
+    const forYou = { phase: "hold" as const, cardId: null, surface: "for_you" as const };
+    assert.equal(sameApproachLock(forYou, { ...forYou }), true);
+    assert.equal(sameApproachLock(forYou, { ...forYou, phase: "silent_refuel" }), false);
   }).catch(assert.fail);
 });
