@@ -9,6 +9,8 @@ export const DESK_PHASES = [
 
 export type DeskPhase = (typeof DESK_PHASES)[number];
 
+export const APPROACH_SURFACES = ["for_you", "link_x", "settings", "usage", "wait"] as const;
+
 export type DeskBeats = {
   scoutReplyDone: boolean;
   organicReplyDone: boolean;

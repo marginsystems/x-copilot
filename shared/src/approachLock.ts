@@ -1,18 +1,11 @@
 import { isRecord, isOneOf } from "./typeGuards";
 import {
+  APPROACH_SURFACES,
   DESK_PHASES,
   type ApproachLock,
 } from "./deskPhase";
 
 export const APPROACH_LOCK_STORAGE_KEY = "x-copilot-approach-lock";
-
-const APPROACH_SURFACES = [
-  "for_you",
-  "link_x",
-  "settings",
-  "usage",
-  "wait",
-] as const;
 
 export function parseApproachLock(raw: string | null): ApproachLock | null {
   if (raw === null) return null;

@@ -514,6 +514,9 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     return JSON.stringify({ card: null });
   }
 
+  const lockJson = lock
+    ? JSON.stringify({ phase: lock.phase, cardId: lock.cardId, surface: lock.surface })
+    : "";
   const deskStateJson = lock
     ? JSON.stringify(deskApproachState({
         phase: lock.phase,
@@ -573,9 +576,10 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
           : suggestedTarget,
         ...(upNextJson ? { next: JSON.parse(upNextJson) as unknown } : {}),
         ...(deskStateJson ? { state: JSON.parse(deskStateJson) as unknown } : {}),
+        ...(lockJson ? { lock: JSON.parse(lockJson) as unknown } : {}),
       }),
     }).catch(() => {});
-  }, [authUser?.id, lockedScout, lockedSuggestion, phase, ready, writesEnabled, lockGeneration, session, upNextJson, deskStateJson]);
+  }, [authUser?.id, lockedScout, lockedSuggestion, phase, ready, writesEnabled, lockGeneration, session, upNextJson, deskStateJson, lockJson]);
 
   const pendingDismissIdRef = useRef<string | null>(null);
 

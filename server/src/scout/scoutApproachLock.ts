@@ -11,6 +11,11 @@ import {
 import { getSessionUser } from "../auth/sessionCookie.js";
 import { allowRate } from "../auth/authGuard.js";
 import { retainScoutContextForTarget } from "./scoutEvidenceContext.js";
+import {
+  approachTaskLockFromBody,
+  getApproachTask,
+  setApproachTask,
+} from "../desk/approachTaskStore.js";
 
 export const SCOUT_APPROACH_LOCK_PATH = "/api/scout-approach-lock";
 
@@ -232,6 +237,7 @@ export async function tryHandleScoutApproachLock(
       card: getScoutApproachLock(user.id),
       next: getScoutApproachNext(user.id),
       state: getDeskApproachState(user.id),
+      task: getApproachTask(user.id),
     });
     return true;
   }
@@ -253,6 +259,9 @@ export async function tryHandleScoutApproachLock(
     });
     return true;
   }
+
+  const taskLock = approachTaskLockFromBody(body.lock);
+  if (taskLock) setApproachTask(user.id, taskLock, "desk");
 
   if (body.card === null) {
     setScoutApproachLock(user.id, null);

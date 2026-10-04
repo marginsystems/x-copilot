@@ -7,7 +7,12 @@ import {
   stripMediaShortlinksFromText as spaStripMediaShortlinksFromText,
 } from "../../../frontend/src/lib/mediaText.ts";
 import { NEXT_ACTION_KINDS as spaNextActionKinds } from "../../../shared/src/coaching.ts";
-import { emptyDeskBeats as spaEmptyDeskBeats } from "../../../shared/src/deskPhase.ts";
+import {
+  APPROACH_SURFACES as sharedApproachSurfaces,
+  DESK_PHASES as sharedDeskPhases,
+  emptyDeskBeats as spaEmptyDeskBeats,
+} from "../../../shared/src/deskPhase.ts";
+import { APPROACH_SURFACES as apiApproachSurfaces, DESK_PHASES as apiDeskPhases } from "../desk/approachTaskStore.ts";
 import {
   normalizeTcoKey as apiNormalizeTcoKey,
   stripMediaShortlinksFromText as apiStripMediaShortlinksFromText,
@@ -46,6 +51,11 @@ await describe("mirrored SPA/API constants", async () => {
   await it("keeps the approach Next path and id limit equal on both sides", () => {
     assert.equal(sharedApproachNextPath, apiApproachNextPath);
     assert.equal(sharedApproachNextIdMax, apiApproachNextIdMax);
+  });
+
+  await it("keeps the approach lock phases and surfaces equal on both sides", () => {
+    assert.deepEqual(sharedDeskPhases, apiDeskPhases);
+    assert.deepEqual(sharedApproachSurfaces, apiApproachSurfaces);
   });
 
   await it("keeps NEXT_ACTION_KINDS equal on both sides", () => {
