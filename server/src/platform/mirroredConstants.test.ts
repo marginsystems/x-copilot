@@ -7,6 +7,8 @@ import {
   stripMediaShortlinksFromText as spaStripMediaShortlinksFromText,
 } from "../../../frontend/src/lib/mediaText.ts";
 import { NEXT_ACTION_KINDS as spaNextActionKinds } from "../../../shared/src/coaching.ts";
+import { AGENDA_MIN_CHARS as spaAgendaMinChars } from "../../../frontend/src/lib/agendaPersist.ts";
+import { AGENDA_MIN_CHARS as apiApproachAgendaMinChars } from "../desk/approachStock.ts";
 import {
   APPROACH_SURFACES as sharedApproachSurfaces,
   DESK_PHASES as sharedDeskPhases,
@@ -56,6 +58,10 @@ await describe("mirrored SPA/API constants", async () => {
   await it("keeps the approach lock phases and surfaces equal on both sides", () => {
     assert.deepEqual(sharedDeskPhases, apiDeskPhases);
     assert.deepEqual(sharedApproachSurfaces, apiApproachSurfaces);
+  });
+
+  await it("keeps the agenda length that lifts the Approach gate equal on both sides", () => {
+    assert.equal(spaAgendaMinChars, apiApproachAgendaMinChars);
   });
 
   await it("keeps NEXT_ACTION_KINDS equal on both sides", () => {
