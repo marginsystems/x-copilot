@@ -186,48 +186,22 @@ export default defineContentScript({
 
     const reported = new Set<string>();
     const attempts = new Map<string, number>();
-    const pending = new Map<string, HTMLAnchorElement>();
-    function reportSentPosts(records: MutationRecord[]) {
-      const links = new Set<HTMLAnchorElement>();
-      for (const record of records) {
-        for (const node of record.addedNodes) {
-          if (!(node instanceof Element)) continue;
-          if (node.matches(X_SELECTORS.sentToastLink)) links.add(node as HTMLAnchorElement);
-          for (const link of node.querySelectorAll<HTMLAnchorElement>(X_SELECTORS.sentToastLink)) {
-            links.add(link);
-          }
-        }
-      }
-      for (const [replyUrl, link] of pending) {
-        if (link.isConnected) links.add(link);
-        else pending.delete(replyUrl);
-      }
-      for (const link of links) {
+    function reportSentPosts() {
+      for (const link of document.body.querySelectorAll<HTMLAnchorElement>(X_SELECTORS.sentToastLink)) {
         const replyUrl = postedStatusUrl(link.getAttribute("href"));
         if (!replyUrl || reported.has(replyUrl) || (attempts.get(replyUrl) ?? 0) >= 2) continue;
-        const attempt = (attempts.get(replyUrl) ?? 0) + 1;
-        attempts.set(replyUrl, attempt);
-        pending.delete(replyUrl);
+        attempts.set(replyUrl, (attempts.get(replyUrl) ?? 0) + 1);
         reported.add(replyUrl);
         browser.runtime
           .sendMessage({ type: REPLY_SEEN, replyUrl, pageStatusId: clock.statusId })
           .then((response) => {
-            if (response?.ok) {
-              pending.delete(replyUrl);
-              return;
-            }
-            reported.delete(replyUrl);
-            if (attempt < 2) pending.set(replyUrl, link);
+            if (!response?.ok) reported.delete(replyUrl);
           })
           .catch(() => {
             reported.delete(replyUrl);
-            if (attempt < 2) pending.set(replyUrl, link);
           });
       }
     }
-    const observer = new MutationObserver(reportSentPosts);
-    observer.observe(document.body, { childList: true, subtree: true });
-    ctx.onInvalidated(() => observer.disconnect());
 
     let windowFocused = false;
     let askingWindowFocus = false;
@@ -277,7 +251,10 @@ export default defineContentScript({
         memoryDirty = false;
         memoryWrittenAt = nowMs;
       }
-      if (visible) render(nowMs);
+      if (visible) {
+        render(nowMs);
+        reportSentPosts();
+      }
     }, TICK_MS);
   },
 });

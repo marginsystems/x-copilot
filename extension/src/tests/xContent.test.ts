@@ -368,8 +368,9 @@ describe("x content attention polling", () => {
     expect(state.sendMessage).toHaveBeenCalledWith({ type: "x-copilot:window-focused" });
   });
 
-  it("reports added toast links without rescanning the document and dedupes sent links", async () => {
-    const querySelectorAll = vi.spyOn(document, "querySelectorAll");
+  it("reports a sent-post toast on the next tick without watching page mutations, once per post", async () => {
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+    const observe = vi.spyOn(MutationObserver.prototype, "observe");
     const context = {
       setInterval: (callback: () => void) => {
         state.intervalCallback = callback;
@@ -380,30 +381,35 @@ describe("x content attention polling", () => {
     window.history.replaceState(null, "", "/user/status/123");
     contentScript.main(context);
     state.intervalCallback?.();
+    expect(observe).not.toHaveBeenCalled();
 
+    const layers = document.createElement("div");
+    layers.id = "layers";
     const toast = document.createElement("div");
     toast.setAttribute("data-testid", "toast");
     const link = document.createElement("a");
     link.setAttribute("href", "/me/status/555");
     toast.append(link);
-    document.body.append(toast);
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    layers.append(toast);
+    document.body.append(layers);
+    expect(state.sendMessage).not.toHaveBeenCalled();
 
+    state.intervalCallback?.();
+    await new Promise((resolve) => setTimeout(resolve, 0));
     expect(state.sendMessage).toHaveBeenCalledTimes(1);
     expect(state.sendMessage).toHaveBeenCalledWith({
       type: "x-copilot:reply-seen",
       replyUrl: "https://x.com/me/status/555",
       pageStatusId: "123",
     });
-    expect(querySelectorAll).not.toHaveBeenCalledWith('[data-testid="toast"] a[href*="/status/"]');
 
-    link.remove();
-    toast.append(link);
+    state.intervalCallback?.();
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(state.sendMessage).toHaveBeenCalledTimes(1);
   });
 
-  it("retries a failed toast report only once across later page mutations", async () => {
+  it("retries a failed toast report once on a later tick, then stops", async () => {
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
     state.sendMessage.mockResolvedValue({ ok: false });
     const context = {
       setInterval: (callback: () => void) => {
@@ -412,9 +418,8 @@ describe("x content attention polling", () => {
       onInvalidated: () => undefined,
     } as unknown as NonNullable<Parameters<typeof contentScript.main>[0]>;
 
-    window.history.replaceState(null, "", "/user/status/123");
+    window.history.replaceState(null, "", "/home");
     contentScript.main(context);
-    state.intervalCallback?.();
 
     const toast = document.createElement("div");
     toast.setAttribute("data-testid", "toast");
@@ -422,20 +427,32 @@ describe("x content attention polling", () => {
     link.setAttribute("href", "/me/status/555");
     toast.append(link);
     document.body.append(toast);
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(state.sendMessage).toHaveBeenCalledTimes(1);
 
-    document.body.append(document.createElement("div"));
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    for (let tick = 0; tick < 4; tick += 1) {
+      state.intervalCallback?.();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
     expect(state.sendMessage).toHaveBeenCalledTimes(2);
+  });
 
-    const replacementToast = document.createElement("div");
-    replacementToast.setAttribute("data-testid", "toast");
-    const replacementLink = document.createElement("a");
-    replacementLink.setAttribute("href", "/me/status/555");
-    replacementToast.append(replacementLink);
-    document.body.append(replacementToast);
+  it("does not look for toasts while the tab is hidden", async () => {
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+    const context = {
+      setInterval: (callback: () => void) => {
+        state.intervalCallback = callback;
+      },
+      onInvalidated: () => undefined,
+    } as unknown as NonNullable<Parameters<typeof contentScript.main>[0]>;
+    window.history.replaceState(null, "", "/home");
+    contentScript.main(context);
+    const toast = document.createElement("div");
+    toast.setAttribute("data-testid", "toast");
+    const link = document.createElement("a");
+    link.setAttribute("href", "/me/status/555");
+    toast.append(link);
+    document.body.append(toast);
+    state.intervalCallback?.();
     await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(state.sendMessage).toHaveBeenCalledTimes(2);
+    expect(state.sendMessage).not.toHaveBeenCalled();
   });
 });
