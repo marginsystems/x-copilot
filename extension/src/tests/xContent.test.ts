@@ -254,8 +254,77 @@ describe("x content attention polling", () => {
 
     state.sendMessage.mockResolvedValue({ focused: false });
     await tick(3_250);
-    for (let second = 4; second <= 6; second += 1) await tick(second * 1_000);
-    expect(chipText()).toBe("Reading7s");
+    await tick(4_000);
+    const afterLosingFocus = chipText();
+    expect(["Reading7s", "Reading6s"]).toContain(afterLosingFocus);
+    for (let second = 5; second <= 8; second += 1) await tick(second * 1_000);
+    expect(chipText()).toBe(afterLosingFocus);
+  });
+
+  it("asks the browser for window focus at most once a second", async () => {
+    let nowMs = 0;
+    vi.spyOn(Date, "now").mockImplementation(() => nowMs);
+    vi.spyOn(document, "hasFocus").mockReturnValue(false);
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+    state.sendMessage.mockResolvedValue({ focused: false });
+    const post = document.createElement("article");
+    post.setAttribute("data-testid", "tweet");
+    vi.spyOn(post, "getBoundingClientRect").mockReturnValue({
+      top: 10, bottom: 100, left: 10, right: 300, width: 290, height: 90, x: 10, y: 10, toJSON: () => ({}),
+    });
+    document.body.append(post);
+    const context = {
+      setInterval: (callback: () => void) => {
+        state.intervalCallback = callback;
+      },
+      onInvalidated: () => undefined,
+    } as unknown as NonNullable<Parameters<typeof contentScript.main>[0]>;
+
+    window.history.replaceState(null, "", "/user/status/654");
+    contentScript.main(context);
+    for (let quarter = 0; quarter <= 12; quarter += 1) {
+      nowMs = quarter * 250;
+      state.intervalCallback?.();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    const asks = state.sendMessage.mock.calls.filter(([message]) => message?.type === "x-copilot:window-focused");
+    expect(asks).toHaveLength(4);
+  });
+
+  it("stops reading the page layout once the post is read and its chip has gone", () => {
+    let nowMs = 0;
+    vi.spyOn(Date, "now").mockImplementation(() => nowMs);
+    vi.spyOn(document, "hasFocus").mockReturnValue(true);
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+    const box = { top: 10, bottom: 100, left: 10, right: 300, width: 290, height: 90, x: 10, y: 10, toJSON: () => ({}) };
+    const post = document.createElement("article");
+    post.setAttribute("data-testid", "tweet");
+    const postRect = vi.spyOn(post, "getBoundingClientRect").mockReturnValue(box);
+    const composer = document.createElement("div");
+    composer.setAttribute("data-testid", "tweetTextarea_0");
+    const composerRect = vi.spyOn(composer, "getBoundingClientRect").mockReturnValue({ ...box, top: 200, bottom: 240, y: 200 });
+    document.body.append(post, composer);
+    const context = {
+      setInterval: (callback: () => void) => {
+        state.intervalCallback = callback;
+      },
+      onInvalidated: () => undefined,
+    } as unknown as NonNullable<Parameters<typeof contentScript.main>[0]>;
+
+    window.history.replaceState(null, "", "/user/status/777");
+    contentScript.main(context);
+    for (let second = 0; second <= 14; second += 1) {
+      nowMs = second * 1_000;
+      state.intervalCallback?.();
+    }
+    postRect.mockClear();
+    composerRect.mockClear();
+    for (let second = 15; second <= 20; second += 1) {
+      nowMs = second * 1_000;
+      state.intervalCallback?.();
+    }
+    expect(postRect).not.toHaveBeenCalled();
+    expect(composerRect).not.toHaveBeenCalled();
   });
 
   it("does not request window focus while hidden or while the post is off screen", () => {

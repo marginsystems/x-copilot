@@ -15,6 +15,9 @@ import { SCOUT_SPRITE_SIZE, scoutLook, type ScoutLook } from "./scoutCompanion.t
 import {
   paintScout,
   SCOUT_DESK_PALETTE,
+  SCOUT_IDLE_FRAME_MS,
+  SCOUT_NAP_FRAME_MS,
+  scoutFrameDue,
   SCOUT_GROUND_INSET,
   SCOUT_PALETTE,
   startScoutStage,
@@ -558,5 +561,28 @@ await describe("startScoutStage visits", () => {
     const still = startScoutStage(fakeStage(320, true).canvas, { look: awake });
     assert.equal(still.host(SCOUT_DESK_PALETTE, "right"), false);
     assert.equal(still.depart("left"), false);
+  }).catch(assert.fail);
+});
+
+await describe("scoutFrameDue", () => {
+  it("paints every frame while something moves and throttles idle and napping Scouts", () => {
+    assert.equal(scoutFrameDue({ timeMs: 10, lastPaintMs: null, busy: false, awake: true }), true);
+    assert.equal(scoutFrameDue({ timeMs: 16, lastPaintMs: 0, busy: true, awake: true }), true);
+    assert.equal(scoutFrameDue({ timeMs: 16, lastPaintMs: 0, busy: false, awake: true }), false);
+    assert.equal(scoutFrameDue({ timeMs: SCOUT_IDLE_FRAME_MS, lastPaintMs: 0, busy: false, awake: true }), true);
+    assert.equal(scoutFrameDue({ timeMs: SCOUT_IDLE_FRAME_MS, lastPaintMs: 0, busy: false, awake: false }), false);
+    assert.equal(scoutFrameDue({ timeMs: SCOUT_NAP_FRAME_MS, lastPaintMs: 0, busy: false, awake: false }), true);
+  }).catch(assert.fail);
+
+  it("skips painting an idle stage between throttled frames", () => {
+    const { canvas, runFrame } = fakeStage(320);
+    const stage = startScoutStage(canvas, { look: scoutLook({ connected: true, repliesToday: 0, stats: null }) });
+    assert.ok(runFrame(1_000).length > 0);
+    assert.equal(runFrame(1_016).length, 0);
+    assert.ok(runFrame(1_000 + SCOUT_IDLE_FRAME_MS).length > 0);
+    stage.cheer();
+    assert.ok(runFrame(1_000 + SCOUT_IDLE_FRAME_MS + 16).length > 0);
+    assert.ok(runFrame(1_000 + SCOUT_IDLE_FRAME_MS + 32).length > 0);
+    stage.stop();
   }).catch(assert.fail);
 });

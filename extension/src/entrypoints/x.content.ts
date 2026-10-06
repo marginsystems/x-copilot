@@ -18,6 +18,8 @@ import { readAttentionGate } from "../lib/settingsStore";
 import { X_SELECTORS, chipPagePosition, rectInViewport } from "../lib/xSelectors";
 
 const TICK_MS = 250;
+const WINDOW_FOCUS_ASK_MS = 1_000;
+const MEMORY_WRITE_MS = 1_000;
 const CHIP_HEIGHT = 22;
 const CHIP_HOST_SELECTOR = '[data-x-copilot="attention"]';
 const MEMORY_KEY = "x-copilot:attention";
@@ -130,13 +132,30 @@ export default defineContentScript({
 
     let since: number | null = null;
     let placed = "";
+    let renderedStatusId: string | null = null;
+    let renderedGone = false;
+
+    function hideChip() {
+      since = null;
+      renderedGone = false;
+      chip.root.hidden = true;
+    }
 
     function render(nowMs: number) {
-      const composer = clock.statusId ? document.querySelector(X_SELECTORS.replyComposer) : null;
-      const rect = composer?.getBoundingClientRect();
-      if (!enabled || !rect || rect.width <= 0 || rect.height <= 0) {
+      if (clock.statusId !== renderedStatusId) {
+        renderedStatusId = clock.statusId;
         since = null;
-        chip.root.hidden = true;
+        renderedGone = false;
+      }
+      if (!enabled || !clock.statusId) {
+        hideChip();
+        return;
+      }
+      if (renderedGone && attentionReady(clock)) return;
+      const composer = document.querySelector(X_SELECTORS.replyComposer);
+      const rect = composer?.getBoundingClientRect();
+      if (!rect || rect.width <= 0 || rect.height <= 0) {
+        hideChip();
         return;
       }
       since = readySince(clock, since, nowMs);
@@ -162,6 +181,7 @@ export default defineContentScript({
       chip.root.classList.toggle("ready", phase !== "counting");
       chip.root.classList.toggle("gone", phase === "gone");
       chip.root.hidden = false;
+      renderedGone = phase === "gone";
     }
 
     const reported = new Set<string>();
@@ -211,9 +231,11 @@ export default defineContentScript({
 
     let windowFocused = false;
     let askingWindowFocus = false;
-    function askWindowFocus() {
-      if (askingWindowFocus) return;
+    let windowFocusAskedAt = -Infinity;
+    function askWindowFocus(nowMs: number) {
+      if (askingWindowFocus || nowMs - windowFocusAskedAt < WINDOW_FOCUS_ASK_MS) return;
       askingWindowFocus = true;
+      windowFocusAskedAt = nowMs;
       browser.runtime
         .sendMessage({ type: WINDOW_FOCUSED })
         .then(
@@ -223,16 +245,21 @@ export default defineContentScript({
         .finally(() => { askingWindowFocus = false; });
     }
 
+    let memoryDirty = false;
+    let memoryWrittenAt = -Infinity;
+
     ctx.setInterval(() => {
       const statusId = statusIdFromPath(window.location.pathname);
       const nowMs = Date.now();
-      const pageFocused = document.hasFocus();
       const visible = document.visibilityState === "visible";
-      const postIsInView = enabled && statusId !== null && (statusId === clock.statusId || (!pageFocused && visible))
+      const pageFocused = visible && document.hasFocus();
+      const counting = statusId !== clock.statusId || !attentionReady(clock);
+      const postIsInView = visible && enabled && statusId !== null && counting &&
+        (statusId === clock.statusId || !pageFocused)
         ? postInView()
         : false;
       if (pageFocused) windowFocused = false;
-      else if (visible && postIsInView && !attentionReady(clock)) askWindowFocus();
+      else if (postIsInView && !attentionReady(clock)) askWindowFocus(nowMs);
       clock = tickAttention(clock, {
         statusId,
         nowMs,
@@ -243,9 +270,14 @@ export default defineContentScript({
       const remembered = rememberAttention(memory, clock);
       if (remembered !== memory) {
         memory = remembered;
-        writeMemory(memory);
+        memoryDirty = true;
       }
-      render(nowMs);
+      if (memoryDirty && (attentionReady(clock) || nowMs - memoryWrittenAt >= MEMORY_WRITE_MS)) {
+        writeMemory(memory);
+        memoryDirty = false;
+        memoryWrittenAt = nowMs;
+      }
+      if (visible) render(nowMs);
     }, TICK_MS);
   },
 });

@@ -358,6 +358,20 @@ export function paintScout(ctx: ScoutBrush, frame: ScoutFrame): void {
   }
 }
 
+export const SCOUT_IDLE_FRAME_MS = 42;
+export const SCOUT_NAP_FRAME_MS = 200;
+
+export function scoutFrameDue(opts: {
+  timeMs: number;
+  lastPaintMs: number | null;
+  busy: boolean;
+  awake: boolean;
+}): boolean {
+  if (opts.busy || opts.lastPaintMs === null) return true;
+  const gap = opts.awake ? SCOUT_IDLE_FRAME_MS : SCOUT_NAP_FRAME_MS;
+  return opts.timeMs - opts.lastPaintMs >= gap;
+}
+
 export type ScoutStage = {
   show: (look: ScoutLook) => void;
   cheer: () => void;
@@ -411,6 +425,7 @@ export function startScoutStage(
   let planStartMs: number | null = null;
   let width = FALLBACK_WIDTH;
   let frame = 0;
+  let lastPaintMs: number | null = null;
 
   const fit = () => {
     const ratio = view.devicePixelRatio || 1;
@@ -421,6 +436,12 @@ export function startScoutStage(
     ctx.imageSmoothingEnabled = false;
   };
   const paint = (timeMs: number) => {
+    const busy = hopDue || motion.hopStartMs !== null || plan !== null;
+    if (!still && !scoutFrameDue({ timeMs, lastPaintMs, busy, awake: look.awake })) {
+      frame = view.requestAnimationFrame(paint);
+      return;
+    }
+    lastPaintMs = timeMs;
     if (hopDue) {
       hopDue = false;
       motion.hopStartMs = timeMs;
@@ -437,6 +458,7 @@ export function startScoutStage(
   };
   const refit = () => {
     fit();
+    lastPaintMs = null;
     if (still) paint(0);
   };
 
