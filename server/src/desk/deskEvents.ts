@@ -7,7 +7,13 @@ import { isRecord } from "../platform/unknownValue.js";
 import { postUrl } from "../x-api/xActivity.js";
 
 type BufferedDeskEvent = { seq: number; type: DeskEventType; data: string; atMs: number };
-type DeskEventType = "own_post" | "own_post_unconfirmed" | "interacted" | "approach_next" | "approach_task";
+type DeskEventType =
+  | "own_post"
+  | "own_post_unconfirmed"
+  | "interacted"
+  | "approach_next"
+  | "approach_task"
+  | "approach_action";
 
 const LIVE_ONLY_EVENTS: ReadonlySet<DeskEventType> = new Set(["approach_next", "approach_task"]);
 

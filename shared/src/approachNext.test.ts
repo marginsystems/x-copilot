@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   APPROACH_NEXT_ID_MAX,
+  approachNextEvent,
+  parseApproachActionNotice,
   remoteNextStale,
   parseApproachNextRequest,
   parseApproachNextResponse,
@@ -40,6 +42,61 @@ await describe("remote approach Next", () => {
     assert.equal(remoteNextStale(collidingScout, { fromCardId: "for_you" }), false);
     assert.equal(remoteNextStale(scout, { fromCardId: "c1" }), false);
     assert.equal(remoteNextStale(scout, { fromCardId: "c2" }), true);
+  }).catch(assert.fail);
+});
+
+await describe("remote approach Skip and Not interested", () => {
+  it("reads the action strictly, and an absent or explicit next as a plain Next", () => {
+    assert.deepEqual(parseApproachNextRequest({ fromCardId: " c1 ", action: "skip", kind: "scout" }), { fromCardId: "c1", action: "skip", kind: "scout" });
+    assert.deepEqual(parseApproachNextRequest({ fromCardId: "c1", action: "dismiss", kind: "suggestion" }), { fromCardId: "c1", action: "dismiss", kind: "suggestion" });
+    assert.deepEqual(parseApproachNextRequest({ fromCardId: "c1", action: "next" }), { fromCardId: "c1" });
+    assert.deepEqual(parseApproachNextRequest({ forYou: true, action: "next" }), { forYou: true });
+    for (const bad of [
+      { fromCardId: "c1", action: "mark" },
+      { fromCardId: "c1", action: null },
+      { fromCardId: "c1", action: "SKIP" },
+      { fromCardId: "c1", action: "skip" },
+      { fromCardId: "c1", action: "skip", kind: "for_you" },
+      { forYou: true, action: "skip" },
+      { forYou: true, action: "dismiss" },
+    ]) {
+      assert.equal(parseApproachNextRequest(bad), null);
+    }
+  }).catch(assert.fail);
+
+  it("names the desk event each request applies", () => {
+    assert.deepEqual(approachNextEvent({ fromCardId: "c1" }), { type: "next" });
+    assert.deepEqual(approachNextEvent({ fromCardId: "c1", action: "skip", kind: "scout" }), { type: "skip" });
+    assert.deepEqual(approachNextEvent({ fromCardId: "c1", action: "dismiss", kind: "suggestion" }), { type: "dismiss" });
+    assert.deepEqual(approachNextEvent({ forYou: true }), { type: "next" });
+  }).catch(assert.fail);
+
+  it("applies only to the locked Scout or suggested card, never another card", () => {
+    const scout = { phase: "scout_reply" as const, cardId: "c1", surface: null };
+    const suggested = { phase: "organic_reply" as const, cardId: "s1", surface: null };
+    const forYou = { phase: "hold" as const, cardId: null, surface: "for_you" as const };
+    assert.equal(remoteNextApplies(scout, { fromCardId: "c1", action: "skip", kind: "scout" }), true);
+    assert.equal(remoteNextApplies(scout, { fromCardId: "c2", action: "skip", kind: "scout" }), false);
+    assert.equal(remoteNextApplies(suggested, { fromCardId: "s1", action: "dismiss", kind: "suggestion" }), true);
+    assert.equal(remoteNextApplies(suggested, { fromCardId: "s2", action: "dismiss", kind: "suggestion" }), false);
+    assert.equal(remoteNextApplies(suggested, { fromCardId: "s1" }), false);
+    assert.equal(remoteNextApplies(forYou, { fromCardId: "c1", action: "skip", kind: "scout" }), false);
+    assert.equal(remoteNextStale(suggested, { fromCardId: "s1", action: "skip", kind: "suggestion" }), false);
+    assert.equal(remoteNextStale(suggested, { fromCardId: "c1", action: "skip", kind: "suggestion" }), true);
+  }).catch(assert.fail);
+
+  it("reads the desk's history notice", () => {
+    assert.deepEqual(
+      parseApproachActionNotice({ action: "skip", fromCardId: "c1", kind: "scout" }),
+      { action: "skip", fromCardId: "c1", kind: "scout" },
+    );
+    assert.deepEqual(
+      parseApproachActionNotice({ action: "dismiss", fromCardId: "s1", kind: "suggestion" }),
+      { action: "dismiss", fromCardId: "s1", kind: "suggestion" },
+    );
+    for (const bad of [null, { action: "next", fromCardId: "c1", kind: "scout" }, { action: "skip", fromCardId: "", kind: "scout" }, { action: "skip", fromCardId: "c1", kind: "for_you" }]) {
+      assert.equal(parseApproachActionNotice(bad), null);
+    }
   }).catch(assert.fail);
 });
 

@@ -7,6 +7,7 @@ import {
   type ScoutApproachNext,
 } from "../../../shared/src/scoutApproachLock";
 import type { ApproachNextRequest } from "../../../shared/src/approachNext";
+import { isRecord } from "../../../shared/src/typeGuards";
 import { ApiStatusError, apiRequest } from "./api";
 import type { Pairing } from "./pairing";
 
@@ -17,9 +18,16 @@ export type ScoutLockRead = {
   card: ScoutApproachLockCard | null;
   next: ScoutApproachNext | null;
   state: DeskApproachState | null;
+  suggestionId: string | null;
   supported: boolean;
   valid: boolean;
 };
+
+export function lockedSuggestionId(raw: unknown): string | null {
+  if (!isRecord(raw) || !isRecord(raw.task) || !isRecord(raw.task.lock)) return null;
+  const { phase, cardId } = raw.task.lock;
+  return phase === "organic_reply" && typeof cardId === "string" && cardId ? cardId : null;
+}
 
 export function serverLacksLockRead(err: unknown): boolean {
   return err instanceof ApiStatusError && (err.status === 404 || err.status === 405);
@@ -30,12 +38,19 @@ export async function readScoutLock(pairing: Pairing): Promise<ScoutLockRead> {
   try {
     raw = await apiRequest(pairing, SCOUT_APPROACH_LOCK_PATH);
   } catch (err) {
-    if (serverLacksLockRead(err)) return { card: null, next: null, state: null, supported: false, valid: false };
+    if (serverLacksLockRead(err)) return { card: null, next: null, state: null, suggestionId: null, supported: false, valid: false };
     throw err;
   }
   const parsed = parseScoutApproachLockResponse(raw);
-  if (!parsed) return { card: null, next: null, state: null, supported: true, valid: false };
-  return { card: parsed.card, next: parsed.next, state: parsed.state, supported: true, valid: true };
+  if (!parsed) return { card: null, next: null, state: null, suggestionId: null, supported: true, valid: false };
+  return {
+    card: parsed.card,
+    next: parsed.next,
+    state: parsed.state,
+    suggestionId: lockedSuggestionId(raw),
+    supported: true,
+    valid: true,
+  };
 }
 
 export const NEXT_POLL_MS = 600;

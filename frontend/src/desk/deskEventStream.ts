@@ -15,7 +15,8 @@ export type DeskEventName =
   | "own_post_unconfirmed"
   | "interacted"
   | "approach_next"
-  | "approach_task";
+  | "approach_task"
+  | "approach_action";
 
 const DESK_EVENT_NAMES: DeskEventName[] = [
   "ready",
@@ -24,6 +25,7 @@ const DESK_EVENT_NAMES: DeskEventName[] = [
   "interacted",
   "approach_next",
   "approach_task",
+  "approach_action",
 ];
 const RECONNECT_MIN_MS = 1_000;
 const RECONNECT_MAX_MS = 30_000;

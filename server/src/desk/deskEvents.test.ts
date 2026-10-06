@@ -432,6 +432,38 @@ await describe("desk events", async () => {
     assert.match(desk.chunks.join(""), /event: approach_next\ndata: \{"fromCardId":"c2"\}/);
   });
 
+  await it("forwards a panel Skip the server cannot apply to the open desk, with its action and a history notice", async () => {
+    const alice = signedInCookie("gid-next-skip-relay");
+    setApproachTask(alice.userId, { phase: "scout_reply", cardId: "c1", surface: null }, "desk");
+    const desk = subscribe(alice.cookie);
+    const sent = await approachNext(alice.cookie, { fromCardId: "c2", action: "skip", kind: "suggestion" });
+    assert.deepEqual(sent.json, { ok: true, delivered: true, advanced: false });
+    assert.equal(getApproachTask(alice.userId)?.owner, "desk");
+    const frames = desk.chunks.join("");
+    assert.match(frames, /event: approach_next\ndata: \{"fromCardId":"c2","action":"skip","kind":"suggestion"\}/);
+    assert.match(frames, /event: approach_action\ndata: \{"action":"skip","fromCardId":"c2","kind":"suggestion"\}/);
+  });
+
+  await it("moves a dismissed card on the server and tells the desk to take the card and re-read its history", async () => {
+    const alice = signedInCookie("gid-next-dismiss-server");
+    setApproachTask(alice.userId, { phase: "scout_reply", cardId: "c1", surface: null }, "desk");
+    const desk = subscribe(alice.cookie);
+    const sent = await approachNext(alice.cookie, { fromCardId: "c1", action: "dismiss", kind: "scout" });
+    assert.deepEqual(sent.json, { ok: true, delivered: true, advanced: true });
+    assert.deepEqual(getApproachTask(alice.userId)?.lock, { phase: "scout_reply", cardId: null, surface: null });
+    const frames = desk.chunks.join("");
+    assert.match(frames, /event: approach_task\ndata: \{"version":2\}/);
+    assert.match(frames, /event: approach_action\ndata: \{"action":"dismiss","fromCardId":"c1","kind":"scout"\}/);
+    assert.doesNotMatch(frames, /event: approach_next/);
+  });
+
+  await it("sends no history notice for a plain Next", async () => {
+    const alice = signedInCookie("gid-next-no-notice");
+    const desk = subscribe(alice.cookie);
+    await approachNext(alice.cookie, { fromCardId: "c1" });
+    assert.doesNotMatch(desk.chunks.join(""), /approach_action/);
+  });
+
   await it("never replays approach Next to a desk that reconnects later", async () => {
     const alice = signedInCookie("gid-next-replay");
     subscribe(alice.cookie);
@@ -449,7 +481,9 @@ await describe("desk events", async () => {
     assert.equal((await approachNext(alice.cookie, {})).status, 400);
     assert.equal((await approachNext(alice.cookie, { fromCardId: "x".repeat(65) })).status, 400);
     assert.equal((await approachNext(alice.cookie, { fromCardId: "c1", forYou: true })).status, 400);
-    for (let i = 0; i < APPROACH_NEXT_RATE.max - 3; i += 1) {
+    assert.equal((await approachNext(alice.cookie, { fromCardId: "c1", action: "mark" })).status, 400);
+    assert.equal((await approachNext(alice.cookie, { forYou: true, action: "skip" })).status, 400);
+    for (let i = 0; i < APPROACH_NEXT_RATE.max - 5; i += 1) {
       assert.equal((await approachNext(alice.cookie, { fromCardId: "c1" })).status, 200);
     }
     assert.equal((await approachNext(alice.cookie, { fromCardId: "c1" })).status, 429);

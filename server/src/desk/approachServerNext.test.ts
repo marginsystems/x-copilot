@@ -5,6 +5,8 @@ import { completeOnboarding } from "../auth/authStore.ts";
 import { upsertOauthUser } from "../auth/oauthAccountStore.ts";
 import { SESSION_COOKIE } from "../auth/sessionCookie.ts";
 import { createSession } from "../auth/sessionStore.ts";
+import { ensureUserTenant } from "../billing/billingStore.ts";
+import { insertSuggestions } from "../for-you/forYouStore.ts";
 import { expectRecord, testRequest } from "../http/http.testHelpers.ts";
 import {
   closeTempPlatformDb,
@@ -18,7 +20,12 @@ import {
 } from "../scout/scoutApproachLock.ts";
 import { saveScoutCache } from "../scout/scoutCache.ts";
 import { tryHandleApproachNext } from "./approachNextHttp.ts";
-import { advanceApproachOnServer, publishedStateFor } from "./approachServerNext.ts";
+import {
+  advanceApproachOnServer,
+  parseServerNextRequest,
+  publishedStateFor,
+  serverNextApplies,
+} from "./approachServerNext.ts";
 import { listReleasedCardIds } from "./approachStock.ts";
 import { getApproachTask, setApproachTask } from "./approachTaskStore.ts";
 
@@ -97,6 +104,69 @@ await describe("server approach Next", async () => {
     assert.equal(getDeskApproachState(userId), null);
     assert.deepEqual(listReleasedCardIds(userId), ["a1"]);
     assert.equal(getScoutApproachNext(userId)?.card?.id, "a2");
+  });
+
+  await it("skips the Scout card it is on to the next Scout card, as the desk's Skip does, and releases it", async () => {
+    setApproachTask(userId, { phase: "scout_reply", cardId: "a1", surface: null }, "desk");
+    assert.equal(await advanceApproachOnServer(userId, { fromCardId: "a1", action: "skip", kind: "scout" }), true);
+
+    assert.deepEqual(getApproachTask(userId)?.lock, { phase: "scout_reply", cardId: "a2", surface: null });
+    assert.equal(getApproachTask(userId)?.owner, "server");
+    assert.equal(getScoutApproachLock(userId)?.id, "a2");
+    assert.equal(getScoutApproachLock(userId)?.author, "@bravo");
+    assert.deepEqual(getDeskApproachState(userId), { view: "scout", detected: false });
+    assert.deepEqual(listReleasedCardIds(userId), ["a1"]);
+  });
+
+  await it("dismisses the last Scout card into Collecting rather than For You", async () => {
+    setApproachTask(userId, { phase: "scout_reply", cardId: "a2", surface: null }, "desk");
+    assert.equal(await advanceApproachOnServer(userId, { fromCardId: "a2", action: "dismiss", kind: "scout" }, Date.now()), true);
+    assert.equal(getApproachTask(userId)?.lock.cardId, "a1");
+
+    assert.equal(await advanceApproachOnServer(userId, { fromCardId: "a1", action: "dismiss", kind: "scout" }), true);
+    assert.deepEqual(getApproachTask(userId)?.lock, { phase: "scout_reply", cardId: null, surface: null });
+    assert.equal(getScoutApproachLock(userId), null);
+    assert.deepEqual(getDeskApproachState(userId), { view: "collecting", detected: false });
+    assert.deepEqual(listReleasedCardIds(userId).sort(), ["a1", "a2"]);
+  });
+
+  await it("refuses a Skip or Not interested for a card the lock is not on", async () => {
+    setApproachTask(userId, { phase: "scout_reply", cardId: "a1", surface: null }, "desk");
+    assert.equal(await advanceApproachOnServer(userId, { fromCardId: "a2", action: "skip", kind: "scout" }), false);
+    assert.equal(await advanceApproachOnServer(userId, { fromCardId: "a2", action: "dismiss", kind: "scout" }), false);
+    assert.equal(getApproachTask(userId)?.owner, "desk");
+    assert.deepEqual(listReleasedCardIds(userId), []);
+  });
+
+  await it("skips a suggested reply card by its suggestion id and moves on as the desk does", async () => {
+    const [suggestion] = insertSuggestions({
+      userId,
+      tenantId: ensureUserTenant(userId),
+      actions: [{ kind: "reply", why: "Join this thread", targetId: "900", targetUrl: "https://x.com/erin/status/900" }],
+    });
+    assert.ok(suggestion);
+    const lock = { phase: "organic_reply" as const, cardId: suggestion.id, surface: null };
+    setApproachTask(userId, lock, "desk");
+    assert.equal(await advanceApproachOnServer(userId, { fromCardId: suggestion.id }), false);
+    assert.equal(await advanceApproachOnServer(userId, { fromCardId: "900", action: "skip", kind: "suggestion" }), false);
+
+    assert.equal(await advanceApproachOnServer(userId, { fromCardId: suggestion.id, action: "skip", kind: "suggestion" }), true);
+    assert.deepEqual(getApproachTask(userId)?.lock, { phase: "scout_reply", cardId: "a1", surface: null });
+    assert.equal(getScoutApproachLock(userId)?.id, "a1");
+    assert.deepEqual(listReleasedCardIds(userId), [suggestion.id]);
+  });
+
+  await it("reads the action strictly and applies Skip or Not interested only to the locked Scout or suggested card", () => {
+    assert.deepEqual(parseServerNextRequest({ fromCardId: " a1 ", action: "skip", kind: "scout" }), { fromCardId: "a1", action: "skip", kind: "scout" });
+    assert.deepEqual(parseServerNextRequest({ fromCardId: "a1", action: "next" }), { fromCardId: "a1" });
+    assert.equal(parseServerNextRequest({ fromCardId: "a1", action: "posted" }), null);
+    assert.equal(parseServerNextRequest({ forYou: true, action: "dismiss" }), null);
+    const scout = { phase: "scout_reply" as const, cardId: "a1", surface: null };
+    const suggested = { phase: "organic_reply" as const, cardId: "s1", surface: null };
+    assert.equal(serverNextApplies(scout, { fromCardId: "a1", action: "dismiss", kind: "scout" }), true);
+    assert.equal(serverNextApplies(suggested, { fromCardId: "s1", action: "skip", kind: "suggestion" }), true);
+    assert.equal(serverNextApplies(suggested, { fromCardId: "s1" }), false);
+    assert.equal(serverNextApplies(FOR_YOU, { fromCardId: "a1", action: "skip", kind: "scout" }), false);
   });
 
   await it("ignores a For You Next when the lock is not on For You", async () => {

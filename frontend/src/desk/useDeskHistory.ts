@@ -20,6 +20,7 @@ import {
 } from "../../../shared/src/forYou";
 import type { AppSettings } from "../lib/settings";
 import { onDeskEvent, useDeskEventStream } from "./deskEventStream";
+import { parseApproachActionNotice } from "../../../shared/src/approachNext";
 import { armReplyPace } from "./replyPaceStore";
 import {
   parseInteractionHistoryEntry,
@@ -391,8 +392,8 @@ export function useDeskHistory(
 
   useRehydrateOnVisible(hydrateInteracted);
   useDeskEventStream(verifiedOwnerId);
-  const deskEventHandlersRef = useRef({ applyInteractedEvent, pollInteracted, setStatus });
-  deskEventHandlersRef.current = { applyInteractedEvent, pollInteracted, setStatus };
+  const deskEventHandlersRef = useRef({ applyInteractedEvent, pollInteracted, setStatus, rereadAfterRemoteAction });
+  deskEventHandlersRef.current = { applyInteractedEvent, pollInteracted, setStatus, rereadAfterRemoteAction };
   useEffect(() => {
     if (!verifiedOwnerId) return;
     const poll = () => {
@@ -402,6 +403,9 @@ export function useDeskHistory(
       deskEventHandlersRef.current.applyInteractedEvent(data);
     });
     const offReady = onDeskEvent("ready", poll);
+    const offAction = onDeskEvent("approach_action", (data) => {
+      deskEventHandlersRef.current.rereadAfterRemoteAction(data).catch((err: unknown) => console.error(err));
+    });
     let unconfirmedPostId: string | null = null;
     const offUnconfirmed = onDeskEvent("own_post_unconfirmed", (data) => {
       if (!isRecord(data) || typeof data.id !== "string") return;
@@ -422,6 +426,7 @@ export function useDeskHistory(
     return () => {
       offInteracted();
       offReady();
+      offAction();
       offUnconfirmed();
       offConfirmed();
       window.clearInterval(interval);
@@ -444,6 +449,17 @@ export function useDeskHistory(
       blockedConversationsRef.current,
       preservedIdRef.current,
     );
+  }
+
+  async function rereadAfterRemoteAction(data: unknown): Promise<void> {
+    const notice = parseApproachActionNotice(data);
+    if (!notice) return;
+    if (notice.kind === "suggestion") {
+      await hydrateForYou();
+      return;
+    }
+    if (notice.action === "skip") await hydrateSkipped();
+    else await hydrateDismissed();
   }
 
   async function hydrateSkipped() {

@@ -45,6 +45,7 @@ import {
 } from "../../../shared/src/forYouTask";
 import { clearForYouWait, readForYouWait, writeForYouWait } from "../lib/forYouWaitStore";
 import {
+  approachNextEvent,
   parseApproachNextRequest,
   remoteNextApplies,
   remoteNextStale,
@@ -360,7 +361,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
   const advanceCardRef = useRef(advanceCard);
   advanceCardRef.current = advanceCard;
   const applyRemoteNextRef = useRef((request: ApproachNextRequest) => {
-    advanceCardRef.current({ type: "next" });
+    advanceCardRef.current(approachNextEvent(request));
     if (!("forYou" in request)) return;
     Promise.resolve(refreshCoachingRef.current()).catch((err: unknown) => console.error(err));
   });

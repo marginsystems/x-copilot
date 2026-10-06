@@ -5,9 +5,13 @@ import { UnpairedError } from "../../lib/api";
 import { planOpenOnX } from "../../lib/openOnX";
 import type { Pairing } from "../../lib/pairing";
 import { clearPairing, readPairing } from "../../lib/pairingStore";
-import { askDeskForNext, loadPanelData, signOutExtension, type PanelData } from "../../lib/panelData";
+import { askDeskForNext, loadPanelData, recordCardAction, signOutExtension, type PanelData } from "../../lib/panelData";
 import {
+  cardActionRequest,
+  dismissConfirmCopy,
   nextFromCardId,
+  panelCardActionNotice,
+  panelCardTarget,
   panelCanAskNext,
   panelDetected,
   panelView,
@@ -15,8 +19,10 @@ import {
   panelPace,
   preloadedNextCard,
   shownAfterRefresh,
+  type PanelCardTarget,
   type PendingNext,
 } from "../../lib/panelModel";
+import type { ApproachCardAction } from "../../../../shared/src/approachNext";
 import { OLDER_SERVER_NOTICE, waitForLockChange } from "../../lib/scoutLock";
 import { cardDetected, detectionTag, type CardSince } from "../../lib/detection";
 import { readReplySeenAt, trackCardSince } from "../../lib/detectionStore";
@@ -31,6 +37,7 @@ import {
   CardSlide,
   DESK_LINKS,
   DeskButton,
+  DismissConfirm,
   GearIcon,
   NextConfirm,
   openDeskPage,
@@ -41,6 +48,10 @@ import { Scout } from "./Scout";
 import { watchLock } from "../../lib/lockStream";
 
 const REFRESH_MS = 15_000;
+
+type CardAction = { target: PanelCardTarget; action: ApproachCardAction; reason: string };
+
+type DismissAsk = { cardKey: string; reason: string };
 
 type PanelState =
   | { kind: "loading" }
@@ -76,6 +87,7 @@ export function App() {
   const [nextNotice, setNextNotice] = useState<string | null>(null);
   const [nextBusy, setNextBusy] = useState(false);
   const [nextAsk, setNextAsk] = useState<NextAsk | null>(null);
+  const [dismissAsk, setDismissAsk] = useState<DismissAsk | null>(null);
   const nextButtonRef = useRef<HTMLButtonElement>(null);
   const restoreNextFocusRef = useRef(false);
   const pendingNextRef = useRef<PendingNext | null>(null);
@@ -230,6 +242,15 @@ export function App() {
   );
   const asking = nextAskActive(nextAsk, { detected, cardKey: view.key });
   if (nextAsk !== null && !asking) setNextAsk(null);
+  const cardTarget = panelCardTarget({
+    view,
+    detected,
+    deskState,
+    deskCardId: state.data.lock?.id ?? null,
+    suggestionId: state.data.suggestionId ?? null,
+  });
+  const dismissing = dismissAsk !== null && cardTarget?.kind === "scout" && dismissAsk.cardKey === view.key;
+  if (dismissAsk !== null && !dismissing) setDismissAsk(null);
   const tag = view.collecting ? { label: "Waiting for Scout", detected: false } : detectionTag(lock, detected);
 
   async function show(next: ScoutApproachLockCard | null, nextState: DeskApproachState | null) {
@@ -242,13 +263,14 @@ export function App() {
     if (!nextView.collecting) await openOnX(nextView.card.openUrl);
   }
 
-  async function findNext(): Promise<string | null> {
-    const request = nextFromCardId(lock);
+  async function findNext(cardAction: CardAction | null = null): Promise<string | null> {
+    const watch = nextFromCardId(lock);
+    const request = cardAction ? cardActionRequest(cardAction.target, cardAction.action) : watch;
     const taker = await askDeskForNext(pairing, request);
     if (!taker) return panelNextNotice("no_desk");
-    const preloaded = taker === "server" ? null : preloadedNextCard(request, nextUp);
+    const preloaded = taker === "server" || cardAction ? null : preloadedNextCard(watch, nextUp);
     if (preloaded) {
-      pendingNextRef.current = { token: pairing.token, request, shown: preloaded.card };
+      pendingNextRef.current = { token: pairing.token, request: watch, shown: preloaded.card };
       await show(preloaded.card, null).catch(() => undefined);
     }
     const moved = await waitForLockChange(pairing, request).finally(() => {
@@ -268,6 +290,7 @@ export function App() {
               lock: moved.card,
               nextUp: moved.next,
               deskState: moved.state,
+              suggestionId: moved.suggestionId,
               lockSupported: moved.supported,
             },
           }
@@ -277,18 +300,49 @@ export function App() {
     return null;
   }
 
-  function askNext() {
+  async function actOnCard(cardAction: CardAction): Promise<string | null> {
+    try {
+      await recordCardAction(pairing, cardAction.target, cardAction.action, cardAction.reason);
+    } catch (err) {
+      if (err instanceof UnpairedError) throw err;
+      return panelCardActionNotice(cardAction.target, cardAction.action);
+    }
+    setDismissAsk(null);
+    return findNext(cardAction);
+  }
+
+  function advance(work: () => Promise<string | null>, armsPace: boolean) {
     if (nextBusy) return;
     setNextBusy(true);
     setNextNotice(null);
-    findNext()
+    work()
       .catch((err: unknown) => (err instanceof Error ? err.message : String(err)))
       .then((notice) => {
-        if (!notice && state.kind === "ready" && panelPace(state.data.replyAt, Date.now()) !== null) setPaceArmed(true);
+        if (armsPace && !notice && state.kind === "ready" && panelPace(state.data.replyAt, Date.now()) !== null) setPaceArmed(true);
         if (notice) setNextNotice(notice);
         setNextBusy(false);
       })
       .catch(() => undefined);
+  }
+
+  function askNext() {
+    advance(() => findNext(), true);
+  }
+
+  function skipThisCard(target: PanelCardTarget) {
+    advance(() => actOnCard({ target, action: "skip", reason: "" }), false);
+  }
+
+  function dismissThisCard(target: PanelCardTarget, reason: string) {
+    advance(() => actOnCard({ target, action: "dismiss", reason }), false);
+  }
+
+  function pressNotInterested(target: PanelCardTarget) {
+    if (target.kind === "suggestion") {
+      dismissThisCard(target, "");
+      return;
+    }
+    setDismissAsk({ cardKey: view.key, reason: "" });
   }
 
   function pressNext() {
@@ -402,6 +456,15 @@ export function App() {
         <div className="actions">
           {asking ? (
             <NextConfirm subject={lock ? "reply" : "post"} onSkip={skipCard} onKeep={keepWaiting} />
+          ) : dismissing && dismissAsk && cardTarget ? (
+            <DismissConfirm
+              copy={dismissConfirmCopy(cardTarget.card)}
+              reason={dismissAsk.reason}
+              busy={nextBusy}
+              onReason={(reason) => setDismissAsk({ cardKey: dismissAsk.cardKey, reason })}
+              onConfirm={() => dismissThisCard(cardTarget, dismissAsk.reason)}
+              onCancel={() => setDismissAsk(null)}
+            />
           ) : (
             <>
               {detected ? null : (
@@ -435,6 +498,16 @@ export function App() {
                 >
                   {NEXT_LABEL}
                 </button>
+              ) : null}
+              {cardTarget && !nextBusy ? (
+                <>
+                  <button type="button" className="ghost" onClick={() => skipThisCard(cardTarget)}>
+                    Skip
+                  </button>
+                  <button type="button" className="ghost" onClick={() => pressNotInterested(cardTarget)}>
+                    Not interested
+                  </button>
+                </>
               ) : null}
             </>
           )}

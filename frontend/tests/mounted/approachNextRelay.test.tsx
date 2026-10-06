@@ -71,7 +71,13 @@ function mountStreamOnly(ownerId = user.id) {
   }, ownerId), { wrapper });
 }
 
-function setup(interactedIds: Set<string>, opts: { keepBrowser?: boolean; lockId?: string } = {}) {
+type ActionMocks = {
+  onSkip?: ReturnType<typeof vi.fn>;
+  onDismiss?: ReturnType<typeof vi.fn>;
+  actForYou?: ReturnType<typeof vi.fn>;
+};
+
+function setup(interactedIds: Set<string>, opts: { keepBrowser?: boolean; lockId?: string } & ActionMocks = {}) {
   if (!opts.keepBrowser) stubBrowser();
   const lockedCard = opts.lockId ? { ...cardA, id: opts.lockId } : cardA;
   writeApproachLock(user.id, { phase: "scout_reply", cardId: lockedCard.id, surface: null });
@@ -85,7 +91,7 @@ function setup(interactedIds: Set<string>, opts: { keepBrowser?: boolean; lockId
       curatedThreads: [lockedCard, cardB], forYouSuggestions: [],
       interactedIds, interactedRetainedHistory: history.interactedRetainedHistory,
       dismissedHistory: [], dismissThread: null, searching: false,
-      actForYou: vi.fn(), onSkip: vi.fn(), onDismiss: vi.fn(),
+      actForYou: opts.actForYou ?? vi.fn(), onSkip: opts.onSkip ?? vi.fn(), onDismiss: opts.onDismiss ?? vi.fn(),
       onRefreshCoaching: vi.fn(), onHydrateInteracted: vi.fn(), onPollInteracted: vi.fn(),
     });
   }, { wrapper });
@@ -315,4 +321,70 @@ test("a kept Next is cleared when the event stream changes owners", () => {
   const nextAccount = mountStreamOnly("owner-b");
   expect(peekPendingApproachNext()).toBeNull();
   nextAccount.unmount();
+});
+
+test("the extension's Skip moves the desk to the next Scout card, as the desk's own Skip does, without recording it again", () => {
+  const onSkip = vi.fn();
+  const onDismiss = vi.fn();
+  const actForYou = vi.fn();
+  const fetchMock = stubBrowser();
+  setup(new Set(), { keepBrowser: true, onSkip, onDismiss, actForYou });
+  expect(readApproachLock(user.id)?.cardId).toBe(cardA.id);
+
+  act(() => { liveStream().emit("approach_next", { fromCardId: cardB.id, action: "skip", kind: "scout" }); });
+  expect(readApproachLock(user.id)?.cardId).toBe(cardA.id);
+
+  act(() => { liveStream().emit("approach_next", { fromCardId: cardA.id, action: "skip", kind: "scout" }); });
+  expect(readApproachLock(user.id)).toEqual({ phase: "scout_reply", cardId: cardB.id, surface: null });
+  expect(onSkip).not.toHaveBeenCalled();
+  expect(onDismiss).not.toHaveBeenCalled();
+  expect(actForYou).not.toHaveBeenCalled();
+  expect(fetchMock.mock.calls.some(([url, init]) =>
+    /\/api\/(skipped|dismissed|for-you)/.test(String(url)) && init?.method === "POST",
+  )).toBe(false);
+});
+
+test("the extension's Not interested moves the desk to the next Scout card where a plain Next would go to For You", () => {
+  setup(new Set());
+  act(() => { liveStream().emit("approach_next", { fromCardId: cardA.id, action: "dismiss", kind: "scout" }); });
+  expect(readApproachLock(user.id)?.cardId).toBe(cardB.id);
+});
+
+test("a plain Next from the same card goes to For You, not the next Scout card", () => {
+  setup(new Set());
+  act(() => { liveStream().emit("approach_next", { fromCardId: cardA.id }); });
+  expect(readApproachLock(user.id)?.surface).toBe("for_you");
+});
+
+test("a Skip that arrives while the desk is off the dashboard applies as a Skip when the dashboard opens", () => {
+  stubBrowser();
+  const account = mountStreamOnly();
+  act(() => { liveStream().emit("approach_next", { fromCardId: cardA.id, action: "skip", kind: "scout" }); });
+  account.unmount();
+
+  setup(new Set(), { keepBrowser: true });
+  expect(readApproachLock(user.id)?.cardId).toBe(cardB.id);
+});
+
+test("the desk re-reads the history a panel Skip or Not interested changed", async () => {
+  const fetchMock = stubBrowser();
+  const account = mountStreamOnly();
+  const reads = (path: string) => fetchMock.mock.calls.filter(([url, init]) =>
+    String(url).endsWith(path) && (init?.method ?? "GET") === "GET",
+  ).length;
+
+  act(() => { liveStream().emit("approach_action", { action: "skip", fromCardId: cardA.id, kind: "scout" }); });
+  await waitFor(() => expect(reads("/api/skipped")).toBe(1));
+  expect(reads("/api/dismissed")).toBe(0);
+
+  act(() => { liveStream().emit("approach_action", { action: "dismiss", fromCardId: cardA.id, kind: "scout" }); });
+  await waitFor(() => expect(reads("/api/dismissed")).toBe(1));
+
+  act(() => { liveStream().emit("approach_action", { action: "skip", fromCardId: "s1", kind: "suggestion" }); });
+  await waitFor(() => expect(reads("/api/for-you")).toBe(1));
+  expect(reads("/api/skipped")).toBe(1);
+
+  act(() => { liveStream().emit("approach_action", { action: "next", fromCardId: cardA.id, kind: "scout" }); });
+  expect(reads("/api/skipped")).toBe(1);
+  account.unmount();
 });

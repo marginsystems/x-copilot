@@ -5,10 +5,11 @@ import { App } from "./App";
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
-const { readPairing, loadPanelData, askDeskForNext, waitForLockChange, tabsQuery, tabsCreate, storageData } = vi.hoisted(() => ({
+const { readPairing, loadPanelData, askDeskForNext, recordCardAction, waitForLockChange, tabsQuery, tabsCreate, storageData } = vi.hoisted(() => ({
   readPairing: vi.fn(),
   loadPanelData: vi.fn(),
   askDeskForNext: vi.fn(),
+  recordCardAction: vi.fn(),
   waitForLockChange: vi.fn(),
   tabsQuery: vi.fn().mockResolvedValue([]),
   tabsCreate: vi.fn(),
@@ -23,6 +24,7 @@ vi.mock("../../lib/pairingStore", () => ({
 vi.mock("../../lib/panelData", () => ({
   askDeskForNext,
   loadPanelData,
+  recordCardAction,
   signOutExtension: vi.fn(),
 }));
 
@@ -70,6 +72,7 @@ describe("App", () => {
     readPairing.mockReset();
     loadPanelData.mockReset();
     askDeskForNext.mockReset();
+    recordCardAction.mockReset();
     waitForLockChange.mockReset();
     tabsQuery.mockReset().mockResolvedValue([]);
     tabsCreate.mockReset();
@@ -237,6 +240,203 @@ describe("App", () => {
 
     expect(container.textContent).not.toContain("Skip this card?");
     expect(askDeskForNext).toHaveBeenCalledWith(expect.anything(), { fromCardId: "1" });
+    await act(async () => root.unmount());
+  });
+
+  const scoutCard = { id: "1", conversationId: "c1", inReplyToId: "p1", surface: "reply", author: "@ada", url: "https://x.com/ada/status/1", text: "Current post" };
+  const nextScoutCard = { ...scoutCard, id: "2", author: "@bo", url: "https://x.com/bo/status/2", text: "Next post" };
+
+  function actionLabels(container: HTMLElement): (string | null)[] {
+    return Array.from(container.querySelectorAll(".actions button")).map((button) => button.textContent);
+  }
+
+  it("offers Skip and Not interested as hollow buttons on an undetected Scout card, as the desk does", async () => {
+    readPairing.mockResolvedValue(paired);
+    loadPanelData.mockResolvedValue({ lock: scoutCard, lockSupported: true, deskState: { view: "scout", detected: false }, replyAt: [], scout: null });
+    const { container, root } = await mountPanel();
+
+    expect(actionLabels(container)).toEqual(["Open post on X", "Next", "Skip", "Not interested"]);
+    expect(buttonLabelled(container, "Skip")?.className).toBe("ghost");
+    expect(buttonLabelled(container, "Not interested")?.className).toBe("ghost");
+    await act(async () => root.unmount());
+  });
+
+  it.each([
+    ["a detected Scout card", { lock: scoutCard, deskState: { view: "scout", detected: true } }],
+    ["the For You card", { lock: null, deskState: { view: "for_you", detected: false } }],
+    ["the Collecting card", { lock: null, deskState: { view: "collecting", detected: false } }],
+    ["a card the desk is not on", { lock: scoutCard, deskState: { view: "other", detected: false } }],
+    ["a suggested card whose suggestion is unknown", { lock: scoutCard, deskState: { view: "suggestion", detected: false } }],
+    ["a detected suggested card", { lock: scoutCard, deskState: { view: "suggestion", detected: true }, suggestionId: "s1" }],
+  ])("offers neither Skip nor Not interested on %s", async (_name, data) => {
+    readPairing.mockResolvedValue(paired);
+    loadPanelData.mockResolvedValue({ lockSupported: true, replyAt: [], scout: null, ...data });
+    const { container, root } = await mountPanel();
+
+    expect(buttonLabelled(container, "Skip")).toBeUndefined();
+    expect(buttonLabelled(container, "Not interested")).toBeUndefined();
+    await act(async () => root.unmount());
+  });
+
+  it("records the Skip, then moves to the next card by the same server-first path as Next", async () => {
+    readPairing.mockResolvedValue(paired);
+    loadPanelData.mockResolvedValue({ lock: scoutCard, lockSupported: true, deskState: { view: "scout", detected: false }, replyAt: [], scout: null });
+    const order: string[] = [];
+    recordCardAction.mockImplementation(async () => { order.push("record"); });
+    askDeskForNext.mockImplementation(async () => { order.push("advance"); return "server"; });
+    waitForLockChange.mockResolvedValue({ card: nextScoutCard, next: null, state: { view: "scout", detected: false }, suggestionId: null, supported: true, valid: true });
+    const { container, root } = await mountPanel();
+
+    await press(container, "Skip");
+    await act(async () => { await new Promise<void>((resolve) => window.setTimeout(resolve, 0)); });
+
+    expect(order).toEqual(["record", "advance"]);
+    expect(recordCardAction).toHaveBeenCalledWith(paired, { kind: "scout", card: scoutCard }, "skip", "");
+    expect(askDeskForNext).toHaveBeenCalledWith(paired, { fromCardId: "1", action: "skip", kind: "scout" });
+    expect(waitForLockChange).toHaveBeenCalledWith(paired, { fromCardId: "1", action: "skip", kind: "scout" });
+    expect(shownCard(container)?.textContent).toContain("@bo");
+    expect(tabsCreate).toHaveBeenCalledWith({ url: "https://x.com/bo/status/2", active: true });
+    await act(async () => root.unmount());
+  });
+
+  it("hides Skip and Not interested while the Skip is in flight", async () => {
+    readPairing.mockResolvedValue(paired);
+    loadPanelData.mockResolvedValue({ lock: scoutCard, lockSupported: true, deskState: { view: "scout", detected: false }, replyAt: [], scout: null });
+    let finish: () => void = () => undefined;
+    recordCardAction.mockReturnValue(new Promise<void>((resolve) => { finish = resolve; }));
+    askDeskForNext.mockResolvedValue(null);
+    const { container, root } = await mountPanel();
+
+    await press(container, "Skip");
+
+    expect(buttonLabelled(container, "Skip")).toBeUndefined();
+    expect(buttonLabelled(container, "Not interested")).toBeUndefined();
+    expect(buttonLabelled(container, "Next")?.disabled).toBe(true);
+    await act(async () => {
+      finish();
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+    expect(buttonLabelled(container, "Skip")).toBeDefined();
+    await act(async () => root.unmount());
+  });
+
+  it("stays on the card with the desk's notice when the Skip cannot be recorded", async () => {
+    readPairing.mockResolvedValue(paired);
+    loadPanelData.mockResolvedValue({ lock: scoutCard, lockSupported: true, deskState: { view: "scout", detected: false }, replyAt: [], scout: null });
+    recordCardAction.mockRejectedValue(new Error("/api/skipped failed (500)"));
+    const { container, root } = await mountPanel();
+
+    await press(container, "Skip");
+
+    expect(askDeskForNext).not.toHaveBeenCalled();
+    expect(container.textContent).toContain("Could not skip. Try again.");
+    expect(shownCard(container)?.textContent).toContain("@ada");
+    expect(buttonLabelled(container, "Skip")).toBeDefined();
+    await act(async () => root.unmount());
+  });
+
+  it("asks inline for an optional reason before Not interested, then records it and moves on", async () => {
+    readPairing.mockResolvedValue(paired);
+    loadPanelData.mockResolvedValue({ lock: scoutCard, lockSupported: true, deskState: { view: "scout", detected: false }, replyAt: [], scout: null });
+    recordCardAction.mockResolvedValue(undefined);
+    askDeskForNext.mockResolvedValue("desk");
+    waitForLockChange.mockResolvedValue({ card: nextScoutCard, next: null, state: { view: "scout", detected: false }, suggestionId: null, supported: true, valid: true });
+    const { container, root } = await mountPanel();
+
+    await press(container, "Not interested");
+
+    expect(recordCardAction).not.toHaveBeenCalled();
+    expect(container.textContent).toContain("Dismiss @ada from Approach. Optional reason is saved to local knowledge memory.");
+    const reason = container.querySelector<HTMLTextAreaElement>(".dismiss-confirm textarea");
+    expect(reason).not.toBeNull();
+    expect(document.activeElement).toBe(reason);
+    expect(buttonLabelled(container, "Confirm")?.className).toBe("primary");
+    expect(buttonLabelled(container, "Cancel")?.className).toBe("ghost");
+    expect(buttonLabelled(container, "Skip")).toBeUndefined();
+
+    await act(async () => {
+      const setValue = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
+      setValue?.call(reason, "Off topic");
+      reason?.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await press(container, "Confirm");
+    await act(async () => { await new Promise<void>((resolve) => window.setTimeout(resolve, 0)); });
+
+    expect(recordCardAction).toHaveBeenCalledWith(paired, { kind: "scout", card: scoutCard }, "dismiss", "Off topic");
+    expect(askDeskForNext).toHaveBeenCalledWith(paired, { fromCardId: "1", action: "dismiss", kind: "scout" });
+    expect(shownCard(container)?.textContent).toContain("@bo");
+    expect(shownCard(container)?.querySelector(".dismiss-confirm")).toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it("cancels Not interested with Cancel or Escape and records nothing", async () => {
+    readPairing.mockResolvedValue(paired);
+    loadPanelData.mockResolvedValue({ lock: scoutCard, lockSupported: true, deskState: { view: "scout", detected: false }, replyAt: [], scout: null });
+    const { container, root } = await mountPanel();
+
+    await press(container, "Not interested");
+    await press(container, "Cancel");
+    expect(container.querySelector(".dismiss-confirm")).toBeNull();
+    expect(buttonLabelled(container, "Not interested")).toBeDefined();
+
+    await press(container, "Not interested");
+    await act(async () => {
+      container.querySelector("textarea")?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    });
+    expect(container.querySelector(".dismiss-confirm")).toBeNull();
+    expect(recordCardAction).not.toHaveBeenCalled();
+    expect(askDeskForNext).not.toHaveBeenCalled();
+    await act(async () => root.unmount());
+  });
+
+  it("keeps the reason open with the desk's notice when Not interested cannot be recorded", async () => {
+    readPairing.mockResolvedValue(paired);
+    loadPanelData.mockResolvedValue({ lock: scoutCard, lockSupported: true, deskState: { view: "scout", detected: false }, replyAt: [], scout: null });
+    recordCardAction.mockRejectedValue(new Error("/api/dismissed failed (500)"));
+    const { container, root } = await mountPanel();
+
+    await press(container, "Not interested");
+    await press(container, "Confirm");
+
+    expect(askDeskForNext).not.toHaveBeenCalled();
+    expect(container.textContent).toContain("Could not dismiss. Try again.");
+    expect(container.querySelector(".dismiss-confirm")).not.toBeNull();
+    await act(async () => root.unmount());
+  });
+
+  it("skips and dismisses a suggested reply card by its suggestion id, with no reason step, as the desk does", async () => {
+    readPairing.mockResolvedValue(paired);
+    loadPanelData.mockResolvedValue({ lock: scoutCard, lockSupported: true, deskState: { view: "suggestion", detected: false }, suggestionId: "sugg-1", replyAt: [], scout: null });
+    recordCardAction.mockResolvedValue(undefined);
+    askDeskForNext.mockResolvedValue("server");
+    waitForLockChange.mockResolvedValue({ card: scoutCard, next: null, state: { view: "suggestion", detected: false }, suggestionId: "sugg-1", supported: true, valid: true });
+    const { container, root } = await mountPanel();
+
+    expect(actionLabels(container)).toEqual(["Open post on X", "Skip", "Not interested"]);
+    await press(container, "Skip");
+    const target = { kind: "suggestion", card: scoutCard, suggestionId: "sugg-1" };
+    expect(recordCardAction).toHaveBeenLastCalledWith(paired, target, "skip", "");
+    expect(askDeskForNext).toHaveBeenLastCalledWith(paired, { fromCardId: "sugg-1", action: "skip", kind: "suggestion" });
+    expect(waitForLockChange).toHaveBeenLastCalledWith(paired, { fromCardId: "sugg-1", action: "skip", kind: "suggestion" });
+
+    await press(container, "Not interested");
+    expect(container.querySelector(".dismiss-confirm")).toBeNull();
+    expect(recordCardAction).toHaveBeenLastCalledWith(paired, target, "dismiss", "");
+    expect(askDeskForNext).toHaveBeenLastCalledWith(paired, { fromCardId: "sugg-1", action: "dismiss", kind: "suggestion" });
+    expect(waitForLockChange).toHaveBeenLastCalledWith(paired, { fromCardId: "sugg-1", action: "dismiss", kind: "suggestion" });
+    await act(async () => root.unmount());
+  });
+
+  it("names For You in the notice when a suggested card cannot be skipped", async () => {
+    readPairing.mockResolvedValue(paired);
+    loadPanelData.mockResolvedValue({ lock: scoutCard, lockSupported: true, deskState: { view: "suggestion", detected: false }, suggestionId: "sugg-1", replyAt: [], scout: null });
+    recordCardAction.mockRejectedValue(new Error("/api/for-you/skip failed (404)"));
+    const { container, root } = await mountPanel();
+
+    await press(container, "Skip");
+
+    expect(askDeskForNext).not.toHaveBeenCalled();
+    expect(container.textContent).toContain("Could not update For You. Try again.");
     await act(async () => root.unmount());
   });
 

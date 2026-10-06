@@ -2,12 +2,14 @@ import { coachingPath, parseCoachingPayload } from "../../../shared/src/coaching
 import {
   APPROACH_NEXT_PATH,
   parseApproachNextResponse,
+  type ApproachCardAction,
   type ApproachNextRequest,
 } from "../../../shared/src/approachNext";
 import { EXTENSION_SESSION_PATH } from "../../../shared/src/extensionBridge";
 import type { DeskApproachState, ScoutApproachLockCard, ScoutApproachNext } from "../../../shared/src/scoutApproachLock";
 import { apiRequest, UnpairedError } from "./api";
 import type { Pairing } from "./pairing";
+import type { PanelCardTarget } from "./panelModel";
 import { parseScoutStats, type ScoutStats } from "../../../shared/src/scoutCompanion";
 import { readScoutLock } from "./scoutLock";
 
@@ -16,6 +18,7 @@ export type PanelData = {
   lockSupported: boolean;
   nextUp: ScoutApproachNext | null;
   deskState: DeskApproachState | null;
+  suggestionId: string | null;
   replyAt: string[];
   repliesToday: number | null;
   scout: ScoutStats | null;
@@ -51,6 +54,7 @@ export async function loadPanelData(pairing: Pairing): Promise<PanelData> {
     lockSupported: lock.supported,
     nextUp: lock.next,
     deskState: lock.state,
+    suggestionId: lock.suggestionId,
     replyAt: parseCoachingPayload(coachingRaw)?.replyAt ?? [],
     repliesToday: parseCoachingPayload(coachingRaw)?.repliesToday ?? null,
     scout,
@@ -74,4 +78,45 @@ export async function askDeskForNext(pairing: Pairing, request: ApproachNextRequ
   if (!response) throw new Error("The desk's Next answer came back malformed.");
   if (response.advanced) return "server";
   return response.delivered ? "desk" : null;
+}
+
+export const SKIPPED_PATH = "/api/skipped";
+export const DISMISSED_PATH = "/api/dismissed";
+
+function presentFields(card: ScoutApproachLockCard): Record<string, string> {
+  const fields: Record<string, string | null> = {
+    threadId: card.id,
+    author: card.author,
+    url: card.url,
+    text: card.text,
+    conversationId: card.conversationId,
+    inReplyToId: card.inReplyToId,
+  };
+  return Object.fromEntries(
+    Object.entries(fields).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+  );
+}
+
+export async function recordCardAction(
+  pairing: Pairing,
+  target: PanelCardTarget,
+  action: ApproachCardAction,
+  reason = "",
+): Promise<void> {
+  const post = (path: string, body: Record<string, string>) =>
+    apiRequest(pairing, path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  if (target.kind === "suggestion") {
+    await post(`/api/for-you/${action}`, { id: target.suggestionId });
+    return;
+  }
+  if (action === "skip") {
+    await post(SKIPPED_PATH, presentFields(target.card));
+    return;
+  }
+  const why = reason.trim();
+  await post(DISMISSED_PATH, { ...presentFields(target.card), ...(why ? { reason: why } : {}) });
 }

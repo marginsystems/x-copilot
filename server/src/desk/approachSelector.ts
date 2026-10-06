@@ -4,6 +4,7 @@ import {
   canServeApproachOriginal,
   isForYouTask,
   pickApproachSuggestion,
+  type ApproachEvent,
   type ApproachGate,
   type ApproachInventory,
   type ApproachSuggestionRow,
@@ -54,10 +55,14 @@ export function approachInventory(
 
 export type ApproachNextStep = { lock: ApproachTaskLock; releasedIds: string[] };
 
-export function nextApproachStep(stock: ApproachStock, lock: ApproachTaskLock): ApproachNextStep | null {
+export function nextApproachStep(
+  stock: ApproachStock,
+  lock: ApproachTaskLock,
+  event: ApproachEvent = { type: "next" },
+): ApproachNextStep | null {
   const next = advanceApproach(
     lock,
-    { type: "next" },
+    event,
     approachInventory(stock, lock.cardId, isForYouTask(lock)),
   );
   if (next === lock) return null;

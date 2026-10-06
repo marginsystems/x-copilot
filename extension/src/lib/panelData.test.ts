@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { askDeskForNext } from "./panelData";
+import { askDeskForNext, recordCardAction } from "./panelData";
 
 const state = vi.hoisted(() => ({ apiRequest: vi.fn() }));
 
@@ -34,5 +34,47 @@ describe("askDeskForNext", () => {
     await expect(askDeskForNext(pairing, { fromCardId: "1" })).resolves.toBeNull();
     state.apiRequest.mockResolvedValue({ ok: true });
     await expect(askDeskForNext(pairing, { fromCardId: "1" })).rejects.toThrow("malformed");
+  });
+});
+
+describe("recordCardAction", () => {
+  const card = { id: "1", conversationId: "c1", inReplyToId: null, surface: "reply" as const, author: "@ada", url: "https://x.com/ada/status/1", text: null };
+
+  function sent(): { path: unknown; method: unknown; body: unknown } {
+    const [, path, init] = state.apiRequest.mock.lastCall ?? [];
+    const options = (init ?? {}) as RequestInit;
+    return { path, method: options.method, body: JSON.parse(String(options.body)) };
+  }
+
+  beforeEach(() => {
+    state.apiRequest.mockReset().mockResolvedValue({ ok: true });
+  });
+
+  it("records a Scout Skip with the card fields the panel has, as the desk's Skip does", async () => {
+    await recordCardAction(pairing, { kind: "scout", card }, "skip");
+    expect(sent()).toEqual({
+      path: "/api/skipped",
+      method: "POST",
+      body: { threadId: "1", author: "@ada", url: "https://x.com/ada/status/1", conversationId: "c1" },
+    });
+  });
+
+  it("records a Scout Not interested with a trimmed reason, and none when blank", async () => {
+    await recordCardAction(pairing, { kind: "scout", card }, "dismiss", "  Off topic ");
+    expect(sent()).toMatchObject({ path: "/api/dismissed", body: { threadId: "1", author: "@ada", reason: "Off topic" } });
+    await recordCardAction(pairing, { kind: "scout", card }, "dismiss", "   ");
+    expect(sent().body).not.toHaveProperty("reason");
+  });
+
+  it("records a suggested card through For You by its suggestion id", async () => {
+    await recordCardAction(pairing, { kind: "suggestion", card, suggestionId: "s1" }, "skip");
+    expect(sent()).toEqual({ path: "/api/for-you/skip", method: "POST", body: { id: "s1" } });
+    await recordCardAction(pairing, { kind: "suggestion", card, suggestionId: "s1" }, "dismiss", "ignored");
+    expect(sent()).toEqual({ path: "/api/for-you/dismiss", method: "POST", body: { id: "s1" } });
+  });
+
+  it("fails when the server refuses, so the panel does not advance", async () => {
+    state.apiRequest.mockRejectedValue(new Error("/api/skipped failed (500)"));
+    await expect(recordCardAction(pairing, { kind: "scout", card }, "skip")).rejects.toThrow("500");
   });
 });

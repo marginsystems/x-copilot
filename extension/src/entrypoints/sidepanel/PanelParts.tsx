@@ -114,6 +114,59 @@ export function NextConfirm({
   );
 }
 
+export function DismissConfirm({
+  copy,
+  reason,
+  busy,
+  onReason,
+  onConfirm,
+  onCancel,
+}: {
+  copy: string;
+  reason: string;
+  busy: boolean;
+  onReason: (reason: string) => void;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const noteId = useId();
+  const reasonId = useId();
+  const reasonRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    reasonRef.current?.focus();
+  }, []);
+
+  function onKeyDown(event: KeyboardEvent<HTMLElement>) {
+    if (event.key !== "Escape" || busy) return;
+    event.stopPropagation();
+    onCancel();
+  }
+
+  return (
+    <div className="dismiss-confirm" role="group" aria-label="Not interested" aria-describedby={noteId} onKeyDown={onKeyDown}>
+      <p id={noteId} className="next-confirm-note">{copy}</p>
+      <label className="dismiss-reason" htmlFor={reasonId}>Reason (optional)</label>
+      <textarea
+        id={reasonId}
+        ref={reasonRef}
+        className="dismiss-reason-text"
+        value={reason}
+        rows={3}
+        placeholder="Why skip this lead…"
+        disabled={busy}
+        onChange={(event) => onReason(event.currentTarget.value)}
+      />
+      <button type="button" className="primary" disabled={busy} onClick={onConfirm}>
+        Confirm
+      </button>
+      <button type="button" className="ghost" disabled={busy} onClick={onCancel}>
+        Cancel
+      </button>
+    </div>
+  );
+}
+
 export function GearIcon() {
   return (
     <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

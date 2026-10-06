@@ -27,8 +27,18 @@ import { EXTENSION_SESSION_PATH as apiExtensionSessionPath } from "../auth/exten
 import { EXTENSION_SESSION_PATH as sharedExtensionSessionPath } from "../../../shared/src/extensionBridge.ts";
 import { SCOUT_APPROACH_LOCK_PATH as sharedScoutApproachLockPath } from "../../../shared/src/scoutApproachLock.ts";
 import { SCOUT_APPROACH_LOCK_PATH as apiScoutApproachLockPath } from "../scout/scoutApproachLock.ts";
-import { APPROACH_NEXT_ID_MAX as sharedApproachNextIdMax, APPROACH_NEXT_PATH as sharedApproachNextPath } from "../../../shared/src/approachNext.ts";
-import { APPROACH_NEXT_ID_MAX as apiApproachNextIdMax, APPROACH_NEXT_PATH as apiApproachNextPath } from "../desk/approachNextHttp.ts";
+import {
+  APPROACH_NEXT_ACTIONS as sharedApproachNextActions,
+  APPROACH_NEXT_ID_MAX as sharedApproachNextIdMax,
+  APPROACH_NEXT_PATH as sharedApproachNextPath,
+  parseApproachNextRequest as sharedParseApproachNextRequest,
+} from "../../../shared/src/approachNext.ts";
+import {
+  APPROACH_NEXT_ACTIONS as apiApproachNextActions,
+  APPROACH_NEXT_ID_MAX as apiApproachNextIdMax,
+  APPROACH_NEXT_PATH as apiApproachNextPath,
+} from "../desk/approachNextHttp.ts";
+import { parseServerNextRequest as apiParseApproachNextRequest } from "../desk/approachServerNext.ts";
 import { OWN_POST_SEEN_PATH as apiOwnPostSeenPath } from "../desk/ownPostSeen.ts";
 import { OWN_POST_SEEN_PATH as sharedOwnPostSeenPath } from "../../../shared/src/extensionBridge.ts";
 
@@ -56,9 +66,24 @@ await describe("mirrored SPA/API constants", async () => {
     assert.equal(sharedOwnPostSeenPath, apiOwnPostSeenPath);
   });
 
-  await it("keeps the approach Next path and id limit equal on both sides", () => {
+  await it("keeps the approach Next path, id limit, actions and request parsing equal on both sides", () => {
     assert.equal(sharedApproachNextPath, apiApproachNextPath);
     assert.equal(sharedApproachNextIdMax, apiApproachNextIdMax);
+    assert.deepEqual([...sharedApproachNextActions], [...apiApproachNextActions]);
+    for (const raw of [
+      { fromCardId: " c1 " },
+      { fromCardId: "c1", action: "next" },
+      { fromCardId: "c1", action: "skip", kind: "scout" },
+      { fromCardId: "c1", action: "dismiss", kind: "suggestion" },
+      { fromCardId: "c1", action: "mark" },
+      { forYou: true },
+      { forYou: true, action: "skip" },
+      { fromCardId: "c1", forYou: true },
+      { fromCardId: "x".repeat(sharedApproachNextIdMax + 1), action: "skip" },
+      null,
+    ]) {
+      assert.deepEqual(sharedParseApproachNextRequest(raw), apiParseApproachNextRequest(raw));
+    }
   });
 
   await it("keeps the approach lock phases and surfaces equal on both sides", () => {

@@ -1,4 +1,4 @@
-import type { ApproachNextRequest } from "../../../shared/src/approachNext";
+import type { ApproachCardAction, ApproachNextRequest } from "../../../shared/src/approachNext";
 import { FYP_WAIT_COPY, X_FOR_YOU_URL, X_INSPIRATION_URL } from "../../../shared/src/forYou";
 import {
   formatReplyPaceClock,
@@ -141,6 +141,44 @@ export function panelCanAskNext(
     detected ||
     (deskState?.view === "scout" && deskCardId === view.lock.id)
   );
+}
+
+export type PanelCardTarget =
+  | { kind: "scout"; card: ScoutApproachLockCard }
+  | { kind: "suggestion"; card: ScoutApproachLockCard; suggestionId: string };
+
+export function panelCardTarget(opts: {
+  view: PanelView;
+  detected: boolean;
+  deskState: DeskApproachState | null | undefined;
+  deskCardId: string | null;
+  suggestionId: string | null;
+}): PanelCardTarget | null {
+  const card = opts.view.lock;
+  if (opts.view.collecting || !card || opts.detected || opts.deskCardId !== card.id) return null;
+  if (opts.deskState?.view === "scout") return { kind: "scout", card };
+  if (opts.deskState?.view === "suggestion" && opts.suggestionId) {
+    return { kind: "suggestion", card, suggestionId: opts.suggestionId };
+  }
+  return null;
+}
+
+export function cardActionRequest(target: PanelCardTarget, action: ApproachCardAction): ApproachNextRequest {
+  return {
+    fromCardId: target.kind === "suggestion" ? target.suggestionId : target.card.id,
+    action,
+    kind: target.kind,
+  };
+}
+
+export function panelCardActionNotice(target: PanelCardTarget, action: ApproachCardAction): string {
+  if (target.kind === "suggestion") return "Could not update For You. Try again.";
+  return action === "skip" ? "Could not skip. Try again." : "Could not dismiss. Try again.";
+}
+
+export function dismissConfirmCopy(card: ScoutApproachLockCard): string {
+  const who = card.author ?? "this post";
+  return `Dismiss ${who} from Approach. Optional reason is saved to local knowledge memory.`;
 }
 
 export function preloadedNextCard(

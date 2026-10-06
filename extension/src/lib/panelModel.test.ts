@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { X_FOR_YOU_URL, X_INSPIRATION_URL } from "../../../shared/src/forYou";
 import { REPLY_PACE_MS } from "../../../shared/src/replyPace";
-import { shownAfterRefresh, nextFromCardId, panelCanAskNext, panelDetected, panelView, panelCard, panelNextNotice, panelPace, preloadedNextCard, scoutOpenUrl } from "./panelModel";
+import { cardActionRequest, dismissConfirmCopy, panelCardActionNotice, panelCardTarget, shownAfterRefresh, nextFromCardId, panelCanAskNext, panelDetected, panelView, panelCard, panelNextNotice, panelPace, preloadedNextCard, scoutOpenUrl } from "./panelModel";
 
 const lock = {
   id: "123",
@@ -181,5 +181,42 @@ describe("panelDetected", () => {
   it("never marks the Collecting card detected", () => {
     const collecting = { view: "collecting" as const, detected: false };
     expect(panelDetected({ view: panelView(null, collecting), deskState: collecting, deskCardId: null, seenHere: true })).toBe(false);
+  });
+});
+
+describe("panelCardTarget", () => {
+  const scoutView = panelView(lock, { view: "scout", detected: false });
+  const base = { view: scoutView, detected: false, deskState: { view: "scout" as const, detected: false }, deskCardId: "123", suggestionId: null };
+
+  it("offers Skip and Not interested on the desk's undetected Scout card", () => {
+    expect(panelCardTarget(base)).toEqual({ kind: "scout", card: lock });
+  });
+
+  it("offers them on the desk's undetected suggested card only when the suggestion id is known", () => {
+    const suggestion = { ...base, deskState: { view: "suggestion" as const, detected: false } };
+    expect(panelCardTarget(suggestion)).toBeNull();
+    expect(panelCardTarget({ ...suggestion, suggestionId: "s1" })).toEqual({ kind: "suggestion", card: lock, suggestionId: "s1" });
+  });
+
+  it("offers nothing once detected, off the desk's card, or on For You, Collecting and other views", () => {
+    expect(panelCardTarget({ ...base, detected: true })).toBeNull();
+    expect(panelCardTarget({ ...base, deskCardId: "999" })).toBeNull();
+    expect(panelCardTarget({ ...base, deskState: { view: "other", detected: false } })).toBeNull();
+    expect(panelCardTarget({ ...base, deskState: null })).toBeNull();
+    expect(panelCardTarget({ ...base, view: panelView(null, { view: "for_you", detected: false }) })).toBeNull();
+    expect(panelCardTarget({ ...base, view: panelView(null, { view: "collecting", detected: false }) })).toBeNull();
+  });
+
+  it("addresses the Scout card by its post id and the suggested card by its suggestion id", () => {
+    expect(cardActionRequest({ kind: "scout", card: lock }, "skip")).toEqual({ fromCardId: "123", action: "skip", kind: "scout" });
+    expect(cardActionRequest({ kind: "suggestion", card: lock, suggestionId: "s1" }, "dismiss")).toEqual({ fromCardId: "s1", action: "dismiss", kind: "suggestion" });
+  });
+
+  it("uses the desk's failure notices and confirm copy", () => {
+    expect(panelCardActionNotice({ kind: "scout", card: lock }, "skip")).toBe("Could not skip. Try again.");
+    expect(panelCardActionNotice({ kind: "scout", card: lock }, "dismiss")).toBe("Could not dismiss. Try again.");
+    expect(panelCardActionNotice({ kind: "suggestion", card: lock, suggestionId: "s1" }, "skip")).toBe("Could not update For You. Try again.");
+    expect(dismissConfirmCopy(lock)).toBe("Dismiss @dana from Approach. Optional reason is saved to local knowledge memory.");
+    expect(dismissConfirmCopy({ ...lock, author: null })).toBe("Dismiss this post from Approach. Optional reason is saved to local knowledge memory.");
   });
 });

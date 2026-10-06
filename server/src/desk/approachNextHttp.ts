@@ -2,14 +2,13 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { allowRate } from "../auth/authGuard.js";
 import { getSessionUser } from "../auth/sessionCookie.js";
 import { BodyError, readBody, send } from "../http/httpJson.js";
-import { isRecord } from "../platform/unknownValue.js";
 import { publishScoutApproachLockChanged } from "../scout/scoutApproachLockEvents.js";
-import { advanceApproachOnServer } from "./approachServerNext.js";
+import { advanceApproachOnServer, parseServerNextRequest } from "./approachServerNext.js";
 import { getApproachTask } from "./approachTaskStore.js";
 import { publishDeskEvent } from "./deskEvents.js";
 
 export const APPROACH_NEXT_PATH = "/api/desk/approach/next";
-export const APPROACH_NEXT_ID_MAX = 64;
+export { APPROACH_NEXT_ACTIONS, APPROACH_NEXT_ID_MAX } from "./approachServerNext.js";
 export const APPROACH_NEXT_RATE = { max: 30, windowMs: 60_000 };
 
 export async function tryHandleApproachNext(
@@ -38,13 +37,12 @@ export async function tryHandleApproachNext(
     send(req, res, err instanceof BodyError ? err.statusCode : 400, { error: "bad_request" });
     return true;
   }
-  const request = isRecord(body) && body.forYou === true && body.fromCardId === undefined
-    ? { forYou: true as const }
-    : isRecord(body) && typeof body.fromCardId === "string" && body.forYou === undefined
-      ? { fromCardId: body.fromCardId.trim() }
-      : null;
-  if (!request || ("fromCardId" in request && (!request.fromCardId || request.fromCardId.length > APPROACH_NEXT_ID_MAX))) {
-    send(req, res, 400, { error: "bad_request", message: "Pass { fromCardId: string } or { forYou: true }." });
+  const request = parseServerNextRequest(body);
+  if (!request) {
+    send(req, res, 400, {
+      error: "bad_request",
+      message: "Pass { fromCardId: string } or { fromCardId: string, action: \"skip\" | \"dismiss\", kind: \"scout\" | \"suggestion\" } or { forYou: true }.",
+    });
     return true;
   }
   let advanced = false;
@@ -57,6 +55,13 @@ export async function tryHandleApproachNext(
   const delivered = advanced
     ? publishDeskEvent(user.id, "approach_task", { version: getApproachTask(user.id)?.version ?? 0 }) > 0
     : publishDeskEvent(user.id, "approach_next", request) > 0;
+  if ("action" in request && request.action) {
+    publishDeskEvent(user.id, "approach_action", {
+      action: request.action,
+      fromCardId: request.fromCardId,
+      kind: request.kind,
+    });
+  }
   send(req, res, 200, { ok: true, delivered, advanced }, { "Cache-Control": "no-store" });
   return true;
 }
