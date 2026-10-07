@@ -10,6 +10,7 @@ import {
 } from "../../../shared/src/forYou";
 import { ApproachDetectingMark } from "./ApproachFrame";
 import { DeskRow } from "./DeskRow";
+import { DetectedPostSummary } from "./ForYouFeedRow";
 import type { OpenPace } from "./RowOpen";
 
 export function SuggestedRow({
@@ -18,6 +19,7 @@ export function SuggestedRow({
   onPosted,
   interacted,
   detecting,
+  detectedPost = null,
   onNext,
   onSkip,
   onDismiss,
@@ -30,6 +32,7 @@ export function SuggestedRow({
   onPosted: () => void;
   interacted?: boolean;
   detecting?: boolean;
+  detectedPost?: { id: string; url: string } | null;
   onNext?: () => void;
   onSkip: () => void;
   onDismiss: () => void;
@@ -40,7 +43,8 @@ export function SuggestedRow({
   const openUrl = forYouOpenUrl(row);
   const kindClass = forYouKindClass(row.kind);
   const detectsReply = row.kind === "reply" && Boolean(forYouTargetId(row));
-  const detected = interacted === true && detectsReply;
+  const detectsPost = row.kind === "post";
+  const detected = interacted === true && (detectsReply || detectsPost);
 
   return (
     <DeskRow
@@ -50,7 +54,7 @@ export function SuggestedRow({
       lead={forYouKindShort(row.kind)}
       leadTitle={forYouKindLabel(row.kind)}
       leadClassName={`bait ${kindClass}`}
-      summary={row.why}
+      summary={detectsPost && detected ? <DetectedPostSummary post={detectedPost} /> : row.why}
       meta={
         <>
           <span className={interacted ? "chip chip-interacted" : "chip"}>
@@ -66,10 +70,11 @@ export function SuggestedRow({
       openPace={openPace}
       openLabel={detected ? undefined : "Open on X"}
       openTip={row.kind === "post" ? FYP_COMPOSE_TIP : "Open this post on X."}
-      onNext={detectsReply ? onNext : undefined}
+      onNext={detectsReply || detectsPost ? onNext : undefined}
+      askBeforeNext={detectsPost && !interacted ? { subject: "post", cardKey: row.id } : undefined}
       nextTip={FYP_NEXT_TIP}
-      nextDisabled={!interacted}
-      onPrimary={!interacted && !detectsReply && !busy ? onPosted : undefined}
+      nextDisabled={!interacted && !detectsPost}
+      onPrimary={!interacted && !detectsReply && !detectsPost && !busy ? onPosted : undefined}
       primaryLabel="I posted on X"
       onSkip={!interacted ? onSkip : undefined}
       onDismiss={!interacted ? onDismiss : undefined}

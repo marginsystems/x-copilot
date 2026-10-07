@@ -83,7 +83,7 @@ await describe("published suggested card", () => {
   const quote = { id: "s3", kind: "quote" as const, why: "Quote this", targetId: "901", targetUrl: null, targetAuthor: "@finn" };
 
   it("carries what the desk shows and the URL its Open on X uses", () => {
-    assert.deepEqual(approachSuggestionCard(post), { ...post, openUrl: "https://x.com/intent/tweet" });
+    assert.deepEqual(approachSuggestionCard(post), { ...post, openUrl: "https://x.com/home" });
     assert.deepEqual(approachSuggestionCard(reply), { ...reply, targetId: "900", openUrl: "https://x.com/erin/status/900" });
     assert.equal(approachSuggestionCard(quote).openUrl, "https://x.com/i/status/901");
     assert.equal(approachSuggestionCardId(approachSuggestionCard(reply)), "900");
@@ -113,6 +113,30 @@ await describe("published suggested card", () => {
       parseScoutApproachLockResponse({ ok: true, card: null, state: { view: "suggestion", detected: false, suggestion } })?.state,
       { view: "suggestion", detected: false, suggestion },
     );
+  }).catch(assert.fail);
+
+  it("names the detected post only on a detected original post card", () => {
+    const base = { phase: "organic_reply", cardId: "s1", forYouTask: false, scoutDetected: false, forYouDetected: false };
+    const detectedPost = { id: "1900000001", url: "https://x.com/me/status/1900000001" };
+    const suggestion = approachSuggestionCard(post);
+    assert.deepEqual(deskApproachState({ ...base, suggestionDetected: true, suggestion: post, detectedPost }), {
+      view: "suggestion",
+      detected: true,
+      suggestion,
+      post: detectedPost,
+    });
+    assert.deepEqual(deskApproachState({ ...base, suggestionDetected: false, suggestion: post, detectedPost }), {
+      view: "suggestion",
+      detected: false,
+      suggestion,
+    });
+    const detected = { view: "suggestion", detected: true, suggestion, post: detectedPost };
+    assert.deepEqual(parseDeskApproachState(detected), detected);
+    assert.deepEqual(parseDeskApproachState({ ...detected, detected: false }), { view: "suggestion", detected: false, suggestion });
+    assert.deepEqual(parseDeskApproachState({ ...detected, post: { id: "x1", url: detectedPost.url } }), { view: "suggestion", detected: true, suggestion });
+    assert.deepEqual(parseDeskApproachState({ ...detected, post: { ...detectedPost, url: "https://evil.example/1" } }), { view: "suggestion", detected: true, suggestion });
+    const quoteCard = approachSuggestionCard(quote);
+    assert.deepEqual(parseDeskApproachState({ ...detected, suggestion: quoteCard }), { view: "suggestion", detected: true, suggestion: quoteCard });
   }).catch(assert.fail);
 
   it("counts a move off a suggested card only once the desk shows another card", () => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { X_FOR_YOU_URL, X_INSPIRATION_URL } from "../../../shared/src/forYou";
 import { REPLY_PACE_MS } from "../../../shared/src/replyPace";
-import { suggestionButtons, cardActionRequest, dismissConfirmCopy, panelCardActionNotice, panelCardTarget, shownAfterRefresh, nextFromCardId, panelCanAskNext, panelDetected, panelView, panelCard, panelNextNotice, panelPace, preloadedNextCard, scoutOpenUrl } from "./panelModel";
+import { detectedPostId, nextRequestFor, suggestionButtons, suggestionPanelCard, cardActionRequest, dismissConfirmCopy, panelCardActionNotice, panelCardTarget, shownAfterRefresh, nextFromCardId, panelCanAskNext, panelDetected, panelView, panelCard, panelNextNotice, panelPace, preloadedNextCard, scoutOpenUrl } from "./panelModel";
 
 const lock = {
   id: "123",
@@ -251,7 +251,7 @@ describe("suggested cards", () => {
       kind: "suggestion",
       verb: "Post",
       title: post.why,
-      openUrl: "https://x.com/intent/tweet",
+      openUrl: "https://x.com/home",
       openLabel: "Open on X",
       secondary: null,
       lead: { label: "OG", kind: "post" },
@@ -264,24 +264,39 @@ describe("suggested cards", () => {
     expect(panelView({ ...lock, id: "999" }, replyState).suggestion).toBeNull();
     expect(panelView(null, replyState).suggestion).toBeNull();
     expect(panelView(lock, postState).suggestion).toBeNull();
-    expect(panelView(null, { ...postState, suggestion: { ...post, openUrl: "https://evil.example/x" } }).card.openUrl).toBeNull();
+    const quote = { ...post, kind: "quote" as const, openUrl: "https://evil.example/x" };
+    expect(panelView(null, { ...postState, suggestion: quote }).card.openUrl).toBeNull();
     expect(panelView(null, { view: "scout", detected: false, suggestion: post }).suggestion).toBeNull();
   });
 
-  it("never marks an original post detected, whatever the panel saw on For You", () => {
+  it("marks an original post detected only from the desk's state for that card, never from what the panel saw", () => {
     const view = panelView(null, postState);
     expect(panelDetected({ view, deskState: postState, deskCardId: null, seenHere: true })).toBe(false);
-    expect(panelDetected({ view, deskState: { ...postState, detected: true }, deskCardId: null, seenHere: false })).toBe(false);
+    expect(panelDetected({ view, deskState: { ...postState, detected: true }, deskCardId: null, seenHere: false })).toBe(true);
+    const otherCard = { ...postState, detected: true, suggestion: { ...post, id: "s9" } };
+    expect(panelDetected({ view, deskState: otherCard, deskCardId: null, seenHere: true })).toBe(false);
     const replyView = panelView(lock, replyState);
     expect(panelDetected({ view: replyView, deskState: { ...replyState, detected: true }, deskCardId: "123", seenHere: false })).toBe(true);
     expect(panelDetected({ view: replyView, deskState: replyState, deskCardId: "123", seenHere: false })).toBe(false);
   });
 
   it("names the desk's buttons for each kind and detection state", () => {
-    expect(suggestionButtons(post, false)).toEqual({ open: true, posted: true, next: false, nextEnabled: false, skipDismiss: true });
-    expect(suggestionButtons(reply, false)).toEqual({ open: true, posted: false, next: true, nextEnabled: false, skipDismiss: true });
-    expect(suggestionButtons(reply, true)).toEqual({ open: false, posted: false, next: true, nextEnabled: true, skipDismiss: false });
-    expect(suggestionButtons({ ...reply, targetId: null }, false)).toEqual({ open: true, posted: true, next: false, nextEnabled: false, skipDismiss: true });
+    expect(suggestionButtons(post, false)).toEqual({ open: true, posted: false, next: true, nextEnabled: true, askBeforeNext: true, skipDismiss: true });
+    expect(suggestionButtons(post, true)).toEqual({ open: false, posted: false, next: true, nextEnabled: true, askBeforeNext: false, skipDismiss: false });
+    expect(suggestionButtons(reply, false)).toEqual({ open: true, posted: false, next: true, nextEnabled: false, askBeforeNext: false, skipDismiss: true });
+    expect(suggestionButtons(reply, true)).toEqual({ open: false, posted: false, next: true, nextEnabled: true, askBeforeNext: false, skipDismiss: false });
+    expect(suggestionButtons({ ...reply, targetId: null }, false)).toEqual({ open: true, posted: true, next: false, nextEnabled: false, askBeforeNext: false, skipDismiss: true });
+    expect(suggestionButtons({ ...post, kind: "quote", targetId: "901" }, false).posted).toBe(true);
+  });
+
+  it("reads the detected post id only for the original post card the desk detected", () => {
+    const view = panelView(null, postState);
+    const detected = { ...postState, detected: true, post: { id: "1900000001", url: "https://x.com/me/status/1900000001" } };
+    expect(detectedPostId(view, detected)).toBe("1900000001");
+    expect(detectedPostId(view, { ...detected, detected: false })).toBeNull();
+    expect(detectedPostId(view, { ...detected, suggestion: { ...post, id: "s9" } })).toBeNull();
+    expect(nextRequestFor(view)).toEqual({ fromCardId: "s1" });
+    expect(nextRequestFor(panelView(null, null))).toEqual({ forYou: true });
   });
 
   it("addresses every action on a suggested card by its suggestion id, and keeps the plain Next for other cards", () => {
@@ -297,5 +312,20 @@ describe("suggested cards", () => {
     const pending = { token: "t", request: { fromCardId: "s1" }, shown: null };
     expect(shownAfterRefresh(pending, "t", null, postState)).toBeNull();
     expect(shownAfterRefresh({ ...pending, shown: lock }, "t", null, postState)).toEqual(lock);
+  });
+});
+
+describe("suggested original post card", () => {
+  it("opens the X home page, never a compose intent, even when an older desk sent one", () => {
+    const card = suggestionPanelCard({
+      id: "s1",
+      kind: "post",
+      why: "Take a side",
+      targetId: null,
+      targetUrl: null,
+      targetAuthor: null,
+      openUrl: "https://x.com/intent/tweet",
+    });
+    expect(card.openUrl).toBe("https://x.com/home");
   });
 });

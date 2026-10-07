@@ -80,7 +80,8 @@ await describe("remote approach Skip and Not interested", () => {
     assert.equal(remoteNextApplies(scout, { fromCardId: "c2", action: "skip", kind: "scout" }), false);
     assert.equal(remoteNextApplies(suggested, { fromCardId: "s1", action: "dismiss", kind: "suggestion" }), true);
     assert.equal(remoteNextApplies(suggested, { fromCardId: "s2", action: "dismiss", kind: "suggestion" }), false);
-    assert.equal(remoteNextApplies(suggested, { fromCardId: "s1" }), false);
+    assert.equal(remoteNextApplies(suggested, { fromCardId: "s1" }), true);
+    assert.equal(remoteNextApplies(suggested, { fromCardId: "s2" }), false);
     assert.equal(remoteNextApplies(forYou, { fromCardId: "c1", action: "skip", kind: "scout" }), false);
     assert.equal(remoteNextStale(suggested, { fromCardId: "s1", action: "skip", kind: "suggestion" }), false);
     assert.equal(remoteNextStale(suggested, { fromCardId: "c1", action: "skip", kind: "suggestion" }), true);

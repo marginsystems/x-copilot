@@ -103,11 +103,19 @@ export async function tryHandleForYou(
         console.warn("For You evidence capture soft-fail:", err);
       }
     }
+    const postedTweetId =
+      status === "done" &&
+      pending?.kind === "post" &&
+      typeof body?.postedTweetId === "string" &&
+      /^\d{1,19}$/.test(body.postedTweetId)
+        ? body.postedTweetId
+        : undefined;
     const suggestion = markSuggestion({
       id,
       userId: user.id,
       status,
       evidence,
+      postedTweetId,
     });
     if (!suggestion) {
       send(req, res, 404, {

@@ -183,11 +183,23 @@ export type ApproachSuggestionCard = {
   openUrl: string | null;
 };
 
+export type DetectedPost = { id: string; url: string };
+
 export type DeskApproachState = {
   view: (typeof DESK_APPROACH_VIEWS)[number];
   detected: boolean;
   suggestion?: ApproachSuggestionCard;
+  post?: DetectedPost;
 };
+
+const DETECTED_POST_ID = /^\d{1,19}$/;
+const DETECTED_POST_URL = /^https:\/\/(?:www\.)?x\.com\//;
+
+export function detectedPostFromBody(value: unknown): DetectedPost | null {
+  if (!isRecord(value) || typeof value.id !== "string" || typeof value.url !== "string") return null;
+  if (!DETECTED_POST_ID.test(value.id) || !DETECTED_POST_URL.test(value.url)) return null;
+  return { id: value.id, url: value.url };
+}
 
 export function suggestionCardFromBody(value: unknown): ApproachSuggestionCard | null {
   if (!isRecord(value)) return null;
@@ -211,7 +223,24 @@ export function deskStateFromBody(value: unknown): DeskApproachState | null {
   const view = DESK_APPROACH_VIEWS.find((candidate) => candidate === value.view);
   if (!view) return null;
   const suggestion = view === "suggestion" ? suggestionCardFromBody(value.suggestion) : null;
-  return suggestion ? { view, detected: value.detected, suggestion } : { view, detected: value.detected };
+  if (!suggestion) return { view, detected: value.detected };
+  const post = value.detected && suggestion.kind === "post" ? detectedPostFromBody(value.post) : null;
+  return post ? { view, detected: true, suggestion, post } : { view, detected: value.detected, suggestion };
+}
+
+export function keepDetectedOriginal(
+  stored: DeskApproachState | null,
+  incoming: DeskApproachState | null,
+): DeskApproachState | null {
+  if (!incoming || incoming.detected || incoming.view !== "suggestion" || incoming.suggestion?.kind !== "post") {
+    return incoming;
+  }
+  if (stored?.view !== "suggestion" || !stored.detected || stored.suggestion?.id !== incoming.suggestion.id) {
+    return incoming;
+  }
+  return stored.post
+    ? { ...incoming, detected: true, post: stored.post }
+    : { ...incoming, detected: true };
 }
 
 export function getDeskApproachState(
@@ -317,7 +346,7 @@ export async function tryHandleScoutApproachLock(
   if (body.card === null) {
     setScoutApproachLock(user.id, null);
     setScoutApproachNext(user.id, nextFromBody(body.next));
-    setDeskApproachState(user.id, deskStateFromBody(body.state));
+    setDeskApproachState(user.id, keepDetectedOriginal(getDeskApproachState(user.id), deskStateFromBody(body.state)));
     send(req, res, 200, { ok: true });
     return true;
   }
@@ -345,7 +374,7 @@ export async function tryHandleScoutApproachLock(
     text,
   });
   setScoutApproachNext(user.id, nextFromBody(body.next));
-  setDeskApproachState(user.id, deskStateFromBody(body.state));
+  setDeskApproachState(user.id, keepDetectedOriginal(getDeskApproachState(user.id), deskStateFromBody(body.state)));
   try {
     await retainScoutContextForTarget({
       userId: user.id,

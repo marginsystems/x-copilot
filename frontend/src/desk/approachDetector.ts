@@ -1,4 +1,5 @@
 import { parseOwnActivity, type OwnActivity } from "../../../shared/src/coaching";
+import { isRecord } from "../../../shared/src/typeGuards";
 
 export type DeskDetector = "for_you" | "scout";
 
@@ -8,6 +9,7 @@ export type DeskDetectorRoute = {
   active: DeskDetector | null;
   check: Record<DeskDetector, () => void | Promise<void>>;
   forYouOwnPost: (activity: OwnActivity) => void;
+  ownOriginal?: (activity: OwnActivity) => void;
 };
 
 export function approachDetector(
@@ -38,8 +40,12 @@ export function deskCatchUpDue(
   return deskFallbackTickDue(visibility) && !inFlight && deskDetectorCheck(route, false) !== null;
 }
 
+export function confirmedOriginal(data: unknown, activity: OwnActivity): boolean {
+  return activity.kind === "original" && isRecord(data) && data.provisional !== true;
+}
+
 export function routeOwnPostWake(
-  route: Pick<DeskDetectorRoute, "forYouOwnPost"> | null,
+  route: Pick<DeskDetectorRoute, "forYouOwnPost" | "ownOriginal"> | null,
   data: unknown,
 ): OwnActivity | null {
   const activity = parseOwnActivity(data);
@@ -47,5 +53,6 @@ export function routeOwnPostWake(
     return null;
   }
   route.forYouOwnPost(activity);
+  if (confirmedOriginal(data, activity)) route.ownOriginal?.(activity);
   return activity;
 }

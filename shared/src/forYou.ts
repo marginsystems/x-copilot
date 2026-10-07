@@ -14,7 +14,7 @@ export const FYP_WAIT_COPY =
 export const FYP_DETECTING_COPY = "Detection in progress.";
 export const FYP_DETECTED_COPY = "Post detected";
 export const FYP_OPEN_TIP = "Open your For You page on X.";
-export const FYP_COMPOSE_TIP = "Open a blank post on X. You write it.";
+export const FYP_COMPOSE_TIP = "Open X. You write the post.";
 export const FYP_INSPIRATION_TIP = "Open Inspiration top posts on X.";
 export const FYP_NEXT_TIP = "Go to the next Approach card.";
 
@@ -139,7 +139,7 @@ export function forYouKindClass(kind: ForYouKind): string {
 }
 
 export function forYouOpenUrl(row: ForYouSuggestion): string | null {
-  if (row.kind === "post") return X_COMPOSE_URL;
+  if (row.kind === "post") return X_FOR_YOU_URL;
   if (row.targetUrl && /^https?:\/\//i.test(row.targetUrl)) {
     return row.targetUrl;
   }

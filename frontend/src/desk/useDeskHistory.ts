@@ -594,13 +594,14 @@ export function useDeskHistory(
   async function actForYou(
     id: string,
     path: "done" | "skip" | "dismiss",
+    postedTweetId?: string,
   ): Promise<boolean | "gone"> {
     setActionBusy(true);
     try {
       const res = await apiFetch(`/api/for-you/${path}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id }),
+        body: JSON.stringify(postedTweetId ? { id, postedTweetId } : { id }),
       });
       if (!res.ok) {
         if (res.status === 404) {

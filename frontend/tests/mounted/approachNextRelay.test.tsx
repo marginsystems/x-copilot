@@ -463,7 +463,7 @@ test("the desk publishes the original post suggestion it shows, for the extensio
       targetId: null,
       targetUrl: null,
       targetAuthor: null,
-      openUrl: "https://x.com/intent/tweet",
+      openUrl: "https://x.com/home",
     },
   });
 });

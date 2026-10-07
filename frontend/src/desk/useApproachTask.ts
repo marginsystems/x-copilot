@@ -41,7 +41,9 @@ import {
   forYouWaitDetected,
   latestActivityCursor,
   newestOwnActivity,
+  openForYouWait,
   settleForYouWait,
+  type ForYouWait,
 } from "../../../shared/src/forYouTask";
 import { clearForYouWait, readForYouWait, writeForYouWait } from "../lib/forYouWaitStore";
 import {
@@ -54,7 +56,13 @@ import {
   upNextLock,
   type ApproachNextRequest,
 } from "../../../shared/src/approachNext";
-import { deskApproachState, SCOUT_APPROACH_LOCK_PATH } from "../../../shared/src/scoutApproachLock";
+import {
+  deskApproachState,
+  parseDeskApproachState,
+  SCOUT_APPROACH_LOCK_PATH,
+  type DetectedPost,
+} from "../../../shared/src/scoutApproachLock";
+import { isRecord } from "../../../shared/src/typeGuards";
 import { vanishEvent } from "../lib/vanishEvent";
 import { apiFetch } from "../lib/apiBase";
 import { presentApproach, type ApproachCardInput } from "../../../shared/src/approachPresenter";
@@ -96,6 +104,17 @@ function serverReleasedIds(raw: unknown): string[] | null {
   return raw.releasedIds.filter((id: unknown): id is string => typeof id === "string");
 }
 
+type ServerOriginal = { cardId: string; post: DetectedPost | null };
+
+function serverDetectedOriginal(raw: unknown): ServerOriginal | null {
+  if (!isRecord(raw)) return null;
+  const state = parseDeskApproachState(raw.state);
+  if (state?.view !== "suggestion" || !state.detected || state.suggestion?.kind !== "post") return null;
+  return { cardId: state.suggestion.id, post: state.post ?? null };
+}
+
+type OriginalWait = { cardId: string; wait: ForYouWait };
+
 export const SERVER_TASK_CHECK_MS = 4_000;
 
 export type UseApproachTaskOpts = {
@@ -117,6 +136,7 @@ export type UseApproachTaskOpts = {
   actForYou: (
     id: string,
     action: "done" | "skip" | "dismiss",
+    postedTweetId?: string,
   ) => Promise<boolean | "gone">;
   onSkip: (thread: ThreadCard) => void | Promise<boolean>;
   onDismiss: (thread: ThreadCard) => void;
@@ -171,6 +191,9 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
 
   const [state, setState] = useState<ApproachTaskState | null>(null);
   const [ownPostActivity, setOwnPostActivity] = useState<OwnActivity | null>(null);
+  const [ownOriginalActivity, setOwnOriginalActivity] = useState<OwnActivity | null>(null);
+  const [serverOriginal, setServerOriginal] = useState<ServerOriginal | null>(null);
+  const [originalWait, setOriginalWait] = useState<OriginalWait | null>(null);
   const stateRef = useRef<ApproachTaskState | null>(null);
   const ownerRef = useRef(owner);
   const lock = state?.lock ?? null;
@@ -214,6 +237,32 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
           history: interactedRetainedHistory,
         }) === "mark"
       : false;
+  const lockedOriginalId =
+    lock?.phase === "organic_reply" && lockedSuggestion?.kind === "post"
+      ? lockedSuggestion.id
+      : null;
+  const originalCursor = newestOwnActivity(
+    coaching?.ownActivity?.kind === "original" ? coaching.ownActivity : null,
+    ownOriginalActivity,
+  );
+  const originalCursorRef = useRef(originalCursor);
+  originalCursorRef.current = originalCursor;
+  const liveOriginalWait =
+    lockedOriginalId && originalWait?.cardId === lockedOriginalId ? originalWait.wait : null;
+  const originalActivity = liveOriginalWait
+    ? forYouDetectedActivity(liveOriginalWait, originalCursor)
+    : null;
+  const serverOriginalHit =
+    lockedOriginalId && serverOriginal?.cardId === lockedOriginalId ? serverOriginal : null;
+  const originalDetected =
+    lockedOriginalId !== null &&
+    ((liveOriginalWait !== null && forYouWaitDetected(liveOriginalWait, originalCursor)) ||
+      serverOriginalHit !== null);
+  const suggestionPost: DetectedPost | null = !originalDetected
+    ? null
+    : originalActivity
+      ? { id: originalActivity.id, url: originalActivity.url }
+      : serverOriginalHit?.post ?? null;
   const suggestionDetected =
     lock?.phase === "organic_reply" &&
     lock.cardId &&
@@ -225,7 +274,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
           interactedIds,
           history: interactedRetainedHistory,
         }) === "mark"
-      : false;
+      : originalDetected;
 
   const currentDayUtc = new Date().toISOString().slice(0, 10);
   function pickSuggestion(
@@ -416,8 +465,12 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     releasedIdsRef.current = new Set();
     setState(null);
     setOwnPostActivity(null);
+    setOwnOriginalActivity(null);
+    setServerOriginal(null);
+    setOriginalWait(null);
   }, [owner]);
 
+  const readServerOriginalRef = useRef<(() => void) | null>(null);
   const [serverTaskChecked, setServerTaskChecked] = useState(userId === null);
   useEffect(() => {
     if (userId === null) {
@@ -433,6 +486,8 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
       .then((res) => (res.ok ? res.json() : null))
       .then((raw: unknown) => {
         if (!live) return;
+        const original = serverDetectedOriginal(raw);
+        if (original) setServerOriginal(original);
         const releasedIds = serverReleasedIds(raw);
         if (releasedIds) {
           for (const id of releasedIds) releasedIdsRef.current.add(id);
@@ -460,6 +515,8 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
         .then((res) => (res.ok ? res.json() : null))
         .then((raw: unknown) => {
           if (ownerRef.current !== userId) return;
+          const original = serverDetectedOriginal(raw);
+          if (original) setServerOriginal(original);
           const releasedIds = serverReleasedIds(raw);
           if (releasedIds) {
             for (const id of releasedIds) releasedIdsRef.current.add(id);
@@ -471,13 +528,29 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
         })
         .catch(() => undefined);
     };
+    readServerOriginalRef.current = takeServerLock;
     const stopReady = onDeskEvent("ready", takeServerLock);
     const stopTask = onDeskEvent("approach_task", takeServerLock);
     return () => {
+      if (readServerOriginalRef.current === takeServerLock) readServerOriginalRef.current = null;
       stopReady();
       stopTask();
     };
   }, [userId]);
+
+  useEffect(() => {
+    if (!lockedOriginalId) {
+      if (originalWait) setOriginalWait(null);
+      return;
+    }
+    const cursor = originalCursorRef.current;
+    if (originalWait?.cardId === lockedOriginalId) {
+      const settled = settleForYouWait(originalWait.wait, cursor);
+      if (settled !== originalWait.wait) setOriginalWait({ cardId: lockedOriginalId, wait: settled });
+      return;
+    }
+    setOriginalWait({ cardId: lockedOriginalId, wait: openForYouWait({ owner, cursor }) });
+  }, [lockedOriginalId, originalCursor?.id, originalCursor?.postedAt, originalWait, owner]);
 
   useEffect(() => {
     if (!deskBootReady || !agendaReady || stateRef.current) return;
@@ -549,6 +622,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     scoutDetected,
     suggestion: lockedSuggestion,
     suggestionDetected,
+    suggestionPost,
     forYou: wait
       ? {
           detected: forYouWaitDetected(wait, activityCursor),
@@ -578,6 +652,10 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     },
     forYouOwnPost: (activity) => {
       setOwnPostActivity((current) => newestOwnActivity(current, activity));
+    },
+    ownOriginal: (activity) => {
+      setOwnOriginalActivity((current) => newestOwnActivity(current, activity));
+      readServerOriginalRef.current?.();
     },
   }), [activeDetector, owner]);
 
@@ -618,6 +696,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
         suggestionDetected,
         forYouDetected: presentation.forYou?.detected === true,
         suggestion: lockedSuggestion,
+        detectedPost: suggestionPost,
       })
     : null;
   const deskStateJson = deskState ? JSON.stringify(deskState) : "";
@@ -705,7 +784,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
     advanceCardRef.current({ type: "dismiss" });
   }, [dismissedHistory]);
 
-  async function onSuggestionNext(id: string) {
+  async function finishDetectedReply(id: string) {
     const generation = session.capture();
     const currentLock = stateRef.current?.lock;
     if (!mountedRef.current || !session.isCurrent(generation) ||
@@ -755,15 +834,20 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
         row?.kind === "reply" &&
         forYouTargetId(row)
       ) {
-        onSuggestionNext(id).catch((err: unknown) => console.error(err));
+        finishDetectedReply(id).catch((err: unknown) => console.error(err));
         return;
       }
+      const postedTweetId = row?.kind === "post" ? suggestionPost?.id : undefined;
       beginExit(id, async () => {
-        if ((await actForYou(id, "done")) === true) {
+        if ((await actForYou(id, "done", postedTweetId)) === true) {
           await onRefreshCoaching();
           advanceCard({ type: "posted" });
         }
       });
+    },
+    onSuggestionNext(id: string) {
+      if (stateRef.current?.lock.cardId !== id) return;
+      advanceCard({ type: "next" });
     },
     onSuggestionSkip(id: string) {
       beginExit(id, async () => {

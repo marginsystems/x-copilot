@@ -18,6 +18,7 @@ import { getApproachTask, setApproachTask, type ApproachTaskLock } from "./appro
 export const APPROACH_NEXT_ID_MAX = 64;
 export const APPROACH_NEXT_ACTIONS = ["next", "skip", "dismiss", "posted"] as const;
 export const X_COMPOSE_URL = "https://x.com/intent/tweet";
+export const X_HOME_URL = "https://x.com/home";
 
 export type ServerCardAction = Exclude<(typeof APPROACH_NEXT_ACTIONS)[number], "next">;
 
@@ -61,7 +62,7 @@ export function serverNextEvent(request: ServerNextRequest, suggestion: Suggesti
 }
 
 export function serverSuggestionOpenUrl(row: SuggestionTarget): string | null {
-  if (row.kind === "post") return X_COMPOSE_URL;
+  if (row.kind === "post") return X_HOME_URL;
   if (row.targetUrl && /^https?:\/\//i.test(row.targetUrl)) return row.targetUrl;
   if (!row.targetId || !/^\d+$/.test(row.targetId)) return null;
   if (row.kind === "reply") {
@@ -88,8 +89,7 @@ export function serverSuggestionCard(
 export function serverNextApplies(lock: ApproachTaskLock, request: ServerNextRequest): boolean {
   if ("forYou" in request) return isForYouTask(lock);
   if (lock.cardId !== request.fromCardId) return false;
-  if ("action" in request && request.action) return lock.phase === "scout_reply" || lock.phase === "organic_reply";
-  return lock.phase === "scout_reply";
+  return lock.phase === "scout_reply" || lock.phase === "organic_reply";
 }
 
 function remoteNextCanApply(lock: ApproachTaskLock): boolean {

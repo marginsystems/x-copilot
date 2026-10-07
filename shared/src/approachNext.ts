@@ -75,8 +75,7 @@ export function parseApproachNextResponse(raw: unknown): { delivered: boolean; a
 export function remoteNextApplies(lock: ApproachLock, request: ApproachNextRequest): boolean {
   if ("forYou" in request) return isForYouTask(lock);
   if (lock.cardId !== request.fromCardId) return false;
-  if ("action" in request && request.action) return lock.phase === "scout_reply" || lock.phase === "organic_reply";
-  return lock.phase === "scout_reply";
+  return lock.phase === "scout_reply" || lock.phase === "organic_reply";
 }
 
 export function remoteNextStale(lock: ApproachLock, request: ApproachNextRequest): boolean {

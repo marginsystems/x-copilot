@@ -56,6 +56,7 @@ type ThreadsTabsProps = {
   actForYou: (
     id: string,
     action: "done" | "skip" | "dismiss",
+    postedTweetId?: string,
   ) => Promise<boolean | "gone">;
   onOpenSettings: () => void;
   onLinkX: () => void;
@@ -287,6 +288,7 @@ export function ThreadsTabs({
                 onScoutDismiss={task.onScoutDismiss}
                 onScoutNext={task.onScoutNext}
                 onSuggestionPosted={task.onSuggestionPosted}
+                onSuggestionNext={task.onSuggestionNext}
                 onSuggestionSkip={task.onSuggestionSkip}
                 onSuggestionDismiss={task.onSuggestionDismiss}
                 onForYouNext={task.onForYouNext}

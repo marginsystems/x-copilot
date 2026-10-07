@@ -460,7 +460,7 @@ describe("App", () => {
     openUrl: "https://x.com/ada/status/1",
   };
 
-  it("shows the desk's original post card with the desk's buttons, and never For You or its detection", async () => {
+  it("shows the desk's original post card waiting for the post, with no I posted on X, and never uses its own For You detection", async () => {
     readPairing.mockResolvedValue(paired);
     const now = Date.now();
     storageData.lastReplySeenAt = now - 1_000;
@@ -471,35 +471,65 @@ describe("App", () => {
     const card = shownCard(container);
     expect(card?.querySelector(".card-lead")?.textContent).toBe("OG");
     expect(card?.querySelector("h2")?.textContent).toBe(ogSuggestion.why);
-    expect(card?.querySelector(".detect-tag")?.textContent).toBe("Post");
+    expect(card?.querySelector(".detect-tag")?.textContent).toBe("Waiting for your post");
     expect(card?.textContent).not.toContain("For You");
     expect(card?.textContent).not.toContain("Post detected");
-    expect(actionLabels(container)).toEqual(["Open on X", "I posted on X", "Skip", "Not interested"]);
+    expect(actionLabels(container)).toEqual(["Open on X", "Next", "Skip", "Not interested"]);
+    expect(buttonLabelled(container, "I posted on X")).toBeUndefined();
     expect(buttonLabelled(container, "Open on X")?.className).toBe("ghost");
-    expect(buttonLabelled(container, "I posted on X")?.className).toBe("primary");
+    expect(buttonLabelled(container, "Next")?.className).toBe("primary");
+    expect(buttonLabelled(container, "Next")?.disabled).toBe(false);
     expect(buttonLabelled(container, "Skip")?.className).toBe("ghost");
-    expect(buttonLabelled(container, "Next")).toBeUndefined();
 
     await press(container, "Open on X");
-    expect(tabsCreate).toHaveBeenCalledWith({ url: "https://x.com/intent/tweet", active: true });
+    expect(tabsCreate).toHaveBeenCalledWith({ url: "https://x.com/home", active: true });
     await act(async () => root.unmount());
   });
 
-  it("records I posted on X, then moves on through the server like the desk's own button", async () => {
+  it("asks before moving off an original post card with no post detected, then moves on without recording it", async () => {
     readPairing.mockResolvedValue(paired);
     loadPanelData.mockResolvedValue({ lock: null, lockSupported: true, deskState: ogState, suggestionId: "sug-og", replyAt: [], scout: null });
+    askDeskForNext.mockResolvedValue("server");
+    waitForLockChange.mockResolvedValue({ card: nextScoutCard, next: null, state: { view: "scout", detected: false }, suggestionId: null, supported: true, valid: true });
+    const { container, root } = await mountPanel();
+
+    await press(container, "Next");
+    expect(askDeskForNext).not.toHaveBeenCalled();
+    expect(container.textContent).toContain("No post detected yet. Skip this card?");
+
+    await press(container, "Skip card");
+    await act(async () => { await new Promise<void>((resolve) => window.setTimeout(resolve, 0)); });
+
+    expect(recordCardAction).not.toHaveBeenCalled();
+    expect(askDeskForNext).toHaveBeenCalledWith(paired, { fromCardId: "sug-og" });
+    expect(waitForLockChange).toHaveBeenCalledWith(paired, { fromCardId: "sug-og" });
+    expect(shownCard(container)?.textContent).toContain("@bo");
+    await act(async () => root.unmount());
+  });
+
+  it("shows only Next once the desk detects the original post, then records it done with the post id and moves on", async () => {
+    readPairing.mockResolvedValue(paired);
+    const detectedState = { ...ogState, detected: true, post: { id: "1900000001", url: "https://x.com/me/status/1900000001" } };
+    loadPanelData.mockResolvedValue({ lock: null, lockSupported: true, deskState: detectedState, suggestionId: "sug-og", replyAt: [], scout: null });
     const order: string[] = [];
     recordCardAction.mockImplementation(async () => { order.push("record"); });
     askDeskForNext.mockImplementation(async () => { order.push("advance"); return "server"; });
     waitForLockChange.mockResolvedValue({ card: nextScoutCard, next: null, state: { view: "scout", detected: false }, suggestionId: null, supported: true, valid: true });
     const { container, root } = await mountPanel();
 
-    await press(container, "I posted on X");
+    expect(shownCard(container)?.querySelector(".detect-tag")?.textContent).toBe("Post detected");
+    const detectedPostLink = shownCard(container)?.querySelector<HTMLAnchorElement>(".detail a");
+    expect(detectedPostLink?.getAttribute("href")).toBe("https://x.com/me/status/1900000001");
+    expect(detectedPostLink?.textContent).toBe("View post 1900000001");
+    expect(actionLabels(container)).toEqual(["Next"]);
+
+    await press(container, "Next");
     await act(async () => { await new Promise<void>((resolve) => window.setTimeout(resolve, 0)); });
 
     const target = { kind: "suggestion", card: null, suggestionId: "sug-og" };
+    expect(container.textContent).not.toContain("Skip this card?");
     expect(order).toEqual(["record", "advance"]);
-    expect(recordCardAction).toHaveBeenCalledWith(paired, target, "posted", "");
+    expect(recordCardAction).toHaveBeenCalledWith(paired, target, "posted", "", "1900000001");
     expect(askDeskForNext).toHaveBeenCalledWith(paired, { fromCardId: "sug-og", action: "posted", kind: "suggestion" });
     expect(waitForLockChange).toHaveBeenCalledWith(paired, { fromCardId: "sug-og", action: "posted", kind: "suggestion" });
     expect(shownCard(container)?.textContent).toContain("@bo");

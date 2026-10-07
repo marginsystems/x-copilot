@@ -38,6 +38,7 @@ export type MissionCardProps = ApproachCardInput & {
   onScoutDismiss: (thread: ThreadCard) => void;
   onScoutNext?: () => void;
   onSuggestionPosted: (id: string) => void;
+  onSuggestionNext?: (id: string) => void;
   onSuggestionSkip: (id: string) => void;
   onSuggestionDismiss: (id: string) => void;
   onForYouNext?: () => void;
@@ -107,10 +108,15 @@ function SuggestedCard(
             exiting={props.exitingIds.has(row.id)}
             busy={props.actionBusy}
             interacted={props.suggestionDetected}
-            detecting={props.view.detector === "scout"}
+            detecting={props.view.detector !== null}
+            detectedPost={props.suggestionPost ?? null}
             openPace={props.openPace}
             onPosted={() => props.onSuggestionPosted(row.id)}
-            onNext={() => props.onSuggestionPosted(row.id)}
+            onNext={() =>
+              row.kind === "post" && !props.suggestionDetected
+                ? props.onSuggestionNext?.(row.id)
+                : props.onSuggestionPosted(row.id)
+            }
             onSkip={() => props.onSuggestionSkip(row.id)}
             onDismiss={() => props.onSuggestionDismiss(row.id)}
           />

@@ -19,6 +19,7 @@ import {
   activitySubscriptionPaused,
   resolveStoredXUserId,
 } from "../x-api/xActivitySubscribe.js";
+import { detectOriginalForApproach } from "./approachOriginalDetect.js";
 import { publishDeskEvent } from "./deskEvents.js";
 import { rememberActivityEvent, upsertOwnPost } from "./ownPostStore.js";
 import { markOwnReplyInteracted, type OwnReplyMemoryOpts } from "./ownReplyMark.js";
@@ -94,6 +95,14 @@ export async function catchUpOwnPosts(
   let stored = 0;
   for (const parsed of catchUpPostsFromUserTweets(read.json, xUserId)) {
     if (used >= gate.limit) return { ok: true, stored, hold: "daily_cap" };
+    const link = postUrl(parsed.authorUsername, parsed.postId);
+    if (!parsed.postedAtFallback) {
+      try {
+        detectOriginalForApproach(userId, { id: parsed.postId, kind: parsed.kind, postedAt: parsed.postedAt, url: link });
+      } catch (err) {
+        console.warn("[desk] catch-up original detect soft-fail", err);
+      }
+    }
     if (!upsertOwnPost({ parsed, userId, tenantId: gate.tenantId })) continue;
     recordOwnPostCircleLink(userId, parsed);
     rememberActivityEvent(`post.create:${parsed.postId}`, parsed.postedAt);
@@ -103,7 +112,7 @@ export async function catchUpOwnPosts(
       id: parsed.postId,
       kind: parsed.kind,
       postedAt: parsed.postedAt,
-      url: postUrl(parsed.authorUsername, parsed.postId),
+      url: link,
       text: parsed.text,
     });
     try {

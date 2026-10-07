@@ -652,8 +652,8 @@ function SessionApp() {
             deskBootReady,
             authUser: paintUser,
             dismissThread,
-            actForYou: async (id, action) => {
-              const succeeded = await actForYou(id, action);
+            actForYou: async (id, action, postedTweetId) => {
+              const succeeded = await actForYou(id, action, postedTweetId);
               hydrateCoaching().catch((err) => setStatus(err instanceof Error ? err.message : String(err)));
               return succeeded;
             },

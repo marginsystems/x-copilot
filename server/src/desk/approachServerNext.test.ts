@@ -6,7 +6,7 @@ import { upsertOauthUser } from "../auth/oauthAccountStore.ts";
 import { SESSION_COOKIE } from "../auth/sessionCookie.ts";
 import { createSession } from "../auth/sessionStore.ts";
 import { ensureUserTenant } from "../billing/billingStore.ts";
-import { insertSuggestions, markSuggestion } from "../for-you/forYouStore.ts";
+import { getSuggestion, insertSuggestions, markSuggestion } from "../for-you/forYouStore.ts";
 import { expectRecord, testRequest } from "../http/http.testHelpers.ts";
 import {
   closeTempPlatformDb,
@@ -150,13 +150,28 @@ await describe("server approach Next", async () => {
     assert.ok(suggestion);
     const lock = { phase: "organic_reply" as const, cardId: suggestion.id, surface: null };
     setApproachTask(userId, lock, "desk");
-    assert.equal(await advanceApproachOnServer(userId, { fromCardId: suggestion.id }), false);
+    assert.equal(await advanceApproachOnServer(userId, { fromCardId: "900" }), false);
     assert.equal(await advanceApproachOnServer(userId, { fromCardId: "900", action: "skip", kind: "suggestion" }), false);
 
     assert.equal(await advanceApproachOnServer(userId, { fromCardId: suggestion.id, action: "skip", kind: "suggestion" }), true);
     assert.deepEqual(getApproachTask(userId)?.lock, { phase: "scout_reply", cardId: "a1", surface: null });
     assert.equal(getScoutApproachLock(userId)?.id, "a1");
     assert.deepEqual(listReleasedCardIds(userId), [suggestion.id]);
+  });
+
+  await it("moves off an original post card on a plain Next without recording the suggestion", async () => {
+    const [post] = insertSuggestions({
+      userId,
+      tenantId: ensureUserTenant(userId),
+      actions: [{ kind: "post", why: "Take a side" }],
+    });
+    assert.ok(post);
+    setApproachTask(userId, { phase: "organic_reply", cardId: post.id, surface: null }, "desk");
+
+    assert.equal(await advanceApproachOnServer(userId, { fromCardId: post.id }), true);
+    assert.deepEqual(getApproachTask(userId)?.lock, { phase: "scout_reply", cardId: "a1", surface: null });
+    assert.deepEqual(listReleasedCardIds(userId), [post.id]);
+    assert.equal(getSuggestion(post.id, userId)?.status, "suggested");
   });
 
   function suggest(actions: Parameters<typeof insertSuggestions>[0]["actions"]) {
@@ -283,7 +298,8 @@ await describe("server approach Next", async () => {
     const suggested = { phase: "organic_reply" as const, cardId: "s1", surface: null };
     assert.equal(serverNextApplies(scout, { fromCardId: "a1", action: "dismiss", kind: "scout" }), true);
     assert.equal(serverNextApplies(suggested, { fromCardId: "s1", action: "skip", kind: "suggestion" }), true);
-    assert.equal(serverNextApplies(suggested, { fromCardId: "s1" }), false);
+    assert.equal(serverNextApplies(suggested, { fromCardId: "s1" }), true);
+    assert.equal(serverNextApplies(suggested, { fromCardId: "s2" }), false);
     assert.equal(serverNextApplies(FOR_YOU, { fromCardId: "a1", action: "skip", kind: "scout" }), false);
   });
 

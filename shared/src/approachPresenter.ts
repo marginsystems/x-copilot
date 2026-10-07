@@ -38,6 +38,7 @@ export type ApproachCardInput = {
   suggestion: ForYouSuggestion | null;
   /** The locked Suggested reply target has a recorded reply. */
   suggestionDetected: boolean;
+  suggestionPost?: { id: string; url: string } | null;
   /** Null when no wait is armed for this task. */
   forYou: ForYouTaskView | null;
   /** Remaining reply minute. */
@@ -167,13 +168,19 @@ export function presentApproach(input: ApproachCardInput): ApproachPresentation 
   const detectsReply =
     input.suggestion?.kind === "reply" &&
     Boolean(forYouTargetId(input.suggestion));
+  const detectsPost = input.suggestion?.kind === "post";
   return {
     ...blank,
     kind: "suggested",
     verb: suggestionVerb(input.suggestion),
     why: "",
     badge: input.suggestion ? 1 : 0,
-    detector:
-      detectsReply && !input.suggestionDetected ? "scout" : null,
+    detector: input.suggestionDetected
+      ? null
+      : detectsReply
+        ? "scout"
+        : detectsPost
+          ? "for_you"
+          : null,
   };
 }

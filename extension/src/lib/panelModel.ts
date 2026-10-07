@@ -75,7 +75,7 @@ export function suggestionPanelCard(suggestion: ApproachSuggestionCard): PanelCa
     verb: forYouKindLabel(suggestion.kind),
     title: suggestion.why,
     detail: suggestion.targetAuthor ?? (suggestion.kind === "post" ? FYP_COMPOSE_TIP : "Open this post on X."),
-    openUrl: xUrl(suggestion.openUrl),
+    openUrl: suggestion.kind === "post" ? X_FOR_YOU_URL : xUrl(suggestion.openUrl),
     openLabel: "Open on X",
     secondary: null,
     lead: { label: forYouKindShort(suggestion.kind), kind: suggestion.kind },
@@ -97,6 +97,10 @@ export function panelPace(replyAt: readonly string[] | undefined, nowMs: number)
 
 export function nextFromCardId(lock: ScoutApproachLockCard | null): ApproachNextRequest {
   return lock ? { fromCardId: lock.id } : { forYou: true };
+}
+
+export function nextRequestFor(view: Pick<PanelView, "lock" | "suggestion">): ApproachNextRequest {
+  return view.suggestion ? { fromCardId: view.suggestion.id } : nextFromCardId(view.lock);
 }
 
 export type PendingNext = {
@@ -173,8 +177,11 @@ export function panelDetected(opts: {
   seenHere: boolean;
 }): boolean {
   if (opts.view.collecting) return false;
-  if (opts.view.suggestion && approachSuggestionCardId(opts.view.suggestion) === null) return false;
   const desk = opts.deskState;
+  if (opts.view.suggestion?.kind === "post") {
+    return desk?.view === "suggestion" && desk.detected && desk.suggestion?.id === opts.view.suggestion.id;
+  }
+  if (opts.view.suggestion && approachSuggestionCardId(opts.view.suggestion) === null) return false;
   if (opts.view.lock === null) return desk?.view === "for_you" ? desk.detected : opts.seenHere;
   const deskOnCard = desk?.view === "scout" || desk?.view === "suggestion";
   return opts.seenHere || (deskOnCard && desk.detected && opts.deskCardId === opts.view.lock.id);
@@ -228,18 +235,33 @@ export type SuggestionButtons = {
   posted: boolean;
   next: boolean;
   nextEnabled: boolean;
+  askBeforeNext: boolean;
   skipDismiss: boolean;
 };
 
 export function suggestionButtons(suggestion: ApproachSuggestionCard, detected: boolean): SuggestionButtons {
   const detectsReply = approachSuggestionCardId(suggestion) !== null;
+  const detectsPost = suggestion.kind === "post";
   return {
     open: !detected,
-    posted: !detected && !detectsReply,
-    next: detectsReply,
-    nextEnabled: detected,
+    posted: !detected && !detectsReply && !detectsPost,
+    next: detectsReply || detectsPost,
+    nextEnabled: detected || detectsPost,
+    askBeforeNext: detectsPost && !detected,
     skipDismiss: !detected,
   };
+}
+
+export function suggestionDetects(suggestion: ApproachSuggestionCard): boolean {
+  return suggestion.kind === "post" || approachSuggestionCardId(suggestion) !== null;
+}
+
+export function detectedPostId(
+  view: Pick<PanelView, "suggestion">,
+  deskState: DeskApproachState | null | undefined,
+): string | null {
+  if (view.suggestion?.kind !== "post" || deskState?.view !== "suggestion" || !deskState.detected) return null;
+  return deskState.suggestion?.id === view.suggestion.id ? deskState.post?.id ?? null : null;
 }
 
 export function panelCardActionNotice(target: PanelCardTarget, action: ApproachCardAction): string {

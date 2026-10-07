@@ -100,18 +100,32 @@ export function parseApproachSuggestionCard(raw: unknown): ApproachSuggestionCar
 
 export const DESK_APPROACH_VIEWS = ["scout", "suggestion", "for_you", "collecting", "other"] as const;
 export type DeskApproachView = (typeof DESK_APPROACH_VIEWS)[number];
+export type DetectedPost = { id: string; url: string };
+
 export type DeskApproachState = {
   view: DeskApproachView;
   detected: boolean;
   suggestion?: ApproachSuggestionCard;
+  post?: DetectedPost;
 };
+
+const DETECTED_POST_ID = /^\d{1,19}$/;
+const DETECTED_POST_URL = /^https:\/\/(?:www\.)?x\.com\//;
+
+export function parseDetectedPost(raw: unknown): DetectedPost | null {
+  if (!isRecord(raw) || typeof raw.id !== "string" || typeof raw.url !== "string") return null;
+  if (!DETECTED_POST_ID.test(raw.id) || !DETECTED_POST_URL.test(raw.url)) return null;
+  return { id: raw.id, url: raw.url };
+}
 
 export function parseDeskApproachState(raw: unknown): DeskApproachState | null {
   if (!isRecord(raw) || typeof raw.detected !== "boolean") return null;
   const view = DESK_APPROACH_VIEWS.find((candidate) => candidate === raw.view);
   if (!view) return null;
   const suggestion = view === "suggestion" ? parseApproachSuggestionCard(raw.suggestion) : null;
-  return suggestion ? { view, detected: raw.detected, suggestion } : { view, detected: raw.detected };
+  if (!suggestion) return { view, detected: raw.detected };
+  const post = raw.detected && suggestion.kind === "post" ? parseDetectedPost(raw.post) : null;
+  return post ? { view, detected: true, suggestion, post } : { view, detected: raw.detected, suggestion };
 }
 
 export function deskApproachState(opts: {
@@ -122,14 +136,17 @@ export function deskApproachState(opts: {
   suggestionDetected: boolean;
   forYouDetected: boolean;
   suggestion?: ForYouSuggestion | null;
+  detectedPost?: DetectedPost | null;
 }): DeskApproachState {
   if (opts.forYouTask) return { view: "for_you", detected: opts.forYouDetected };
   if (opts.phase === "scout_reply" && opts.cardId) return { view: "scout", detected: opts.scoutDetected };
   if (opts.phase === "organic_reply" && opts.cardId) {
     const suggestion = opts.suggestion?.id === opts.cardId ? approachSuggestionCard(opts.suggestion) : null;
-    return suggestion
-      ? { view: "suggestion", detected: opts.suggestionDetected, suggestion }
-      : { view: "suggestion", detected: opts.suggestionDetected };
+    if (!suggestion) return { view: "suggestion", detected: opts.suggestionDetected };
+    const post = opts.suggestionDetected && suggestion.kind === "post" ? opts.detectedPost ?? null : null;
+    return post
+      ? { view: "suggestion", detected: true, suggestion, post }
+      : { view: "suggestion", detected: opts.suggestionDetected, suggestion };
   }
   if (opts.phase === "scout_reply" || opts.phase === "done_for_now") return { view: "collecting", detected: false };
   return { view: "other", detected: false };

@@ -293,6 +293,36 @@ await describe("POST /api/for-you/done", async () => {
     assert.equal(out.status, 200);
     assert.equal(getDeskBeats({ userId: user.id }).forkDone, true);
   });
+
+  await it("keeps the detected post id on a done original post, and only there", async () => {
+    const user = upsertOauthUser({
+      provider: "google",
+      providerUserId: "gid-og-detected-done",
+      email: "og-detected-done@example.com",
+      emailVerified: true,
+    });
+    const [og, reply] = insertSuggestions({
+      userId: user.id,
+      tenantId: "local",
+      actions: [
+        { kind: "post", why: "ship the recap" },
+        { kind: "reply", why: "reply to the win", targetId: "900" },
+      ],
+    });
+    assert.ok(og && reply);
+    const { token } = createSession(user.id);
+    for (const id of [og.id, reply.id]) {
+      const out = await invokeForYou({
+        method: "POST",
+        path: "/api/for-you/done",
+        token,
+        body: { id, postedTweetId: "1900000001" },
+      });
+      assert.equal(out.status, 200);
+    }
+    assert.equal(getSuggestion(og.id, user.id)?.targetId, "1900000001");
+    assert.equal(getSuggestion(reply.id, user.id)?.targetId, "900");
+  });
 });
 
 await describe("POST /api/for-you/skip", async () => {

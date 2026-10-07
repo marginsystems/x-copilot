@@ -10,7 +10,7 @@ import {
   FYP_COMPOSE_TIP,
   FYP_DETECTED_COPY,
   FYP_DETECTING_COPY,
-  X_COMPOSE_URL,
+  X_FOR_YOU_URL,
   type ForYouSuggestion,
 } from "../../../shared/src/forYou";
 import { approachCollectingCopy, SCOUT_DETECTED_COPY } from "../../../shared/src/phaseWhy";
@@ -443,12 +443,12 @@ await describe("Gate cards", async () => {
     assert.doesNotMatch(html, />I posted on X</);
     const openLink = html.match(/<a\b[^>]*href="([^"]*)"[^>]*><span class="row-open-label">Open on X<\/span>/);
     assert.ok(openLink);
-    assert.equal(openLink[1], X_COMPOSE_URL);
+    assert.equal(openLink[1], X_FOR_YOU_URL);
     assert.doesNotMatch(html, /<button[^>]*>(?:<span[^>]*>)?Open on X</);
     assert.match(html, escapeRe(FYP_COMPOSE_TIP));
   });
 
-  await it("marks a Suggested post from the card without any desk compose", () => {
+  await it("waits for an original post on a Suggested post card, with no I posted on X", () => {
     const html = renderToStaticMarkup(
       MissionCard(
         missionProps({
@@ -458,10 +458,37 @@ await describe("Gate cards", async () => {
       ),
     );
 
-    assert.match(html, />I posted on X</);
+    assert.doesNotMatch(html, />I posted on X</);
+    assert.match(html, escapeRe(FYP_DETECTING_COPY));
+    assert.match(html, />Next</);
+    assert.doesNotMatch(html, /<button[^>]*disabled[^>]*>Next</);
     assert.match(html, />Skip</);
     assert.match(html, />Not interested</);
+    assert.doesNotMatch(html, escapeRe(FYP_DETECTED_COPY));
     assert.doesNotMatch(html, /row-detail|caret|aria-expanded|textarea/);
+  });
+
+  await it("shows the detected post and only Next once the original post is detected", () => {
+    const html = renderToStaticMarkup(
+      MissionCard(
+        missionProps({
+          phase: "organic_reply",
+          suggestion: suggestedPost,
+          suggestionDetected: true,
+          suggestionPost: { id: "1900000001", url: "https://x.com/desk/status/1900000001" },
+        }),
+      ),
+    );
+
+    assert.match(html, escapeRe(FYP_DETECTED_COPY));
+    assert.match(html, />1900000001</);
+    assert.match(html, /href="https:\/\/x\.com\/desk\/status\/1900000001"/);
+    assert.match(html, />Next</);
+    assert.doesNotMatch(html, />I posted on X</);
+    assert.doesNotMatch(html, />Open on X</);
+    assert.doesNotMatch(html, />Skip</);
+    assert.doesNotMatch(html, />Not interested</);
+    assert.doesNotMatch(html, escapeRe(FYP_DETECTING_COPY));
   });
 
   await it("marks Suggested quote and repost rows without showing Next", () => {

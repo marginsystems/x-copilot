@@ -31,7 +31,7 @@ import {
   parseDeskApproachState as sharedParseDeskApproachState,
   SCOUT_APPROACH_LOCK_PATH as sharedScoutApproachLockPath,
 } from "../../../shared/src/scoutApproachLock.ts";
-import { FOR_YOU_KINDS as sharedForYouKinds, X_COMPOSE_URL as sharedComposeUrl } from "../../../shared/src/forYou.ts";
+import { FOR_YOU_KINDS as sharedForYouKinds, X_COMPOSE_URL as sharedComposeUrl, X_FOR_YOU_URL as sharedHomeUrl } from "../../../shared/src/forYou.ts";
 import { suggestionPostedEvent as sharedSuggestionPostedEvent } from "../../../shared/src/approachNext.ts";
 import {
   APPROACH_SUGGESTION_KINDS as apiSuggestionKinds,
@@ -55,6 +55,7 @@ import {
   serverSuggestionCard as apiSuggestionCard,
   serverSuggestionPostedEvent as apiSuggestionPostedEvent,
   X_COMPOSE_URL as apiComposeUrl,
+  X_HOME_URL as apiHomeUrl,
 } from "../desk/approachServerNext.ts";
 import { OWN_POST_SEEN_PATH as apiOwnPostSeenPath } from "../desk/ownPostSeen.ts";
 import { OWN_POST_SEEN_PATH as sharedOwnPostSeenPath } from "../../../shared/src/extensionBridge.ts";
@@ -110,6 +111,7 @@ await describe("mirrored SPA/API constants", async () => {
     assert.deepEqual([...sharedForYouKinds], [...apiSuggestionKinds]);
     assert.equal(sharedSuggestionTextMax, apiSuggestionTextMax);
     assert.equal(sharedComposeUrl, apiComposeUrl);
+    assert.equal(sharedHomeUrl, apiHomeUrl);
     const rows = [
       { id: "s1", kind: "post" as const, why: "Take a side", targetId: null, targetUrl: null, targetAuthor: null },
       { id: "s2", kind: "reply" as const, why: "Join in", targetId: null, targetUrl: "https://x.com/e/status/900", targetAuthor: "@e" },
@@ -129,6 +131,10 @@ await describe("mirrored SPA/API constants", async () => {
       { view: "suggestion", detected: false, suggestion: { id: "s1", kind: "thread", why: "x" } },
       { view: "suggestion", detected: false, suggestion: { id: "", kind: "post", why: "x" } },
       { view: "suggestion", detected: false },
+      { view: "suggestion", detected: true, suggestion: sharedSuggestionCard(rows[0]!), post: { id: "1900000001", url: "https://x.com/me/status/1900000001" } },
+      { view: "suggestion", detected: false, suggestion: sharedSuggestionCard(rows[0]!), post: { id: "1900000001", url: "https://x.com/me/status/1900000001" } },
+      { view: "suggestion", detected: true, suggestion: sharedSuggestionCard(rows[0]!), post: { id: "abc", url: "https://x.com/me/status/abc" } },
+      { view: "suggestion", detected: true, suggestion: sharedSuggestionCard(rows[4]!), post: { id: "1900000001", url: "https://x.com/me/status/1900000001" } },
       { view: "scout", detected: false, suggestion: sharedSuggestionCard(rows[0]!) },
       { view: "nope", detected: false },
       null,

@@ -102,6 +102,7 @@ export async function recordCardAction(
   target: PanelCardTarget,
   action: ApproachCardAction,
   reason = "",
+  postedTweetId: string | null = null,
 ): Promise<void> {
   const post = (path: string, body: Record<string, string>) =>
     apiRequest(pairing, path, {
@@ -110,7 +111,9 @@ export async function recordCardAction(
       body: JSON.stringify(body),
     });
   if (target.kind === "suggestion") {
-    await post(`/api/for-you/${action === "posted" ? "done" : action}`, { id: target.suggestionId });
+    const body: Record<string, string> = { id: target.suggestionId };
+    if (action === "posted" && postedTweetId) body.postedTweetId = postedTweetId;
+    await post(`/api/for-you/${action === "posted" ? "done" : action}`, body);
     return;
   }
   if (action === "skip") {

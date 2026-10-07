@@ -18,27 +18,19 @@ const FOR_YOU_ASK_BEFORE_NEXT: AskBeforeNext = {
   cardKey: "for_you",
 };
 
-export function ForYouFeedRow(props: {
-  status?: string;
-  detected?: boolean;
-  activity?: OwnActivity | null;
-  onNext?: () => void;
-  openPace?: OpenPace | null;
-}) {
-  const detected = props.detected === true;
-  const detecting = !detected && props.status === FYP_DETECTING_COPY;
-  const summary = detected ? (
+export function DetectedPostSummary({ post }: { post: { id: string; url: string } | null }) {
+  return (
     <span className="for-you-detected-summary">
       <span>{FYP_DETECTED_COPY}</span>
-      {props.activity ? (
+      {post ? (
         <>
-          <span className="for-you-detected-id">{props.activity.id}</span>
+          <span className="for-you-detected-id">{post.id}</span>
           <a
             className="for-you-post-link"
-            href={props.activity.url}
+            href={post.url}
             target="_blank"
             rel="noreferrer"
-            aria-label={`Open detected post ${props.activity.id} on X`}
+            aria-label={`Open detected post ${post.id} on X`}
             title="Open detected post on X"
             onClick={(event) => event.stopPropagation()}
           >
@@ -50,6 +42,20 @@ export function ForYouFeedRow(props: {
         </>
       ) : null}
     </span>
+  );
+}
+
+export function ForYouFeedRow(props: {
+  status?: string;
+  detected?: boolean;
+  activity?: OwnActivity | null;
+  onNext?: () => void;
+  openPace?: OpenPace | null;
+}) {
+  const detected = props.detected === true;
+  const detecting = !detected && props.status === FYP_DETECTING_COPY;
+  const summary = detected ? (
+    <DetectedPostSummary post={props.activity ?? null} />
   ) : (
     detecting ? (
       <ApproachDetectingMark />

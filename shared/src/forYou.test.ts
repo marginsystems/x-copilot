@@ -14,7 +14,7 @@ import {
   FYP_NEXT_TIP,
   FYP_OPEN_TIP,
   FYP_WAIT_COPY,
-  X_COMPOSE_URL,
+  X_FOR_YOU_URL,
   X_INSPIRATION_URL,
   type ForYouSuggestion,
 } from "./forYou.ts";
@@ -63,14 +63,14 @@ await describe("forYou helpers", async () => {
     );
   });
 
-  await it("opens post rows on a blank X compose with no prefilled text or target", () => {
+  await it("opens post rows on the X home page, never a compose intent", () => {
     for (const row of [
       base,
       { ...base, targetUrl: "https://x.com/a/status/77", targetId: "77" },
       { ...base, targetId: "77" },
     ]) {
       const url = forYouOpenUrl(row);
-      assert.equal(url, X_COMPOSE_URL);
+      assert.equal(url, X_FOR_YOU_URL);
       assert.equal(new URL(url!).search, "");
     }
   });
@@ -127,7 +127,7 @@ await describe("forYou helpers", async () => {
 
   it("names the For You row buttons", () => {
     assert.match(FYP_OPEN_TIP, /For You page/);
-    assert.match(FYP_COMPOSE_TIP, /You write it/);
+    assert.match(FYP_COMPOSE_TIP, /You write the post/);
     assert.match(FYP_INSPIRATION_TIP, /Inspiration/);
     assert.match(FYP_NEXT_TIP, /next Approach card/);
     assert.equal(

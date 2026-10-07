@@ -5,7 +5,9 @@ import { getPlatformDb } from "../db.js";
 import { readJsonBody, send } from "../http/httpJson.js";
 import { isRecord } from "../platform/unknownValue.js";
 import { postUrl } from "../x-api/xActivity.js";
+import { detectOriginalForApproach, waitingOriginalCard } from "./approachOriginalDetect.js";
 import { publishDeskEvent } from "./deskEvents.js";
+import { catchUpOwnPosts } from "./ownPostCatchUp.js";
 
 export const OWN_POST_SEEN_PATH = "/api/desk/own-posts/seen";
 export const OWN_POST_CONFIRM_WINDOW_MS = 10 * 60_000;
@@ -89,6 +91,10 @@ export function recordSeenOwnPost(
   return "provisional";
 }
 
+export function seenOriginalNeedsKind(userId: string, seen: SeenOwnPost, state: SeenOwnPostState): boolean {
+  return state === "provisional" && seen.pageStatusId === null && waitingOriginalCard(userId) !== null;
+}
+
 function parseOverdueRows(value: unknown): UnconfirmedOwnPost[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((row: unknown) =>
@@ -135,11 +141,17 @@ export function settleSeenOwnPosts(nowMs = Date.now()): UnconfirmedOwnPost[] {
       typeof post.kind !== "string" ||
       typeof post.postedAt !== "string"
     ) continue;
+    const link = typeof post.url === "string" ? post.url : postUrl(null, post.id);
+    try {
+      detectOriginalForApproach(post.userId, { id: post.id, kind: post.kind, postedAt: post.postedAt, url: link });
+    } catch (err) {
+      console.warn("[desk] settled original detect soft-fail", err);
+    }
     publishDeskEvent(post.userId, "own_post", {
       id: post.id,
       kind: post.kind,
       postedAt: post.postedAt,
-      url: typeof post.url === "string" ? post.url : postUrl(null, post.id),
+      url: link,
       text: typeof post.text === "string" ? post.text : "",
     }, nowMs);
   }
@@ -206,6 +218,10 @@ export async function tryHandleOwnPostSeen(
     send(req, res, 400, { error: "bad_request" });
     return true;
   }
-  send(req, res, 200, { ok: true, state: recordSeenOwnPost(user.id, seen) });
+  const state = recordSeenOwnPost(user.id, seen);
+  send(req, res, 200, { ok: true, state });
+  if (seenOriginalNeedsKind(user.id, seen, state)) {
+    catchUpOwnPosts(user.id).catch((err: unknown) => console.warn("[desk] seen original catch-up soft-fail", err));
+  }
   return true;
 }

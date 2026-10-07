@@ -8,8 +8,9 @@ import { clearPairing, readPairing } from "../../lib/pairingStore";
 import { askDeskForNext, loadPanelData, recordCardAction, signOutExtension, type PanelData } from "../../lib/panelData";
 import {
   cardActionRequest,
+  detectedPostId,
   dismissConfirmCopy,
-  nextFromCardId,
+  nextRequestFor,
   panelCardActionNotice,
   panelCardTarget,
   panelCanAskNext,
@@ -20,12 +21,12 @@ import {
   preloadedNextCard,
   shownAfterRefresh,
   suggestionButtons,
+  suggestionDetects,
   type PanelCardTarget,
   type PendingNext,
 } from "../../lib/panelModel";
 import type { ApproachCardAction } from "../../../../shared/src/approachNext";
 import { forYouKindLabel } from "../../../../shared/src/forYou";
-import { approachSuggestionCardId } from "../../../../shared/src/scoutApproachLock";
 import { OLDER_SERVER_NOTICE, waitForLockChange } from "../../lib/scoutLock";
 import { cardDetected, detectionTag, type CardSince } from "../../lib/detection";
 import { readReplySeenAt, trackCardSince } from "../../lib/detectionStore";
@@ -52,7 +53,7 @@ import { watchLock } from "../../lib/lockStream";
 
 const REFRESH_MS = 15_000;
 
-type CardAction = { target: PanelCardTarget; action: ApproachCardAction; reason: string };
+type CardAction = { target: PanelCardTarget; action: ApproachCardAction; reason: string; postedTweetId?: string | null };
 
 type DismissAsk = { cardKey: string; reason: string };
 
@@ -237,6 +238,8 @@ export function App() {
     deskCardId: state.data.lock?.id ?? null,
     seenHere: cardDetected({ lock, repliedCardId, replySeenAtMs, since }),
   });
+  const detectedTweetId = detectedPostId(view, deskState);
+  const detectedPost = detectedTweetId && deskState?.view === "suggestion" ? deskState.post : null;
   const canAskNext = panelCanAskNext(
     view,
     detected,
@@ -257,7 +260,7 @@ export function App() {
   const suggestion = view.suggestion;
   const tag = view.collecting
     ? { label: "Waiting for Scout", detected: false }
-    : suggestion && approachSuggestionCardId(suggestion) === null
+    : suggestion && !suggestionDetects(suggestion)
       ? { label: forYouKindLabel(suggestion.kind), detected: false }
       : detectionTag(lock, detected);
   const suggestionShows = suggestion ? suggestionButtons(suggestion, detected) : null;
@@ -273,11 +276,11 @@ export function App() {
   }
 
   async function findNext(cardAction: CardAction | null = null): Promise<string | null> {
-    const watch = nextFromCardId(lock);
+    const watch = nextRequestFor(view);
     const request = cardAction ? cardActionRequest(cardAction.target, cardAction.action) : watch;
     const taker = await askDeskForNext(pairing, request);
     if (!taker) return panelNextNotice("no_desk");
-    const preloaded = taker === "server" || cardAction ? null : preloadedNextCard(watch, nextUp);
+    const preloaded = taker === "server" || cardAction || view.suggestion ? null : preloadedNextCard(watch, nextUp);
     if (preloaded) {
       pendingNextRef.current = { token: pairing.token, request: watch, shown: preloaded.card };
       await show(preloaded.card, null).catch(() => undefined);
@@ -313,7 +316,10 @@ export function App() {
 
   async function actOnCard(cardAction: CardAction): Promise<string | null> {
     try {
-      await recordCardAction(pairing, cardAction.target, cardAction.action, cardAction.reason);
+      const { target, action, reason, postedTweetId } = cardAction;
+      await (postedTweetId
+        ? recordCardAction(pairing, target, action, reason, postedTweetId)
+        : recordCardAction(pairing, target, action, reason));
     } catch (err) {
       if (err instanceof UnpairedError) throw err;
       return panelCardActionNotice(cardAction.target, cardAction.action);
@@ -349,7 +355,8 @@ export function App() {
   }
 
   function postedThisCard(target: PanelCardTarget, armsPace: boolean) {
-    advance(() => actOnCard({ target, action: "posted", reason: "" }), armsPace);
+    const postedTweetId = detectedTweetId;
+    advance(() => actOnCard({ target, action: "posted", reason: "", postedTweetId }), armsPace);
   }
 
   function pressNotInterested(target: PanelCardTarget) {
@@ -467,7 +474,11 @@ export function App() {
           </span>
         </div>
         <h2>{card.title}</h2>
-        <p className="detail">{detected ? "Detected. Tap Next for your next one." : card.detail}</p>
+        <p className="detail">
+          {detectedPost ? (
+            <>Detected. <a href={detectedPost.url} target="_blank" rel="noreferrer">View post {detectedPost.id}</a>.</>
+          ) : detected ? "Detected. Tap Next for your next one." : card.detail}
+        </p>
         {pace && paceArmed ? (
           <p className="pace" role="timer" aria-live="off" title={pace.tip}>
             <span className="pace-label">Next reply in</span>
@@ -500,7 +511,7 @@ export function App() {
                   className="primary"
                   ref={nextButtonRef}
                   disabled={nextBusy || !suggestionShows.nextEnabled}
-                  onClick={() => postedThisCard(cardTarget, true)}
+                  onClick={() => (suggestionShows.askBeforeNext ? pressNext() : postedThisCard(cardTarget, true))}
                 >
                   {NEXT_LABEL}
                 </button>
