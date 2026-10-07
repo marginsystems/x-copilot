@@ -5,7 +5,7 @@ import { BODY_CAP_256K, readJsonBody, send } from "../http/httpJson.js";
 import { getSessionUser } from "../auth/sessionCookie.js";
 import { isRecord } from "../platform/unknownValue.js";
 import { postUrl } from "../x-api/xActivity.js";
-import { detectOriginalForApproach } from "./approachOriginalDetect.js";
+import { detectOwnPostForApproach } from "./approachOriginalDetect.js";
 
 type BufferedDeskEvent = { seq: number; type: DeskEventType; data: string; atMs: number };
 type DeskEventType =
@@ -170,7 +170,7 @@ export async function tryHandleDeskEventsWake(
   }
   const link = typeof postLink === "string" && postLink.trim() ? postLink : postUrl(null, id);
   try {
-    detectOriginalForApproach(userId, { id, kind, postedAt, url: link });
+    detectOwnPostForApproach(userId, { id, kind, postedAt, url: link });
   } catch (err) {
     console.warn("[desk] original detect soft-fail", err);
   }

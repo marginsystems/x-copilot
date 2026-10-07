@@ -22,11 +22,17 @@ import {
   resetScoutApproachLockEventsForTests,
   tryHandleScoutApproachLockEvents,
 } from "../scout/scoutApproachLockEvents.ts";
-import { detectOriginalForApproach, waitingOriginalCard } from "./approachOriginalDetect.ts";
+import {
+  detectForYouForApproach,
+  detectOriginalForApproach,
+  detectOwnPostForApproach,
+  waitingForYouSince,
+  waitingOriginalCard,
+} from "./approachOriginalDetect.ts";
 import { serverSuggestionCard } from "./approachServerNext.ts";
 import { setApproachTask } from "./approachTaskStore.ts";
 import { resetDeskEventsForTests, tryHandleDeskEventsWake } from "./deskEvents.ts";
-import { seenOriginalNeedsKind } from "./ownPostSeen.ts";
+import { recordSeenOwnPost, seenOriginalNeedsKind } from "./ownPostSeen.ts";
 
 const CARD_AT_MS = Date.parse("2026-10-07T12:00:00.000Z");
 const AFTER = new Date(CARD_AT_MS + 60_000).toISOString();
@@ -127,6 +133,39 @@ await describe("original post detection for the Approach card", async () => {
     assert.equal(waitingOriginalCard(userId), null);
     assert.equal(detectOriginalForApproach(userId, post("1900000002", "original", AFTER)), false);
     assert.equal(changes(), 1);
+  });
+
+  await it("marks the For You card detected on any post after it came up, reply included, and tells the panel", () => {
+    setApproachTask(userId, { phase: "silent_refuel", cardId: null, surface: "for_you" }, "server", CARD_AT_MS);
+    setDeskApproachState(userId, { view: "for_you", detected: false });
+    const changes = watchLock(token);
+    assert.equal(detectForYouForApproach(userId, post("1900000010", "reply", BEFORE)), false);
+    assert.equal(changes(), 0);
+
+    assert.equal(detectOwnPostForApproach(userId, post("1900000011", "reply", AFTER)), true);
+    assert.deepEqual(getDeskApproachState(userId), { view: "for_you", detected: true });
+    assert.equal(changes(), 1);
+    assert.equal(waitingForYouSince(userId), null);
+    assert.equal(detectForYouForApproach(userId, post("1900000012", "original", AFTER)), false);
+    assert.equal(changes(), 1);
+  });
+
+  await it("marks For You detected as soon as the extension sees a post, before X confirms it", () => {
+    setApproachTask(userId, { phase: "silent_refuel", cardId: null, surface: "for_you" }, "server", CARD_AT_MS);
+    setDeskApproachState(userId, { view: "for_you", detected: false });
+    const changes = watchLock(token);
+    recordSeenOwnPost(
+      userId,
+      { postId: "2107895582371295424", url: "https://x.com/pilot/status/2107895582371295424", pageStatusId: "2107501533877383493" },
+      Date.parse("2026-10-07T18:07:25.000Z"),
+    );
+    assert.deepEqual(getDeskApproachState(userId), { view: "for_you", detected: true });
+    assert.equal(changes(), 1);
+  });
+
+  await it("leaves For You alone while the task is on another card", () => {
+    assert.equal(waitingForYouSince(userId), null);
+    assert.equal(detectForYouForApproach(userId, post("1900000013", "reply", AFTER)), false);
   });
 
   await it("ignores replies, quotes and originals posted before the card became current", () => {

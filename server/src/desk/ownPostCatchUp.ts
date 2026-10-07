@@ -19,7 +19,7 @@ import {
   activitySubscriptionPaused,
   resolveStoredXUserId,
 } from "../x-api/xActivitySubscribe.js";
-import { detectOriginalForApproach } from "./approachOriginalDetect.js";
+import { detectOwnPostForApproach } from "./approachOriginalDetect.js";
 import { publishDeskEvent } from "./deskEvents.js";
 import { rememberActivityEvent, upsertOwnPost } from "./ownPostStore.js";
 import { markOwnReplyInteracted, type OwnReplyMemoryOpts } from "./ownReplyMark.js";
@@ -98,7 +98,7 @@ export async function catchUpOwnPosts(
     const link = postUrl(parsed.authorUsername, parsed.postId);
     if (!parsed.postedAtFallback) {
       try {
-        detectOriginalForApproach(userId, { id: parsed.postId, kind: parsed.kind, postedAt: parsed.postedAt, url: link });
+        detectOwnPostForApproach(userId, { id: parsed.postId, kind: parsed.kind, postedAt: parsed.postedAt, url: link });
       } catch (err) {
         console.warn("[desk] catch-up original detect soft-fail", err);
       }

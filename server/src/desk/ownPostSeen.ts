@@ -5,7 +5,7 @@ import { getPlatformDb } from "../db.js";
 import { readJsonBody, send } from "../http/httpJson.js";
 import { isRecord } from "../platform/unknownValue.js";
 import { postUrl } from "../x-api/xActivity.js";
-import { detectOriginalForApproach, waitingOriginalCard } from "./approachOriginalDetect.js";
+import { detectForYouForApproach, detectOwnPostForApproach, waitingOriginalCard } from "./approachOriginalDetect.js";
 import { publishDeskEvent } from "./deskEvents.js";
 import { catchUpOwnPosts } from "./ownPostCatchUp.js";
 
@@ -88,6 +88,12 @@ export function recordSeenOwnPost(
     text: "",
     provisional: true,
   }, nowMs);
+  detectForYouForApproach(userId, {
+    id: seen.postId,
+    kind: seen.pageStatusId ? "reply" : "original",
+    postedAt: provisionalPostedAt(seen.postId, nowMs),
+    url: seen.url,
+  });
   return "provisional";
 }
 
@@ -143,7 +149,7 @@ export function settleSeenOwnPosts(nowMs = Date.now()): UnconfirmedOwnPost[] {
     ) continue;
     const link = typeof post.url === "string" ? post.url : postUrl(null, post.id);
     try {
-      detectOriginalForApproach(post.userId, { id: post.id, kind: post.kind, postedAt: post.postedAt, url: link });
+      detectOwnPostForApproach(post.userId, { id: post.id, kind: post.kind, postedAt: post.postedAt, url: link });
     } catch (err) {
       console.warn("[desk] settled original detect soft-fail", err);
     }
