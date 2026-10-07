@@ -15,6 +15,7 @@ import {
 } from "../platform/platformDb.testHelpers.ts";
 import {
   getDeskApproachState,
+  setDeskApproachState,
   getScoutApproachLock,
   getScoutApproachNext,
 } from "../scout/scoutApproachLock.ts";
@@ -22,6 +23,7 @@ import { saveScoutCache } from "../scout/scoutCache.ts";
 import { tryHandleApproachNext } from "./approachNextHttp.ts";
 import {
   advanceApproachOnServer,
+  deskStateWithSuggestion,
   parseServerNextRequest,
   publishedStateFor,
   serverNextApplies,
@@ -183,6 +185,25 @@ await describe("server approach Next", async () => {
         openUrl: "https://x.com/i/status/777",
       },
     });
+  });
+
+  await it("fills in a suggested card the stored desk state names but does not describe", () => {
+    const [post] = suggest([{ kind: "post", why: "Take a side on AI wealth gains" }]);
+    assert.ok(post);
+    const lock = { phase: "organic_reply" as const, cardId: post.id, surface: null };
+    setDeskApproachState(userId, { view: "suggestion", detected: false });
+
+    const healed = deskStateWithSuggestion(userId, getDeskApproachState(userId), lock);
+    assert.equal(healed?.suggestion?.id, post.id);
+    assert.equal(healed?.suggestion?.kind, "post");
+    assert.equal(healed?.suggestion?.why, "Take a side on AI wealth gains");
+    assert.deepEqual(getDeskApproachState(userId), healed);
+
+    const scout = { view: "scout" as const, detected: false };
+    assert.equal(deskStateWithSuggestion(userId, scout, lock), scout);
+    const bare = { view: "suggestion" as const, detected: false };
+    assert.equal(deskStateWithSuggestion(userId, bare, { phase: "organic_reply", cardId: "missing", surface: null }), bare);
+    assert.equal(deskStateWithSuggestion(userId, bare, null), bare);
   });
 
   await it("moves an original post on after I posted on X, as the desk does, and refuses another card", async () => {

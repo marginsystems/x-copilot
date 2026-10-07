@@ -17,6 +17,7 @@ import {
   setApproachTask,
 } from "../desk/approachTaskStore.js";
 import { listReleasedCardIds, releaseCardIds } from "../desk/approachStock.js";
+import { deskStateWithSuggestion } from "../desk/approachServerNext.js";
 
 export const SCOUT_APPROACH_LOCK_PATH = "/api/scout-approach-lock";
 
@@ -272,7 +273,7 @@ export async function tryHandleScoutApproachLock(
       ok: true,
       card: getScoutApproachLock(user.id),
       next: getScoutApproachNext(user.id),
-      state: getDeskApproachState(user.id),
+      state: deskStateWithSuggestion(user.id, getDeskApproachState(user.id), getApproachTask(user.id)?.lock ?? null),
       task: getApproachTask(user.id),
       releasedIds: listReleasedCardIds(user.id),
     });

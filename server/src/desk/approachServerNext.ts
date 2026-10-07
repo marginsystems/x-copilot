@@ -132,6 +132,20 @@ export function publishedStateFor(lock: ApproachTaskLock, loaded?: LoadedApproac
   return { view: "other", detected: false };
 }
 
+export function deskStateWithSuggestion(
+  userId: string,
+  state: DeskApproachState | null,
+  lock: ApproachTaskLock | null,
+): DeskApproachState | null {
+  if (state?.view !== "suggestion" || state.suggestion) return state;
+  if (lock?.phase !== "organic_reply" || !lock.cardId) return state;
+  const row = getSuggestion(lock.cardId, userId);
+  if (!row) return state;
+  const healed: DeskApproachState = { ...state, suggestion: serverSuggestionCard(row) };
+  setDeskApproachState(userId, healed);
+  return healed;
+}
+
 export async function advanceApproachOnServer(
   userId: string,
   request: ServerNextRequest,

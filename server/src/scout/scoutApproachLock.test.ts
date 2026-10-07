@@ -15,6 +15,7 @@ import { saveScoutCache } from "./scoutCache.ts";
 import {
   getScoutApproachLock,
   getScoutApproachNext,
+  setDeskApproachState,
   setScoutApproachLock,
   setScoutApproachNext,
   tryHandleScoutApproachLock,
@@ -22,6 +23,8 @@ import {
 import { readRetainedTargetContext } from "./scoutEvidenceContext.ts";
 import { getApproachTask, setApproachTask } from "../desk/approachTaskStore.ts";
 import { listReleasedCardIds } from "../desk/approachStock.ts";
+import { insertSuggestions } from "../for-you/forYouStore.ts";
+import { ensureUserTenant } from "../billing/billingStore.ts";
 
 function signIn(tag: string): { userId: string; cookie: string } {
   const user = upsertOauthUser({
@@ -169,6 +172,22 @@ await describe("scoutApproachLock", async () => {
     assert.equal(retained?.threadKind, null);
     assert.equal(retained?.author, "bob");
     assert.equal(retained?.contextSource, "lock");
+  });
+
+  await it("describes the suggested card a desk state written by an older desk only names", async () => {
+    const [post] = insertSuggestions({
+      userId: a.userId,
+      tenantId: ensureUserTenant(a.userId),
+      actions: [{ kind: "post", why: "Take a side on AI wealth gains" }],
+    });
+    assert.ok(post);
+    setApproachTask(a.userId, { phase: "organic_reply", cardId: post.id, surface: null }, "server");
+    setDeskApproachState(a.userId, { view: "suggestion", detected: false });
+    const state = expectRecord(expectRecord((await call("GET", undefined, a.cookie)).json).state);
+    const suggestion = expectRecord(state.suggestion);
+    assert.equal(suggestion.id, post.id);
+    assert.equal(suggestion.kind, "post");
+    assert.equal(suggestion.why, "Take a side on AI wealth gains");
   });
 
   await it("reads back the current lock for this user only", async () => {
