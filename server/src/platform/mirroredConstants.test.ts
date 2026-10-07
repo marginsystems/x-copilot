@@ -25,8 +25,20 @@ import { ANALYTICS_EVENT_NAMES as sidecarAnalyticsEventNames } from "../../../an
 import { emptyDeskBeats as apiEmptyDeskBeats } from "../desk/deskBeats.ts";
 import { EXTENSION_SESSION_PATH as apiExtensionSessionPath } from "../auth/extensionSessionHttp.ts";
 import { EXTENSION_SESSION_PATH as sharedExtensionSessionPath } from "../../../shared/src/extensionBridge.ts";
-import { SCOUT_APPROACH_LOCK_PATH as sharedScoutApproachLockPath } from "../../../shared/src/scoutApproachLock.ts";
-import { SCOUT_APPROACH_LOCK_PATH as apiScoutApproachLockPath } from "../scout/scoutApproachLock.ts";
+import {
+  APPROACH_SUGGESTION_TEXT_MAX as sharedSuggestionTextMax,
+  approachSuggestionCard as sharedSuggestionCard,
+  parseDeskApproachState as sharedParseDeskApproachState,
+  SCOUT_APPROACH_LOCK_PATH as sharedScoutApproachLockPath,
+} from "../../../shared/src/scoutApproachLock.ts";
+import { FOR_YOU_KINDS as sharedForYouKinds, X_COMPOSE_URL as sharedComposeUrl } from "../../../shared/src/forYou.ts";
+import { suggestionPostedEvent as sharedSuggestionPostedEvent } from "../../../shared/src/approachNext.ts";
+import {
+  APPROACH_SUGGESTION_KINDS as apiSuggestionKinds,
+  APPROACH_SUGGESTION_TEXT_MAX as apiSuggestionTextMax,
+  deskStateFromBody as apiParseDeskApproachState,
+  SCOUT_APPROACH_LOCK_PATH as apiScoutApproachLockPath,
+} from "../scout/scoutApproachLock.ts";
 import {
   APPROACH_NEXT_ACTIONS as sharedApproachNextActions,
   APPROACH_NEXT_ID_MAX as sharedApproachNextIdMax,
@@ -38,7 +50,12 @@ import {
   APPROACH_NEXT_ID_MAX as apiApproachNextIdMax,
   APPROACH_NEXT_PATH as apiApproachNextPath,
 } from "../desk/approachNextHttp.ts";
-import { parseServerNextRequest as apiParseApproachNextRequest } from "../desk/approachServerNext.ts";
+import {
+  parseServerNextRequest as apiParseApproachNextRequest,
+  serverSuggestionCard as apiSuggestionCard,
+  serverSuggestionPostedEvent as apiSuggestionPostedEvent,
+  X_COMPOSE_URL as apiComposeUrl,
+} from "../desk/approachServerNext.ts";
 import { OWN_POST_SEEN_PATH as apiOwnPostSeenPath } from "../desk/ownPostSeen.ts";
 import { OWN_POST_SEEN_PATH as sharedOwnPostSeenPath } from "../../../shared/src/extensionBridge.ts";
 
@@ -75,6 +92,9 @@ await describe("mirrored SPA/API constants", async () => {
       { fromCardId: "c1", action: "next" },
       { fromCardId: "c1", action: "skip", kind: "scout" },
       { fromCardId: "c1", action: "dismiss", kind: "suggestion" },
+      { fromCardId: "s1", action: "posted", kind: "suggestion" },
+      { fromCardId: "c1", action: "posted", kind: "scout" },
+      { fromCardId: "s1", action: "posted" },
       { fromCardId: "c1", action: "mark" },
       { forYou: true },
       { forYou: true, action: "skip" },
@@ -83,6 +103,37 @@ await describe("mirrored SPA/API constants", async () => {
       null,
     ]) {
       assert.deepEqual(sharedParseApproachNextRequest(raw), apiParseApproachNextRequest(raw));
+    }
+  });
+
+  await it("keeps the published suggested card and its desk state equal on both sides", () => {
+    assert.deepEqual([...sharedForYouKinds], [...apiSuggestionKinds]);
+    assert.equal(sharedSuggestionTextMax, apiSuggestionTextMax);
+    assert.equal(sharedComposeUrl, apiComposeUrl);
+    const rows = [
+      { id: "s1", kind: "post" as const, why: "Take a side", targetId: null, targetUrl: null, targetAuthor: null },
+      { id: "s2", kind: "reply" as const, why: "Join in", targetId: null, targetUrl: "https://x.com/e/status/900", targetAuthor: "@e" },
+      { id: "s3", kind: "reply" as const, why: "Join in", targetId: "901", targetUrl: null, targetAuthor: null },
+      { id: "s4", kind: "reply" as const, why: "Join in", targetId: null, targetUrl: null, targetAuthor: null },
+      { id: "s5", kind: "quote" as const, why: "Quote it", targetId: "902", targetUrl: null, targetAuthor: "@q" },
+      { id: "s6", kind: "repost" as const, why: "Repost it", targetId: "abc", targetUrl: "ftp://nope", targetAuthor: null },
+      { id: "s7", kind: "post" as const, why: "w".repeat(sharedSuggestionTextMax + 5), targetId: null, targetUrl: null, targetAuthor: null },
+    ];
+    for (const row of rows) {
+      assert.deepEqual(sharedSuggestionCard(row), apiSuggestionCard(row));
+      assert.deepEqual(sharedSuggestionPostedEvent(row), apiSuggestionPostedEvent(row));
+    }
+    for (const raw of [
+      { view: "suggestion", detected: false, suggestion: sharedSuggestionCard(rows[0]!) },
+      { view: "suggestion", detected: true, suggestion: { ...sharedSuggestionCard(rows[1]!), why: "  padded  " } },
+      { view: "suggestion", detected: false, suggestion: { id: "s1", kind: "thread", why: "x" } },
+      { view: "suggestion", detected: false, suggestion: { id: "", kind: "post", why: "x" } },
+      { view: "suggestion", detected: false },
+      { view: "scout", detected: false, suggestion: sharedSuggestionCard(rows[0]!) },
+      { view: "nope", detected: false },
+      null,
+    ]) {
+      assert.deepEqual(sharedParseDeskApproachState(raw), apiParseDeskApproachState(raw));
     }
   });
 

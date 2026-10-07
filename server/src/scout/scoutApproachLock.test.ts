@@ -231,6 +231,28 @@ await describe("scoutApproachLock", async () => {
     assert.equal((await call("GET", undefined, a.cookie)).json.state, null);
   });
 
+  await it("publishes the suggested card the desk is showing, of any kind, with its state", async () => {
+    const suggestion = {
+      id: "s1",
+      kind: "post",
+      why: "Take a side on whether AI wealth gains reach displaced workers",
+      targetId: null,
+      targetUrl: null,
+      targetAuthor: null,
+      openUrl: "https://x.com/intent/tweet",
+    };
+    const lock = { phase: "organic_reply", cardId: "s1", surface: null };
+    const put = await call("PUT", { card: null, state: { view: "suggestion", detected: false, suggestion }, lock }, a.cookie);
+    assert.equal(put.status, 200);
+    const read = (await call("GET", undefined, a.cookie)).json;
+    assert.equal(read.card, null);
+    assert.deepEqual(read.state, { view: "suggestion", detected: false, suggestion });
+    assert.deepEqual(expectRecord(read.task).lock, lock);
+
+    assert.equal((await call("PUT", { card: null, state: { view: "suggestion", detected: false, suggestion: { ...suggestion, kind: "thread" } } }, a.cookie)).status, 200);
+    assert.deepEqual((await call("GET", undefined, a.cookie)).json.state, { view: "suggestion", detected: false });
+  });
+
   await it("keeps the desk's full lock, which survives a write that names none", async () => {
     const forYou = { phase: "hold", cardId: null, surface: "for_you" };
     assert.equal((await call("PUT", { card: null, lock: forYou }, a.cookie)).status, 200);

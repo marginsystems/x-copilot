@@ -6,7 +6,7 @@ import { upsertOauthUser } from "../auth/oauthAccountStore.ts";
 import { SESSION_COOKIE } from "../auth/sessionCookie.ts";
 import { createSession } from "../auth/sessionStore.ts";
 import { ensureUserTenant } from "../billing/billingStore.ts";
-import { insertSuggestions } from "../for-you/forYouStore.ts";
+import { insertSuggestions, markSuggestion } from "../for-you/forYouStore.ts";
 import { expectRecord, testRequest } from "../http/http.testHelpers.ts";
 import {
   closeTempPlatformDb,
@@ -25,8 +25,9 @@ import {
   parseServerNextRequest,
   publishedStateFor,
   serverNextApplies,
+  serverNextEvent,
 } from "./approachServerNext.ts";
-import { listReleasedCardIds } from "./approachStock.ts";
+import { listReleasedCardIds, releaseCardIds } from "./approachStock.ts";
 import { getApproachTask, setApproachTask } from "./approachTaskStore.ts";
 
 const AGENDA = "Building developer tools for people who ship small products every week.";
@@ -156,10 +157,106 @@ await describe("server approach Next", async () => {
     assert.deepEqual(listReleasedCardIds(userId), [suggestion.id]);
   });
 
+  function suggest(actions: Parameters<typeof insertSuggestions>[0]["actions"]) {
+    return insertSuggestions({ userId, tenantId: ensureUserTenant(userId), actions });
+  }
+
+  await it("publishes the suggested card it moves to, of any kind, with what the panel shows", async () => {
+    const [quote] = suggest([{ kind: "quote", why: "Quote this launch", targetId: "777", targetAuthor: "@gina" }]);
+    assert.ok(quote);
+    setApproachTask(userId, { phase: "scout_reply", cardId: "a1", surface: null }, "desk");
+    assert.equal(await advanceApproachOnServer(userId, { fromCardId: "a1" }), true);
+
+    assert.deepEqual(getApproachTask(userId)?.lock, { phase: "organic_reply", cardId: quote.id, surface: null });
+    assert.equal(getScoutApproachLock(userId), null);
+    assert.equal(getScoutApproachNext(userId), null);
+    assert.deepEqual(getDeskApproachState(userId), {
+      view: "suggestion",
+      detected: false,
+      suggestion: {
+        id: quote.id,
+        kind: "quote",
+        why: "Quote this launch",
+        targetId: "777",
+        targetUrl: null,
+        targetAuthor: "@gina",
+        openUrl: "https://x.com/i/status/777",
+      },
+    });
+  });
+
+  await it("moves an original post on after I posted on X, as the desk does, and refuses another card", async () => {
+    const [post] = suggest([{ kind: "post", why: "Take a side on AI wealth gains" }]);
+    assert.ok(post);
+    setApproachTask(userId, { phase: "organic_reply", cardId: post.id, surface: null }, "desk");
+    markSuggestion({ id: post.id, userId, status: "done" });
+    assert.equal(await advanceApproachOnServer(userId, { fromCardId: "other", action: "posted", kind: "suggestion" }), false);
+    assert.equal(getApproachTask(userId)?.owner, "desk");
+
+    assert.equal(await advanceApproachOnServer(userId, { fromCardId: post.id, action: "posted", kind: "suggestion" }), true);
+    assert.deepEqual(getApproachTask(userId)?.lock, { phase: "scout_reply", cardId: "a1", surface: null });
+    assert.equal(getScoutApproachLock(userId)?.id, "a1");
+    assert.deepEqual(listReleasedCardIds(userId), [post.id]);
+  });
+
+  await it("skips and dismisses an original post card by its suggestion id", async () => {
+    const [first, second] = suggest([
+      { kind: "post", why: "First original" },
+      { kind: "post", why: "Second original" },
+    ]);
+    assert.ok(first && second);
+    setApproachTask(userId, { phase: "organic_reply", cardId: first.id, surface: null }, "desk");
+    assert.equal(await advanceApproachOnServer(userId, { fromCardId: first.id, action: "skip", kind: "suggestion" }), true);
+    assert.equal(getApproachTask(userId)?.lock.cardId, "a1");
+    setApproachTask(userId, { phase: "organic_reply", cardId: second.id, surface: null }, "desk");
+    assert.equal(await advanceApproachOnServer(userId, { fromCardId: second.id, action: "dismiss", kind: "suggestion" }), true);
+    assert.equal(getApproachTask(userId)?.lock.cardId, "a1");
+  });
+
+  await it("moves a detected suggested reply on with the desk's Next, which prefers another suggestion over For You", async () => {
+    releaseCardIds(userId, ["a1", "a2"]);
+    const [current, following] = suggest([
+      { kind: "reply", why: "Join this thread", targetId: "900", targetUrl: "https://x.com/erin/status/900", targetAuthor: "@erin" },
+      { kind: "reply", why: "Answer this one", targetId: "901", targetUrl: "https://x.com/finn/status/901", targetAuthor: "@finn" },
+    ]);
+    assert.ok(current && following);
+    setApproachTask(userId, { phase: "organic_reply", cardId: current.id, surface: null }, "desk");
+    markSuggestion({ id: current.id, userId, status: "done" });
+
+    assert.equal(await advanceApproachOnServer(userId, { fromCardId: "900", action: "posted", kind: "suggestion" }), false);
+    assert.equal(await advanceApproachOnServer(userId, { fromCardId: current.id, action: "posted", kind: "suggestion" }), true);
+    assert.deepEqual(getApproachTask(userId)?.lock, { phase: "organic_reply", cardId: following.id, surface: null });
+    assert.equal(getScoutApproachLock(userId)?.id, "901");
+    assert.equal(getDeskApproachState(userId)?.suggestion?.id, following.id);
+    assert.equal(getDeskApproachState(userId)?.suggestion?.openUrl, "https://x.com/finn/status/901");
+  });
+
+  await it("moves an original post on to For You after I posted on X when only another reply suggestion is left", async () => {
+    releaseCardIds(userId, ["a1", "a2"]);
+    const [post, reply] = suggest([
+      { kind: "post", why: "Take a side" },
+      { kind: "reply", why: "Answer this one", targetId: "901" },
+    ]);
+    assert.ok(post && reply);
+    setApproachTask(userId, { phase: "organic_reply", cardId: post.id, surface: null }, "desk");
+    markSuggestion({ id: post.id, userId, status: "done" });
+    assert.equal(await advanceApproachOnServer(userId, { fromCardId: post.id, action: "posted", kind: "suggestion" }), true);
+    assert.deepEqual(getApproachTask(userId)?.lock, { phase: "silent_refuel", cardId: null, surface: "for_you" });
+  });
+
+  await it("names the desk event for I posted on X by the suggested card's kind", () => {
+    const posted = { fromCardId: "s1", action: "posted" as const, kind: "suggestion" as const };
+    assert.deepEqual(serverNextEvent(posted, { kind: "reply", targetId: "900", targetUrl: null }), { type: "next" });
+    assert.deepEqual(serverNextEvent(posted, { kind: "post", targetId: null, targetUrl: null }), { type: "posted" });
+    assert.deepEqual(serverNextEvent(posted), { type: "posted" });
+    assert.deepEqual(serverNextEvent({ fromCardId: "s1" }), { type: "next" });
+  });
+
   await it("reads the action strictly and applies Skip or Not interested only to the locked Scout or suggested card", () => {
     assert.deepEqual(parseServerNextRequest({ fromCardId: " a1 ", action: "skip", kind: "scout" }), { fromCardId: "a1", action: "skip", kind: "scout" });
     assert.deepEqual(parseServerNextRequest({ fromCardId: "a1", action: "next" }), { fromCardId: "a1" });
     assert.equal(parseServerNextRequest({ fromCardId: "a1", action: "posted" }), null);
+    assert.equal(parseServerNextRequest({ fromCardId: "a1", action: "posted", kind: "scout" }), null);
     assert.equal(parseServerNextRequest({ forYou: true, action: "dismiss" }), null);
     const scout = { phase: "scout_reply" as const, cardId: "a1", surface: null };
     const suggested = { phase: "organic_reply" as const, cardId: "s1", surface: null };

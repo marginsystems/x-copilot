@@ -50,6 +50,11 @@ describe("recordCardAction", () => {
     state.apiRequest.mockReset().mockResolvedValue({ ok: true });
   });
 
+  it("records I posted on X on a suggested card as done, as the desk does", async () => {
+    await recordCardAction(pairing, { kind: "suggestion", card: null, suggestionId: "s1" }, "posted");
+    expect(sent()).toEqual({ path: "/api/for-you/done", method: "POST", body: { id: "s1" } });
+  });
+
   it("records a Scout Skip with the card fields the panel has, as the desk's Skip does", async () => {
     await recordCardAction(pairing, { kind: "scout", card }, "skip");
     expect(sent()).toEqual({

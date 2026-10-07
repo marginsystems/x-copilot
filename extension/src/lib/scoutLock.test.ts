@@ -65,6 +65,26 @@ describe("waitForLockChange", () => {
   const other = { ...card, id: "2" };
   const noSleep = () => Promise.resolve();
 
+  it("waits while the desk is still on the suggested card the action was for, then returns the next card", async () => {
+    const suggestion = { id: "s1", kind: "post", why: "Take a side", targetId: null, targetUrl: null, targetAuthor: null, openUrl: "https://x.com/intent/tweet" };
+    const onSuggestion = { ok: true, card: null, state: { view: "suggestion", detected: false, suggestion } };
+    state.apiRequest
+      .mockResolvedValueOnce(onSuggestion)
+      .mockResolvedValueOnce(onSuggestion)
+      .mockResolvedValueOnce({ ok: true, card: other, state: { view: "scout", detected: false } });
+    await expect(waitForLockChange(pairing, { fromCardId: "s1", action: "posted", kind: "suggestion" }, noSleep))
+      .resolves.toMatchObject({ card: other });
+    expect(state.apiRequest).toHaveBeenCalledTimes(3);
+  });
+
+  it("counts a For You Next that lands on a suggested original post as moved", async () => {
+    const suggestion = { id: "s1", kind: "post", why: "Take a side", targetId: null, targetUrl: null, targetAuthor: null, openUrl: null };
+    state.apiRequest
+      .mockResolvedValueOnce({ ok: true, card: null, state: { view: "for_you", detected: false } })
+      .mockResolvedValueOnce({ ok: true, card: null, state: { view: "suggestion", detected: false, suggestion } });
+    await expect(waitForLockChange(pairing, { forYou: true }, noSleep)).resolves.toMatchObject({ state: { suggestion: { id: "s1" } } });
+  });
+
   it("returns the new lock as soon as the desk moves on", async () => {
     state.apiRequest
       .mockResolvedValueOnce({ ok: true, card })

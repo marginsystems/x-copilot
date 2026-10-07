@@ -46,9 +46,11 @@ import {
 import { clearForYouWait, readForYouWait, writeForYouWait } from "../lib/forYouWaitStore";
 import {
   approachNextEvent,
+  parseApproachActionNotice,
   parseApproachNextRequest,
   remoteNextApplies,
   remoteNextStale,
+  suggestionPostedEvent,
   upNextLock,
   type ApproachNextRequest,
 } from "../../../shared/src/approachNext";
@@ -361,10 +363,23 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
   const advanceCardRef = useRef(advanceCard);
   advanceCardRef.current = advanceCard;
   const applyRemoteNextRef = useRef((request: ApproachNextRequest) => {
-    advanceCardRef.current(approachNextEvent(request));
+    const lockedId = stateRef.current?.lock.cardId ?? null;
+    const posted = "action" in request && request.action === "posted" && lockedId
+      ? suggestionCardsRef.current.get(lockedId) ?? null
+      : null;
+    advanceCardRef.current(posted ? suggestionPostedEvent(posted) : approachNextEvent(request));
     if (!("forYou" in request)) return;
     Promise.resolve(refreshCoachingRef.current()).catch((err: unknown) => console.error(err));
   });
+
+  useEffect(
+    () =>
+      onDeskEvent("approach_action", (data) => {
+        if (parseApproachActionNotice(data)?.action !== "posted") return;
+        Promise.resolve(refreshCoachingRef.current()).catch((err: unknown) => console.error(err));
+      }),
+    [],
+  );
 
   useEffect(
     () =>
@@ -587,23 +602,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
         },
       });
     }
-    if (target.phase === "organic_reply") {
-      const suggestion = target.cardId ? suggestionCardsRef.current.get(target.cardId) : null;
-      if (!suggestion) return "";
-      const targetId = suggestion.kind === "reply" ? forYouTargetId(suggestion) : null;
-      if (!targetId) return JSON.stringify({ card: null });
-      return JSON.stringify({
-        card: {
-          id: targetId,
-          conversationId: targetId,
-          inReplyToId: targetId,
-          surface: "reply",
-          author: suggestion.targetAuthor,
-          url: suggestion.targetUrl,
-          text: null,
-        },
-      });
-    }
+    if (target.phase === "organic_reply") return "";
     return JSON.stringify({ card: null });
   }
 
@@ -618,6 +617,7 @@ export function useApproachTask(opts: UseApproachTaskOpts) {
         scoutDetected,
         suggestionDetected,
         forYouDetected: presentation.forYou?.detected === true,
+        suggestion: lockedSuggestion,
       })
     : null;
   const deskStateJson = deskState ? JSON.stringify(deskState) : "";

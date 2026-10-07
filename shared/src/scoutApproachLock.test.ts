@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { deskApproachState, lockMovedAfterNext, parseScoutApproachLockResponse } from "./scoutApproachLock.ts";
+import {
+  approachSuggestionCard,
+  approachSuggestionCardId,
+  deskApproachState,
+  lockMovedAfterNext,
+  parseDeskApproachState,
+  parseScoutApproachLockResponse,
+} from "./scoutApproachLock.ts";
 
 const card = {
   id: "c9",
@@ -67,5 +74,54 @@ await describe("desk approach state", () => {
     for (const state of [undefined, null, {}, { view: "nope", detected: false }, { view: "for_you" }]) {
       assert.equal(parseScoutApproachLockResponse({ ok: true, card: null, state })?.state, null);
     }
+  }).catch(assert.fail);
+});
+
+await describe("published suggested card", () => {
+  const post = { id: "s1", kind: "post" as const, why: "Take a side on AI wealth gains", targetId: null, targetUrl: null, targetAuthor: null };
+  const reply = { id: "s2", kind: "reply" as const, why: "Join this thread", targetId: null, targetUrl: "https://x.com/erin/status/900", targetAuthor: "@erin" };
+  const quote = { id: "s3", kind: "quote" as const, why: "Quote this", targetId: "901", targetUrl: null, targetAuthor: "@finn" };
+
+  it("carries what the desk shows and the URL its Open on X uses", () => {
+    assert.deepEqual(approachSuggestionCard(post), { ...post, openUrl: "https://x.com/intent/tweet" });
+    assert.deepEqual(approachSuggestionCard(reply), { ...reply, targetId: "900", openUrl: "https://x.com/erin/status/900" });
+    assert.equal(approachSuggestionCard(quote).openUrl, "https://x.com/i/status/901");
+    assert.equal(approachSuggestionCardId(approachSuggestionCard(reply)), "900");
+    assert.equal(approachSuggestionCardId(approachSuggestionCard(post)), null);
+    assert.equal(approachSuggestionCardId(approachSuggestionCard(quote)), null);
+  }).catch(assert.fail);
+
+  it("is part of the desk's state on a suggested card of any kind", () => {
+    const base = { phase: "organic_reply", cardId: "s1", forYouTask: false, scoutDetected: false, suggestionDetected: false, forYouDetected: false };
+    assert.deepEqual(deskApproachState({ ...base, suggestion: post }), {
+      view: "suggestion",
+      detected: false,
+      suggestion: approachSuggestionCard(post),
+    });
+    assert.deepEqual(deskApproachState({ ...base, suggestion: reply }), { view: "suggestion", detected: false });
+    assert.deepEqual(deskApproachState({ ...base, phase: "scout_reply", suggestion: post }), { view: "scout", detected: false });
+  }).catch(assert.fail);
+
+  it("reads the suggested card and stays compatible with states that have none", () => {
+    const suggestion = approachSuggestionCard(post);
+    assert.deepEqual(parseDeskApproachState({ view: "suggestion", detected: false, suggestion }), { view: "suggestion", detected: false, suggestion });
+    assert.deepEqual(parseDeskApproachState({ view: "suggestion", detected: true }), { view: "suggestion", detected: true });
+    assert.deepEqual(parseDeskApproachState({ view: "suggestion", detected: false, suggestion: { ...suggestion, kind: "thread" } }), { view: "suggestion", detected: false });
+    assert.deepEqual(parseDeskApproachState({ view: "suggestion", detected: false, suggestion: { ...suggestion, why: " " } }), { view: "suggestion", detected: false });
+    assert.deepEqual(parseDeskApproachState({ view: "scout", detected: false, suggestion }), { view: "scout", detected: false });
+    assert.deepEqual(
+      parseScoutApproachLockResponse({ ok: true, card: null, state: { view: "suggestion", detected: false, suggestion } })?.state,
+      { view: "suggestion", detected: false, suggestion },
+    );
+  }).catch(assert.fail);
+
+  it("counts a move off a suggested card only once the desk shows another card", () => {
+    const suggested = { view: "suggestion" as const, detected: false, suggestion: approachSuggestionCard(post) };
+    assert.equal(lockMovedAfterNext({ fromCardId: "s1" }, null, suggested), false);
+    assert.equal(lockMovedAfterNext({ fromCardId: "s1" }, null, null), true);
+    assert.equal(lockMovedAfterNext({ forYou: true }, null, suggested), true);
+    assert.equal(lockMovedAfterNext({ forYou: true }, null, { view: "for_you", detected: false }), false);
+    const replySuggested = { view: "suggestion" as const, detected: false, suggestion: approachSuggestionCard(reply) };
+    assert.equal(lockMovedAfterNext({ fromCardId: "s2" }, { ...card, id: "900" }, replySuggested), false);
   }).catch(assert.fail);
 });

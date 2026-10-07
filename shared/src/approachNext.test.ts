@@ -8,6 +8,7 @@ import {
   parseApproachNextRequest,
   parseApproachNextResponse,
   remoteNextApplies,
+  suggestionPostedEvent,
   upNextLock,
 } from "./approachNext.ts";
 
@@ -97,6 +98,38 @@ await describe("remote approach Skip and Not interested", () => {
     for (const bad of [null, { action: "next", fromCardId: "c1", kind: "scout" }, { action: "skip", fromCardId: "", kind: "scout" }, { action: "skip", fromCardId: "c1", kind: "for_you" }]) {
       assert.equal(parseApproachActionNotice(bad), null);
     }
+  }).catch(assert.fail);
+});
+
+await describe("remote I posted on X", () => {
+  it("reads posted only for a suggested card", () => {
+    assert.deepEqual(
+      parseApproachNextRequest({ fromCardId: "s1", action: "posted", kind: "suggestion" }),
+      { fromCardId: "s1", action: "posted", kind: "suggestion" },
+    );
+    assert.equal(parseApproachNextRequest({ fromCardId: "c1", action: "posted", kind: "scout" }), null);
+    assert.equal(parseApproachNextRequest({ fromCardId: "s1", action: "posted" }), null);
+    assert.equal(parseApproachNextRequest({ forYou: true, action: "posted" }), null);
+    assert.deepEqual(
+      parseApproachActionNotice({ action: "posted", fromCardId: "s1", kind: "suggestion" }),
+      { action: "posted", fromCardId: "s1", kind: "suggestion" },
+    );
+    assert.equal(parseApproachActionNotice({ action: "posted", fromCardId: "c1", kind: "scout" }), null);
+  }).catch(assert.fail);
+
+  it("applies to the locked suggested card only", () => {
+    const suggested = { phase: "organic_reply" as const, cardId: "s1", surface: null };
+    assert.equal(remoteNextApplies(suggested, { fromCardId: "s1", action: "posted", kind: "suggestion" }), true);
+    assert.equal(remoteNextApplies(suggested, { fromCardId: "s2", action: "posted", kind: "suggestion" }), false);
+  }).catch(assert.fail);
+
+  it("moves a detected suggested reply on as the desk's Next does, and anything else as I posted on X", () => {
+    assert.deepEqual(suggestionPostedEvent({ kind: "reply", targetId: "900", targetUrl: null }), { type: "next" });
+    assert.deepEqual(suggestionPostedEvent({ kind: "reply", targetId: null, targetUrl: "https://x.com/a/status/901" }), { type: "next" });
+    assert.deepEqual(suggestionPostedEvent({ kind: "reply", targetId: null, targetUrl: null }), { type: "posted" });
+    assert.deepEqual(suggestionPostedEvent({ kind: "post", targetId: null, targetUrl: null }), { type: "posted" });
+    assert.deepEqual(suggestionPostedEvent({ kind: "quote", targetId: "902", targetUrl: null }), { type: "posted" });
+    assert.deepEqual(approachNextEvent({ fromCardId: "s1", action: "posted", kind: "suggestion" }), { type: "posted" });
   }).catch(assert.fail);
 });
 

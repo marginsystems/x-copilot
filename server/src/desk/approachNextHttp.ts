@@ -41,7 +41,7 @@ export async function tryHandleApproachNext(
   if (!request) {
     send(req, res, 400, {
       error: "bad_request",
-      message: "Pass { fromCardId: string } or { fromCardId: string, action: \"skip\" | \"dismiss\", kind: \"scout\" | \"suggestion\" } or { forYou: true }.",
+      message: "Pass { fromCardId: string } or { fromCardId: string, action: \"skip\" | \"dismiss\", kind: \"scout\" | \"suggestion\" } or { fromCardId: string, action: \"posted\", kind: \"suggestion\" } or { forYou: true }.",
     });
     return true;
   }

@@ -19,10 +19,13 @@ import {
   panelPace,
   preloadedNextCard,
   shownAfterRefresh,
+  suggestionButtons,
   type PanelCardTarget,
   type PendingNext,
 } from "../../lib/panelModel";
 import type { ApproachCardAction } from "../../../../shared/src/approachNext";
+import { forYouKindLabel } from "../../../../shared/src/forYou";
+import { approachSuggestionCardId } from "../../../../shared/src/scoutApproachLock";
 import { OLDER_SERVER_NOTICE, waitForLockChange } from "../../lib/scoutLock";
 import { cardDetected, detectionTag, type CardSince } from "../../lib/detection";
 import { readReplySeenAt, trackCardSince } from "../../lib/detectionStore";
@@ -119,7 +122,7 @@ export function App() {
       const lockVersion = lockVersionRef.current;
       const data = await loadPanelData(pairing);
       if (lockVersionRef.current !== lockVersion) return;
-      const shown = shownAfterRefresh(pendingNextRef.current, pairing.token, data.lock);
+      const shown = shownAfterRefresh(pendingNextRef.current, pairing.token, data.lock, data.deskState);
       const viewKey = panelView(shown, data.deskState).key;
       setSince(await trackCardSince(viewKey, Date.now()).catch(() => null));
       if (lockVersionRef.current !== lockVersion) return;
@@ -251,7 +254,13 @@ export function App() {
   });
   const dismissing = dismissAsk !== null && cardTarget?.kind === "scout" && dismissAsk.cardKey === view.key;
   if (dismissAsk !== null && !dismissing) setDismissAsk(null);
-  const tag = view.collecting ? { label: "Waiting for Scout", detected: false } : detectionTag(lock, detected);
+  const suggestion = view.suggestion;
+  const tag = view.collecting
+    ? { label: "Waiting for Scout", detected: false }
+    : suggestion && approachSuggestionCardId(suggestion) === null
+      ? { label: forYouKindLabel(suggestion.kind), detected: false }
+      : detectionTag(lock, detected);
+  const suggestionShows = suggestion ? suggestionButtons(suggestion, detected) : null;
 
   async function show(next: ScoutApproachLockCard | null, nextState: DeskApproachState | null) {
     const nextView = panelView(next, nextState);
@@ -260,7 +269,7 @@ export function App() {
     setNextNotice(null);
     setState((prev) => (prev.kind === "ready" ? { ...prev, shown: next } : prev));
     setSince(await trackCardSince(nextView.key, Date.now()).catch(() => null));
-    if (!nextView.collecting) await openOnX(nextView.card.openUrl);
+    if (!nextView.collecting && nextView.card.openUrl) await openOnX(nextView.card.openUrl);
   }
 
   async function findNext(cardAction: CardAction | null = null): Promise<string | null> {
@@ -278,7 +287,7 @@ export function App() {
     });
     if (!moved) {
       if (preloaded) await refresh().catch(() => undefined);
-      return panelNextNotice(lock ? "not_moved" : "no_card");
+      return panelNextNotice(lock || view.suggestion ? "not_moved" : "no_card");
     }
     lockVersionRef.current += 1;
     setState((prev) =>
@@ -296,7 +305,9 @@ export function App() {
           }
         : prev,
     );
-    if (!preloaded || moved.card?.id !== preloaded.card?.id) await show(moved.card, moved.state);
+    if (!preloaded || panelView(moved.card, moved.state).key !== panelView(preloaded.card, null).key) {
+      await show(moved.card, moved.state);
+    }
     return null;
   }
 
@@ -335,6 +346,10 @@ export function App() {
 
   function dismissThisCard(target: PanelCardTarget, reason: string) {
     advance(() => actOnCard({ target, action: "dismiss", reason }), false);
+  }
+
+  function postedThisCard(target: PanelCardTarget, armsPace: boolean) {
+    advance(() => actOnCard({ target, action: "posted", reason: "" }), armsPace);
   }
 
   function pressNotInterested(target: PanelCardTarget) {
@@ -439,7 +454,13 @@ export function App() {
       <CardSlide slideKey={view.key}>
       <section className={`card card-${card.kind}`} aria-label="Approach card">
         <div className="card-head">
-          <p className="verb">{card.verb}</p>
+          {card.lead ? (
+            <p className={`card-lead kind-${card.lead.kind}`} title={card.verb} aria-label={card.verb}>
+              {card.lead.label}
+            </p>
+          ) : (
+            <p className="verb">{card.verb}</p>
+          )}
           <span className={`detect-tag${tag.detected ? " is-detected" : ""}`} role="status">
             <span className="detect-dot" aria-hidden="true" />
             {tag.label}
@@ -456,7 +477,46 @@ export function App() {
         <div className="actions">
           {asking ? (
             <NextConfirm subject={lock ? "reply" : "post"} onSkip={skipCard} onKeep={keepWaiting} />
-          ) : dismissing && dismissAsk && cardTarget ? (
+          ) : suggestionShows && cardTarget ? (
+            <>
+              {suggestionShows.open ? (
+                <button
+                  type="button"
+                  className="ghost"
+                  disabled={!card.openUrl}
+                  onClick={() => { if (card.openUrl) openOnX(card.openUrl).catch(() => undefined); }}
+                >
+                  {card.openLabel}
+                </button>
+              ) : null}
+              {suggestionShows.posted && !nextBusy ? (
+                <button type="button" className="primary" onClick={() => postedThisCard(cardTarget, false)}>
+                  I posted on X
+                </button>
+              ) : null}
+              {suggestionShows.next ? (
+                <button
+                  type="button"
+                  className="primary"
+                  ref={nextButtonRef}
+                  disabled={nextBusy || !suggestionShows.nextEnabled}
+                  onClick={() => postedThisCard(cardTarget, true)}
+                >
+                  {NEXT_LABEL}
+                </button>
+              ) : null}
+              {suggestionShows.skipDismiss ? (
+                <>
+                  <button type="button" className="ghost" disabled={nextBusy} onClick={() => skipThisCard(cardTarget)}>
+                    Skip
+                  </button>
+                  <button type="button" className="ghost" disabled={nextBusy} onClick={() => pressNotInterested(cardTarget)}>
+                    Not interested
+                  </button>
+                </>
+              ) : null}
+            </>
+          ) : dismissing && dismissAsk && cardTarget?.kind === "scout" ? (
             <DismissConfirm
               copy={dismissConfirmCopy(cardTarget.card)}
               reason={dismissAsk.reason}
@@ -471,7 +531,7 @@ export function App() {
                 <button
                   type="button"
                   className="ghost"
-                  onClick={() => { openOnX(card.openUrl).catch(() => undefined); }}
+                  onClick={() => { if (card.openUrl) openOnX(card.openUrl).catch(() => undefined); }}
                 >
                   {card.openLabel}
                 </button>

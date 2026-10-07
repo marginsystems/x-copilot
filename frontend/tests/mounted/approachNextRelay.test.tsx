@@ -12,6 +12,7 @@ import {
 } from "../../src/desk/deskEventStream";
 import { readApproachLock, writeApproachLock } from "../../src/lib/approachLockStore";
 import type { ThreadCard } from "../../../shared/src/deskTypes";
+import type { ForYouSuggestion } from "../../../shared/src/forYou";
 import { DEFAULT_SETTINGS } from "../../src/lib/settings";
 
 const user: AuthSessionUser = {
@@ -95,6 +96,62 @@ function setup(interactedIds: Set<string>, opts: { keepBrowser?: boolean; lockId
       onRefreshCoaching: vi.fn(), onHydrateInteracted: vi.fn(), onPollInteracted: vi.fn(),
     });
   }, { wrapper });
+}
+
+const postSuggestion: ForYouSuggestion = {
+  id: "sug-post", kind: "post", why: "Take a side on whether AI wealth gains reach displaced workers",
+  targetId: null, targetUrl: null, targetAuthor: null,
+};
+const replySuggestion: ForYouSuggestion = {
+  id: "sug-reply", kind: "reply", why: "Join this thread",
+  targetId: "900", targetUrl: "https://x.com/erin/status/900", targetAuthor: "@erin",
+};
+const otherReplySuggestion: ForYouSuggestion = {
+  id: "sug-reply-2", kind: "reply", why: "Answer this one",
+  targetId: "901", targetUrl: "https://x.com/finn/status/901", targetAuthor: "@finn",
+};
+
+function setupSuggested(
+  locked: ForYouSuggestion,
+  opts: {
+    suggestions?: ForYouSuggestion[];
+    threads?: ThreadCard[];
+    actForYou?: ReturnType<typeof vi.fn>;
+    onRefreshCoaching?: ReturnType<typeof vi.fn>;
+  } = {},
+) {
+  const fetchMock = stubBrowser();
+  writeApproachLock(user.id, { phase: "organic_reply", cardId: locked.id, surface: null });
+  const hook = renderHook(() => {
+    const history = useDeskHistory({
+      setStatus: vi.fn(), setThreads: vi.fn(), setActionBusy: vi.fn(), settings: DEFAULT_SETTINGS,
+    }, user.id);
+    return useApproachTask({
+      authUser: user, writesEnabled: true, deskBootReady: true, agendaReady: true,
+      agenda: "Help developers build reliable software and share useful engineering ideas.",
+      curatedThreads: opts.threads ?? [cardA, cardB], forYouSuggestions: opts.suggestions ?? [locked],
+      interactedIds: new Set(), interactedRetainedHistory: history.interactedRetainedHistory,
+      dismissedHistory: [], dismissThread: null, searching: false,
+      actForYou: opts.actForYou ?? vi.fn(), onSkip: vi.fn(), onDismiss: vi.fn(),
+      onRefreshCoaching: opts.onRefreshCoaching ?? vi.fn(), onHydrateInteracted: vi.fn(), onPollInteracted: vi.fn(),
+    });
+  }, { wrapper });
+  return { hook, fetchMock };
+}
+
+function lockPuts(fetchMock: ReturnType<typeof stubBrowser>): Record<string, unknown>[] {
+  return fetchMock.mock.calls
+    .filter(([url, init]) => String(url).includes("/api/scout-approach-lock") && init?.method === "PUT")
+    .flatMap(([, init]) => {
+      const body: unknown = JSON.parse(String(init?.body));
+      return typeof body === "object" && body !== null ? [{ ...body }] : [];
+    });
+}
+
+function recordedForYou(fetchMock: ReturnType<typeof stubBrowser>): boolean {
+  return fetchMock.mock.calls.some(([url, init]) =>
+    /\/api\/(skipped|dismissed|for-you)/.test(String(url)) && init?.method === "POST",
+  );
 }
 
 afterEach(() => {
@@ -387,4 +444,82 @@ test("the desk re-reads the history a panel Skip or Not interested changed", asy
   act(() => { liveStream().emit("approach_action", { action: "next", fromCardId: cardA.id, kind: "scout" }); });
   expect(reads("/api/skipped")).toBe(1);
   account.unmount();
+});
+
+test("the desk publishes the original post suggestion it shows, for the extension to show the same card", async () => {
+  const { fetchMock } = setupSuggested(postSuggestion);
+  await waitFor(() => expect(lockPuts(fetchMock).length).toBeGreaterThan(0));
+  const put = lockPuts(fetchMock).at(-1);
+  expect(put?.card).toBeNull();
+  expect(put?.next).toBeUndefined();
+  expect(put?.lock).toEqual({ phase: "organic_reply", cardId: postSuggestion.id, surface: null });
+  expect(put?.state).toEqual({
+    view: "suggestion",
+    detected: false,
+    suggestion: {
+      id: postSuggestion.id,
+      kind: "post",
+      why: postSuggestion.why,
+      targetId: null,
+      targetUrl: null,
+      targetAuthor: null,
+      openUrl: "https://x.com/intent/tweet",
+    },
+  });
+});
+
+test("the desk publishes a suggested reply with its target card and the suggestion", async () => {
+  const { fetchMock } = setupSuggested(replySuggestion);
+  await waitFor(() => expect(lockPuts(fetchMock).length).toBeGreaterThan(0));
+  const put = lockPuts(fetchMock).at(-1);
+  expect(put?.card).toMatchObject({ id: "900", surface: "reply", author: "@erin" });
+  expect(put?.state).toMatchObject({ view: "suggestion", suggestion: { id: replySuggestion.id, kind: "reply", targetId: "900" } });
+});
+
+test("the extension's I posted on X moves the desk off an original post, as the desk's own button does, without recording it again", () => {
+  const actForYou = vi.fn();
+  const { fetchMock } = setupSuggested(postSuggestion, { actForYou });
+
+  act(() => { liveStream().emit("approach_next", { fromCardId: "other", action: "posted", kind: "suggestion" }); });
+  expect(readApproachLock(user.id)?.cardId).toBe(postSuggestion.id);
+
+  act(() => { liveStream().emit("approach_next", { fromCardId: postSuggestion.id, action: "posted", kind: "suggestion" }); });
+  expect(readApproachLock(user.id)).toEqual({ phase: "scout_reply", cardId: cardA.id, surface: null });
+  expect(actForYou).not.toHaveBeenCalled();
+  expect(recordedForYou(fetchMock)).toBe(false);
+});
+
+test("the extension's Next on a detected suggested reply moves the desk on as the desk's Next does", () => {
+  const actForYou = vi.fn();
+  const { fetchMock } = setupSuggested(replySuggestion, {
+    threads: [],
+    suggestions: [replySuggestion, otherReplySuggestion],
+    actForYou,
+  });
+
+  act(() => { liveStream().emit("approach_next", { fromCardId: replySuggestion.id, action: "posted", kind: "suggestion" }); });
+  expect(readApproachLock(user.id)).toEqual({ phase: "organic_reply", cardId: otherReplySuggestion.id, surface: null });
+  expect(actForYou).not.toHaveBeenCalled();
+  expect(recordedForYou(fetchMock)).toBe(false);
+});
+
+test("the extension's Skip and Not interested move the desk off an original post card", () => {
+  setupSuggested(postSuggestion);
+  act(() => { liveStream().emit("approach_next", { fromCardId: postSuggestion.id, action: "skip", kind: "suggestion" }); });
+  expect(readApproachLock(user.id)?.cardId).toBe(cardA.id);
+});
+
+test("the desk refreshes coaching and For You after the extension's I posted on X", async () => {
+  const onRefreshCoaching = vi.fn();
+  const { fetchMock } = setupSuggested(postSuggestion, { onRefreshCoaching });
+  const forYouReads = () => fetchMock.mock.calls.filter(([url, init]) =>
+    String(url).endsWith("/api/for-you") && (init?.method ?? "GET") === "GET",
+  ).length;
+  const before = forYouReads();
+  onRefreshCoaching.mockClear();
+
+  act(() => { liveStream().emit("approach_action", { action: "posted", fromCardId: postSuggestion.id, kind: "suggestion" }); });
+  await waitFor(() => expect(forYouReads()).toBe(before + 1));
+  expect(onRefreshCoaching).toHaveBeenCalledTimes(1);
+  expect(recordedForYou(fetchMock)).toBe(false);
 });

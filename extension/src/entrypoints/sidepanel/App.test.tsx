@@ -440,6 +440,120 @@ describe("App", () => {
     await act(async () => root.unmount());
   });
 
+  const ogSuggestion = {
+    id: "sug-og",
+    kind: "post",
+    why: "Take a side on whether AI wealth gains actually reach displaced workers, invite replies",
+    targetId: null,
+    targetUrl: null,
+    targetAuthor: null,
+    openUrl: "https://x.com/intent/tweet",
+  };
+  const ogState = { view: "suggestion", detected: false, suggestion: ogSuggestion };
+  const replySuggestion = {
+    id: "sug-re",
+    kind: "reply",
+    why: "Join this thread",
+    targetId: "1",
+    targetUrl: "https://x.com/ada/status/1",
+    targetAuthor: "@ada",
+    openUrl: "https://x.com/ada/status/1",
+  };
+
+  it("shows the desk's original post card with the desk's buttons, and never For You or its detection", async () => {
+    readPairing.mockResolvedValue(paired);
+    const now = Date.now();
+    storageData.lastReplySeenAt = now - 1_000;
+    storageData.panelCardSince = { key: "for_you", sinceMs: now - 5_000 };
+    loadPanelData.mockResolvedValue({ lock: null, lockSupported: true, deskState: ogState, suggestionId: "sug-og", replyAt: [], scout: null });
+    const { container, root } = await mountPanel();
+
+    const card = shownCard(container);
+    expect(card?.querySelector(".card-lead")?.textContent).toBe("OG");
+    expect(card?.querySelector("h2")?.textContent).toBe(ogSuggestion.why);
+    expect(card?.querySelector(".detect-tag")?.textContent).toBe("Post");
+    expect(card?.textContent).not.toContain("For You");
+    expect(card?.textContent).not.toContain("Post detected");
+    expect(actionLabels(container)).toEqual(["Open on X", "I posted on X", "Skip", "Not interested"]);
+    expect(buttonLabelled(container, "Open on X")?.className).toBe("ghost");
+    expect(buttonLabelled(container, "I posted on X")?.className).toBe("primary");
+    expect(buttonLabelled(container, "Skip")?.className).toBe("ghost");
+    expect(buttonLabelled(container, "Next")).toBeUndefined();
+
+    await press(container, "Open on X");
+    expect(tabsCreate).toHaveBeenCalledWith({ url: "https://x.com/intent/tweet", active: true });
+    await act(async () => root.unmount());
+  });
+
+  it("records I posted on X, then moves on through the server like the desk's own button", async () => {
+    readPairing.mockResolvedValue(paired);
+    loadPanelData.mockResolvedValue({ lock: null, lockSupported: true, deskState: ogState, suggestionId: "sug-og", replyAt: [], scout: null });
+    const order: string[] = [];
+    recordCardAction.mockImplementation(async () => { order.push("record"); });
+    askDeskForNext.mockImplementation(async () => { order.push("advance"); return "server"; });
+    waitForLockChange.mockResolvedValue({ card: nextScoutCard, next: null, state: { view: "scout", detected: false }, suggestionId: null, supported: true, valid: true });
+    const { container, root } = await mountPanel();
+
+    await press(container, "I posted on X");
+    await act(async () => { await new Promise<void>((resolve) => window.setTimeout(resolve, 0)); });
+
+    const target = { kind: "suggestion", card: null, suggestionId: "sug-og" };
+    expect(order).toEqual(["record", "advance"]);
+    expect(recordCardAction).toHaveBeenCalledWith(paired, target, "posted", "");
+    expect(askDeskForNext).toHaveBeenCalledWith(paired, { fromCardId: "sug-og", action: "posted", kind: "suggestion" });
+    expect(waitForLockChange).toHaveBeenCalledWith(paired, { fromCardId: "sug-og", action: "posted", kind: "suggestion" });
+    expect(shownCard(container)?.textContent).toContain("@bo");
+    await act(async () => root.unmount());
+  });
+
+  it("skips an original post card by its suggestion id", async () => {
+    readPairing.mockResolvedValue(paired);
+    loadPanelData.mockResolvedValue({ lock: null, lockSupported: true, deskState: ogState, suggestionId: "sug-og", replyAt: [], scout: null });
+    recordCardAction.mockResolvedValue(undefined);
+    askDeskForNext.mockResolvedValue("server");
+    waitForLockChange.mockResolvedValue(null);
+    const { container, root } = await mountPanel();
+
+    await press(container, "Not interested");
+    expect(container.querySelector(".dismiss-confirm")).toBeNull();
+    expect(recordCardAction).toHaveBeenLastCalledWith(paired, { kind: "suggestion", card: null, suggestionId: "sug-og" }, "dismiss", "");
+    expect(askDeskForNext).toHaveBeenLastCalledWith(paired, { fromCardId: "sug-og", action: "dismiss", kind: "suggestion" });
+    expect(container.textContent).toContain("Your desk is open on another page.");
+    expect(shownCard(container)?.querySelector("h2")?.textContent).toBe(ogSuggestion.why);
+    await act(async () => root.unmount());
+  });
+
+  it("shows a suggested reply card like the desk: Next waits for detection, then is the only button and moves on", async () => {
+    readPairing.mockResolvedValue(paired);
+    loadPanelData
+      .mockResolvedValueOnce({ lock: scoutCard, lockSupported: true, deskState: { view: "suggestion", detected: false, suggestion: replySuggestion }, suggestionId: "sug-re", replyAt: [], scout: null })
+      .mockResolvedValue({ lock: scoutCard, lockSupported: true, deskState: { view: "suggestion", detected: true, suggestion: replySuggestion }, suggestionId: "sug-re", replyAt: [], scout: null });
+    recordCardAction.mockResolvedValue(undefined);
+    askDeskForNext.mockResolvedValue("server");
+    waitForLockChange.mockResolvedValue({ card: nextScoutCard, next: null, state: { view: "scout", detected: false }, suggestionId: null, supported: true, valid: true });
+    const { container, root } = await mountPanel();
+
+    expect(shownCard(container)?.querySelector(".card-lead")?.textContent).toBe("RE");
+    expect(shownCard(container)?.querySelector("h2")?.textContent).toBe("Join this thread");
+    expect(actionLabels(container)).toEqual(["Open on X", "Next", "Skip", "Not interested"]);
+    expect(buttonLabelled(container, "Next")?.disabled).toBe(true);
+
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+    expect(actionLabels(container)).toEqual(["Next"]);
+    expect(buttonLabelled(container, "Next")?.disabled).toBe(false);
+
+    await press(container, "Next");
+    await act(async () => { await new Promise<void>((resolve) => window.setTimeout(resolve, 0)); });
+    expect(container.textContent).not.toContain("Skip this card?");
+    expect(recordCardAction).toHaveBeenCalledWith(paired, { kind: "suggestion", card: scoutCard, suggestionId: "sug-re" }, "posted", "");
+    expect(askDeskForNext).toHaveBeenCalledWith(paired, { fromCardId: "sug-re", action: "posted", kind: "suggestion" });
+    expect(shownCard(container)?.textContent).toContain("@bo");
+    await act(async () => root.unmount());
+  });
+
   it("keeps a valid pairing out of the unpaired state when panel data fails to load", async () => {
     readPairing.mockResolvedValue({
       token: "token",

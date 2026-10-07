@@ -586,3 +586,36 @@ button.icon-btn {
     transition: none;
   }
 }
+
+.card-lead {
+  margin: 0;
+  min-width: 36px;
+  padding: 2px 6px;
+  font-family: var(--font-head);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-align: center;
+  color: var(--muted);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+}
+
+.card-lead.kind-post {
+  color: var(--accent);
+  border-color: var(--accent-dim);
+}
+
+.card-lead.kind-quote {
+  color: #b8a8e8;
+  border-color: #6b5ea8;
+}
+
+.card-lead.kind-repost {
+  color: #6fbf8f;
+  border-color: #2f5a42;
+}
+
+.card-lead.kind-reply {
+  color: #d2b168;
+  border-color: #5c4a26;
+}

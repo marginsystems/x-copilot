@@ -71,7 +71,7 @@ export async function waitForLockChange(
     await sleep(nextPollDelayMs(attempt));
     const lock = await readScoutLock(pairing);
     if (!lock.supported || !lock.valid) continue;
-    if (lockMovedAfterNext(request, lock.card)) return lock;
+    if (lockMovedAfterNext(request, lock.card, lock.state)) return lock;
     if ("forYou" in request && lock.state?.view === "collecting") return lock;
   }
   return null;

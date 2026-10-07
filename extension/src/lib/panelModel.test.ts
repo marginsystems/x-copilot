@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { X_FOR_YOU_URL, X_INSPIRATION_URL } from "../../../shared/src/forYou";
 import { REPLY_PACE_MS } from "../../../shared/src/replyPace";
-import { cardActionRequest, dismissConfirmCopy, panelCardActionNotice, panelCardTarget, shownAfterRefresh, nextFromCardId, panelCanAskNext, panelDetected, panelView, panelCard, panelNextNotice, panelPace, preloadedNextCard, scoutOpenUrl } from "./panelModel";
+import { suggestionButtons, cardActionRequest, dismissConfirmCopy, panelCardActionNotice, panelCardTarget, shownAfterRefresh, nextFromCardId, panelCanAskNext, panelDetected, panelView, panelCard, panelNextNotice, panelPace, preloadedNextCard, scoutOpenUrl } from "./panelModel";
 
 const lock = {
   id: "123",
@@ -218,5 +218,84 @@ describe("panelCardTarget", () => {
     expect(panelCardActionNotice({ kind: "suggestion", card: lock, suggestionId: "s1" }, "skip")).toBe("Could not update For You. Try again.");
     expect(dismissConfirmCopy(lock)).toBe("Dismiss @dana from Approach. Optional reason is saved to local knowledge memory.");
     expect(dismissConfirmCopy({ ...lock, author: null })).toBe("Dismiss this post from Approach. Optional reason is saved to local knowledge memory.");
+  });
+});
+
+describe("suggested cards", () => {
+  const post = {
+    id: "s1",
+    kind: "post" as const,
+    why: "Take a side on AI wealth gains",
+    targetId: null,
+    targetUrl: null,
+    targetAuthor: null,
+    openUrl: "https://x.com/intent/tweet",
+  };
+  const reply = {
+    id: "s2",
+    kind: "reply" as const,
+    why: "Join this thread",
+    targetId: "123",
+    targetUrl: "https://x.com/dana/status/123",
+    targetAuthor: "@dana",
+    openUrl: "https://x.com/dana/status/123",
+  };
+  const postState = { view: "suggestion" as const, detected: false, suggestion: post };
+  const replyState = { view: "suggestion" as const, detected: false, suggestion: reply };
+
+  it("shows the desk's original post card instead of For You", () => {
+    const view = panelView(null, postState);
+    expect(view.suggestion).toEqual(post);
+    expect(view.key).toBe("suggestion:s1");
+    expect(view.card).toMatchObject({
+      kind: "suggestion",
+      verb: "Post",
+      title: post.why,
+      openUrl: "https://x.com/intent/tweet",
+      openLabel: "Open on X",
+      secondary: null,
+      lead: { label: "OG", kind: "post" },
+    });
+  });
+
+  it("shows a suggested reply only on its target card, and only opens x.com links", () => {
+    expect(panelView(lock, replyState).suggestion).toEqual(reply);
+    expect(panelView(lock, replyState).card.lead).toEqual({ label: "RE", kind: "reply" });
+    expect(panelView({ ...lock, id: "999" }, replyState).suggestion).toBeNull();
+    expect(panelView(null, replyState).suggestion).toBeNull();
+    expect(panelView(lock, postState).suggestion).toBeNull();
+    expect(panelView(null, { ...postState, suggestion: { ...post, openUrl: "https://evil.example/x" } }).card.openUrl).toBeNull();
+    expect(panelView(null, { view: "scout", detected: false, suggestion: post }).suggestion).toBeNull();
+  });
+
+  it("never marks an original post detected, whatever the panel saw on For You", () => {
+    const view = panelView(null, postState);
+    expect(panelDetected({ view, deskState: postState, deskCardId: null, seenHere: true })).toBe(false);
+    expect(panelDetected({ view, deskState: { ...postState, detected: true }, deskCardId: null, seenHere: false })).toBe(false);
+    const replyView = panelView(lock, replyState);
+    expect(panelDetected({ view: replyView, deskState: { ...replyState, detected: true }, deskCardId: "123", seenHere: false })).toBe(true);
+    expect(panelDetected({ view: replyView, deskState: replyState, deskCardId: "123", seenHere: false })).toBe(false);
+  });
+
+  it("names the desk's buttons for each kind and detection state", () => {
+    expect(suggestionButtons(post, false)).toEqual({ open: true, posted: true, next: false, nextEnabled: false, skipDismiss: true });
+    expect(suggestionButtons(reply, false)).toEqual({ open: true, posted: false, next: true, nextEnabled: false, skipDismiss: true });
+    expect(suggestionButtons(reply, true)).toEqual({ open: false, posted: false, next: true, nextEnabled: true, skipDismiss: false });
+    expect(suggestionButtons({ ...reply, targetId: null }, false)).toEqual({ open: true, posted: true, next: false, nextEnabled: false, skipDismiss: true });
+  });
+
+  it("addresses every action on a suggested card by its suggestion id, and keeps the plain Next for other cards", () => {
+    const view = panelView(null, postState);
+    expect(panelCanAskNext(view, false, postState, null)).toBe(false);
+    const target = panelCardTarget({ view, detected: false, deskState: postState, deskCardId: null, suggestionId: null });
+    expect(target).toEqual({ kind: "suggestion", card: null, suggestionId: "s1" });
+    if (!target) throw new Error("no target");
+    expect(cardActionRequest(target, "posted")).toEqual({ fromCardId: "s1", action: "posted", kind: "suggestion" });
+  });
+
+  it("keeps the preloaded card until the desk leaves the suggested card", () => {
+    const pending = { token: "t", request: { fromCardId: "s1" }, shown: null };
+    expect(shownAfterRefresh(pending, "t", null, postState)).toBeNull();
+    expect(shownAfterRefresh({ ...pending, shown: lock }, "t", null, postState)).toEqual(lock);
   });
 });

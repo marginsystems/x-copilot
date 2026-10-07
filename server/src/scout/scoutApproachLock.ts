@@ -169,13 +169,48 @@ export function setScoutApproachNext(
 }
 
 const DESK_APPROACH_VIEWS = ["scout", "suggestion", "for_you", "collecting", "other"] as const;
+export const APPROACH_SUGGESTION_KINDS = ["post", "quote", "repost", "reply"] as const;
+export const APPROACH_SUGGESTION_TEXT_MAX = 2000;
 
-export type DeskApproachState = { view: (typeof DESK_APPROACH_VIEWS)[number]; detected: boolean };
+export type ApproachSuggestionCard = {
+  id: string;
+  kind: (typeof APPROACH_SUGGESTION_KINDS)[number];
+  why: string;
+  targetId: string | null;
+  targetUrl: string | null;
+  targetAuthor: string | null;
+  openUrl: string | null;
+};
 
-function deskStateFromBody(value: unknown): DeskApproachState | null {
+export type DeskApproachState = {
+  view: (typeof DESK_APPROACH_VIEWS)[number];
+  detected: boolean;
+  suggestion?: ApproachSuggestionCard;
+};
+
+export function suggestionCardFromBody(value: unknown): ApproachSuggestionCard | null {
+  if (!isRecord(value)) return null;
+  const kind = APPROACH_SUGGESTION_KINDS.find((candidate) => candidate === value.kind);
+  const id = optionalText(value.id);
+  const why = optionalText(value.why);
+  if (!kind || !id || !why) return null;
+  return {
+    id,
+    kind,
+    why: why.slice(0, APPROACH_SUGGESTION_TEXT_MAX),
+    targetId: optionalText(value.targetId),
+    targetUrl: optionalText(value.targetUrl),
+    targetAuthor: optionalText(value.targetAuthor),
+    openUrl: optionalText(value.openUrl),
+  };
+}
+
+export function deskStateFromBody(value: unknown): DeskApproachState | null {
   if (!isRecord(value) || typeof value.detected !== "boolean") return null;
   const view = DESK_APPROACH_VIEWS.find((candidate) => candidate === value.view);
-  return view ? { view, detected: value.detected } : null;
+  if (!view) return null;
+  const suggestion = view === "suggestion" ? suggestionCardFromBody(value.suggestion) : null;
+  return suggestion ? { view, detected: value.detected, suggestion } : { view, detected: value.detected };
 }
 
 export function getDeskApproachState(

@@ -1,15 +1,17 @@
 import {
   advanceApproach,
   isForYouTask,
+  type ApproachEvent,
   type ApproachInventory,
   type ApproachLock,
 } from "./deskPhase.ts";
+import type { ForYouKind } from "./forYou.ts";
 import { isRecord } from "./typeGuards.ts";
 
 export const APPROACH_NEXT_PATH = "/api/desk/approach/next";
 export const APPROACH_NEXT_EVENT = "approach_next";
 export const APPROACH_NEXT_ID_MAX = 64;
-export const APPROACH_NEXT_ACTIONS = ["next", "skip", "dismiss"] as const;
+export const APPROACH_NEXT_ACTIONS = ["next", "skip", "dismiss", "posted"] as const;
 
 export type ApproachNextAction = (typeof APPROACH_NEXT_ACTIONS)[number];
 export type ApproachCardAction = Exclude<ApproachNextAction, "next">;
@@ -34,11 +36,21 @@ export function parseApproachNextRequest(raw: unknown): ApproachNextRequest | nu
   if (!fromCardId || fromCardId.length > APPROACH_NEXT_ID_MAX) return null;
   if (action === "next") return { fromCardId };
   if (raw.kind !== "scout" && raw.kind !== "suggestion") return null;
+  if (action === "posted" && raw.kind !== "suggestion") return null;
   return { fromCardId, action, kind: raw.kind };
 }
 
 export function approachNextEvent(request: ApproachNextRequest): { type: ApproachNextAction } {
   return { type: "action" in request && request.action ? request.action : "next" };
+}
+
+export function suggestionPostedEvent(row: {
+  kind: ForYouKind;
+  targetId: string | null;
+  targetUrl: string | null;
+}): ApproachEvent {
+  const targetId = row.targetId || row.targetUrl?.match(/\/status\/(\d+)/)?.[1] || null;
+  return row.kind === "reply" && targetId ? { type: "next" } : { type: "posted" };
 }
 
 export type ApproachActionNotice = {
@@ -48,9 +60,10 @@ export type ApproachActionNotice = {
 };
 
 export function parseApproachActionNotice(raw: unknown): ApproachActionNotice | null {
-  if (!isRecord(raw) || (raw.action !== "skip" && raw.action !== "dismiss")) return null;
+  if (!isRecord(raw) || (raw.action !== "skip" && raw.action !== "dismiss" && raw.action !== "posted")) return null;
   if (typeof raw.fromCardId !== "string" || !raw.fromCardId) return null;
   if (raw.kind !== "scout" && raw.kind !== "suggestion") return null;
+  if (raw.action === "posted" && raw.kind !== "suggestion") return null;
   return { action: raw.action, fromCardId: raw.fromCardId, kind: raw.kind };
 }
 

@@ -110,7 +110,7 @@ export async function recordCardAction(
       body: JSON.stringify(body),
     });
   if (target.kind === "suggestion") {
-    await post(`/api/for-you/${action}`, { id: target.suggestionId });
+    await post(`/api/for-you/${action === "posted" ? "done" : action}`, { id: target.suggestionId });
     return;
   }
   if (action === "skip") {

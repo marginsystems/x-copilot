@@ -1,5 +1,13 @@
 import type { ApproachCardAction, ApproachNextRequest } from "../../../shared/src/approachNext";
-import { FYP_WAIT_COPY, X_FOR_YOU_URL, X_INSPIRATION_URL } from "../../../shared/src/forYou";
+import {
+  FYP_COMPOSE_TIP,
+  FYP_WAIT_COPY,
+  forYouKindLabel,
+  forYouKindShort,
+  X_FOR_YOU_URL,
+  X_INSPIRATION_URL,
+  type ForYouKind,
+} from "../../../shared/src/forYou";
 import {
   formatReplyPaceClock,
   replyPaceRemainingMs,
@@ -7,7 +15,9 @@ import {
   seedReplyPaceUntil,
 } from "../../../shared/src/replyPace";
 import {
+  approachSuggestionCardId,
   lockMovedAfterNext,
+  type ApproachSuggestionCard,
   type DeskApproachState,
   type ScoutApproachLockCard,
   type ScoutApproachNext,
@@ -15,13 +25,14 @@ import {
 import { cardKey, COLLECTING_CARD_KEY } from "./detection";
 
 export type PanelCard = {
-  kind: "scout" | "for_you" | "collecting";
+  kind: "scout" | "for_you" | "collecting" | "suggestion";
   verb: string;
   title: string;
   detail: string;
-  openUrl: string;
+  openUrl: string | null;
   openLabel: string;
   secondary: { url: string; label: string } | null;
+  lead?: { label: string; kind: ForYouKind };
 };
 
 export type PanelPace = { remainingMs: number; clock: string; tip: string };
@@ -54,6 +65,23 @@ export function panelCard(lock: ScoutApproachLockCard | null): PanelCard {
   };
 }
 
+function xUrl(url: string | null): string | null {
+  return url && /^https:\/\/(?:www\.)?x\.com\//.test(url) ? url : null;
+}
+
+export function suggestionPanelCard(suggestion: ApproachSuggestionCard): PanelCard {
+  return {
+    kind: "suggestion",
+    verb: forYouKindLabel(suggestion.kind),
+    title: suggestion.why,
+    detail: suggestion.targetAuthor ?? (suggestion.kind === "post" ? FYP_COMPOSE_TIP : "Open this post on X."),
+    openUrl: xUrl(suggestion.openUrl),
+    openLabel: "Open on X",
+    secondary: null,
+    lead: { label: forYouKindShort(suggestion.kind), kind: suggestion.kind },
+  };
+}
+
 export function panelPace(replyAt: readonly string[] | undefined, nowMs: number): PanelPace | null {
   const until = seedReplyPaceUntil({
     storedUntil: null,
@@ -81,9 +109,10 @@ export function shownAfterRefresh(
   pending: PendingNext | null,
   token: string,
   serverLock: ScoutApproachLockCard | null,
+  serverState: DeskApproachState | null = null,
 ): ScoutApproachLockCard | null {
   if (!pending || pending.token !== token) return serverLock;
-  return lockMovedAfterNext(pending.request, serverLock) ? serverLock : pending.shown;
+  return lockMovedAfterNext(pending.request, serverLock, serverState) ? serverLock : pending.shown;
 }
 
 export const COLLECTING_CARD: PanelCard = {
@@ -99,18 +128,39 @@ export const COLLECTING_CARD: PanelCard = {
 export type PanelView = {
   lock: ScoutApproachLockCard | null;
   collecting: boolean;
+  suggestion: ApproachSuggestionCard | null;
   key: string;
   card: PanelCard;
 };
+
+export function deskSuggestion(
+  shown: ScoutApproachLockCard | null,
+  deskState: DeskApproachState | null | undefined,
+): ApproachSuggestionCard | null {
+  const suggestion = deskState?.view === "suggestion" ? deskState.suggestion ?? null : null;
+  if (!suggestion || (shown?.id ?? null) !== approachSuggestionCardId(suggestion)) return null;
+  return suggestion;
+}
 
 export function panelView(
   shown: ScoutApproachLockCard | null,
   deskState: DeskApproachState | null | undefined,
 ): PanelView {
+  const suggestion = deskSuggestion(shown, deskState);
+  if (suggestion) {
+    return {
+      lock: shown,
+      collecting: false,
+      suggestion,
+      key: `suggestion:${suggestion.id}`,
+      card: suggestionPanelCard(suggestion),
+    };
+  }
   const collecting = shown === null && deskState?.view === "collecting";
   return {
     lock: shown,
     collecting,
+    suggestion: null,
     key: collecting ? COLLECTING_CARD_KEY : cardKey(shown),
     card: collecting ? COLLECTING_CARD : panelCard(shown),
   };
@@ -123,6 +173,7 @@ export function panelDetected(opts: {
   seenHere: boolean;
 }): boolean {
   if (opts.view.collecting) return false;
+  if (opts.view.suggestion && approachSuggestionCardId(opts.view.suggestion) === null) return false;
   const desk = opts.deskState;
   if (opts.view.lock === null) return desk?.view === "for_you" ? desk.detected : opts.seenHere;
   const deskOnCard = desk?.view === "scout" || desk?.view === "suggestion";
@@ -135,7 +186,7 @@ export function panelCanAskNext(
   deskState: DeskApproachState | null | undefined,
   deskCardId: string | null,
 ): boolean {
-  if (view.collecting) return false;
+  if (view.collecting || view.suggestion) return false;
   return (
     view.lock === null ||
     detected ||
@@ -145,7 +196,7 @@ export function panelCanAskNext(
 
 export type PanelCardTarget =
   | { kind: "scout"; card: ScoutApproachLockCard }
-  | { kind: "suggestion"; card: ScoutApproachLockCard; suggestionId: string };
+  | { kind: "suggestion"; card: ScoutApproachLockCard | null; suggestionId: string };
 
 export function panelCardTarget(opts: {
   view: PanelView;
@@ -155,6 +206,7 @@ export function panelCardTarget(opts: {
   suggestionId: string | null;
 }): PanelCardTarget | null {
   const card = opts.view.lock;
+  if (opts.view.suggestion) return { kind: "suggestion", card, suggestionId: opts.view.suggestion.id };
   if (opts.view.collecting || !card || opts.detected || opts.deskCardId !== card.id) return null;
   if (opts.deskState?.view === "scout") return { kind: "scout", card };
   if (opts.deskState?.view === "suggestion" && opts.suggestionId) {
@@ -168,6 +220,25 @@ export function cardActionRequest(target: PanelCardTarget, action: ApproachCardA
     fromCardId: target.kind === "suggestion" ? target.suggestionId : target.card.id,
     action,
     kind: target.kind,
+  };
+}
+
+export type SuggestionButtons = {
+  open: boolean;
+  posted: boolean;
+  next: boolean;
+  nextEnabled: boolean;
+  skipDismiss: boolean;
+};
+
+export function suggestionButtons(suggestion: ApproachSuggestionCard, detected: boolean): SuggestionButtons {
+  const detectsReply = approachSuggestionCardId(suggestion) !== null;
+  return {
+    open: !detected,
+    posted: !detected && !detectsReply,
+    next: detectsReply,
+    nextEnabled: detected,
+    skipDismiss: !detected,
   };
 }
 
