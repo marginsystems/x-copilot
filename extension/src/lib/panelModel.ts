@@ -89,10 +89,30 @@ export function panelPace(replyAt: readonly string[] | undefined, nowMs: number)
     replyAtIso: replyAt?.[0] ?? null,
     nowMs,
   });
-  const remainingMs = replyPaceRemainingMs(until, nowMs);
+  return paceLeft(until, nowMs);
+}
+
+function paceLeft(untilMs: number | null, nowMs: number): PanelPace | null {
+  const remainingMs = replyPaceRemainingMs(untilMs, nowMs);
   if (remainingMs <= 0) return null;
   const clock = formatReplyPaceClock(remainingMs);
   return { remainingMs, clock, tip: replyPaceTip(clock) };
+}
+
+export type PaceArm = { cardKey: string; untilMs: number };
+
+export function armPanelPace(cardKey: string, replyAt: readonly string[] | undefined, nowMs: number): PaceArm | null {
+  const pace = panelPace(replyAt, nowMs);
+  return pace ? { cardKey, untilMs: nowMs + pace.remainingMs } : null;
+}
+
+export function armedPanelPace(
+  arm: PaceArm | null,
+  shown: { cardKey: string; detected: boolean },
+  nowMs: number,
+): PanelPace | null {
+  if (!arm || arm.cardKey !== shown.cardKey || shown.detected) return null;
+  return paceLeft(arm.untilMs, nowMs);
 }
 
 export function nextFromCardId(lock: ScoutApproachLockCard | null): ApproachNextRequest {

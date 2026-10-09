@@ -7,6 +7,8 @@ import type { Pairing } from "../../lib/pairing";
 import { clearPairing, readPairing } from "../../lib/pairingStore";
 import { askDeskForNext, loadPanelData, recordCardAction, signOutExtension, type PanelData } from "../../lib/panelData";
 import {
+  armedPanelPace,
+  armPanelPace,
   cardActionRequest,
   detectedPostId,
   dismissConfirmCopy,
@@ -22,6 +24,7 @@ import {
   shownAfterRefresh,
   suggestionButtons,
   suggestionDetects,
+  type PaceArm,
   type PanelCardTarget,
   type PendingNext,
 } from "../../lib/panelModel";
@@ -124,7 +127,8 @@ export function App() {
   const lockVersionRef = useRef(0);
   const shownKeyRef = useRef<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [paceArmed, setPaceArmed] = useState(false);
+  const [paceArm, setPaceArm] = useState<PaceArm | null>(null);
+  const replyAtRef = useRef<readonly string[]>([]);
   const now = useNow();
   const activeTabUrl = useActiveTabUrl();
 
@@ -195,9 +199,10 @@ export function App() {
     return watchLock({ apiBase: liveApiBase, token: liveToken }, () => { refresh().catch(() => undefined); });
   }, [liveApiBase, liveToken, refresh]);
 
+  if (state.kind === "ready") replyAtRef.current = state.data.replyAt;
   const paceRunning = state.kind === "ready" && panelPace(state.data.replyAt, now) !== null;
   useEffect(() => {
-    if (!paceRunning) setPaceArmed(false);
+    if (!paceRunning) setPaceArm(null);
   }, [paceRunning]);
 
   if (state.kind === "loading") {
@@ -258,13 +263,16 @@ export function App() {
   const lock = view.lock;
   const nextUp = state.data.nextUp;
   const card = view.card;
-  const pace = panelPace(state.data.replyAt, now);
   const detected = panelDetected({
     view,
     deskState,
     deskCardId: state.data.lock?.id ?? null,
     seenHere: cardDetected({ lock, repliedCardId, replySeenAtMs, since }),
   });
+  if (paceArm !== null && paceArm.cardKey !== view.key) {
+    setPaceArm(armPanelPace(view.key, state.data.replyAt, Date.now()));
+  }
+  const pace = armedPanelPace(paceArm, { cardKey: view.key, detected }, now);
   const detectedTweetId = detectedPostId(view, deskState);
   const detectedPost = detectedTweetId && deskState?.view === "suggestion" ? deskState.post : null;
   const canAskNext = panelCanAskNext(
@@ -364,7 +372,10 @@ export function App() {
     work()
       .catch((err: unknown) => (err instanceof Error ? err.message : String(err)))
       .then((notice) => {
-        if (armsPace && !notice && state.kind === "ready" && panelPace(state.data.replyAt, Date.now()) !== null) setPaceArmed(true);
+        const arm = armsPace && !notice
+          ? armPanelPace(shownKeyRef.current ?? view.key, replyAtRef.current, Date.now())
+          : null;
+        if (arm) setPaceArm(arm);
         if (notice) setNextNotice(notice);
         setNextBusy(false);
       })
@@ -508,7 +519,7 @@ export function App() {
             <>Detected. <a href={detectedPost.url} target="_blank" rel="noreferrer">View post {detectedPost.id}</a>.</>
           ) : detected ? "Detected. Tap Next for your next one." : card.detail}
         </p>
-        {pace && paceArmed ? (
+        {pace ? (
           <p className="pace" role="timer" aria-live="off" title={pace.tip}>
             <span className="pace-label">Next reply in</span>
             <span className="pace-clock">{pace.clock}</span>

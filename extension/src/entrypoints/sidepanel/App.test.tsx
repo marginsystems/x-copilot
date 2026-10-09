@@ -1256,6 +1256,111 @@ describe("App", () => {
     await act(async () => root.unmount());
   });
 
+  it("keeps the timer steady when a reply lands despite the wait, drops it once detected, and restarts it on the next card", async () => {
+    vi.useFakeTimers();
+    readPairing.mockResolvedValue(paired);
+    const start = Date.now();
+    storageData.lastReplySeenAt = start - 1_000;
+    storageData.panelCardSince = { key: "for_you", sinceMs: start - 5_000 };
+    const firstReply = new Date(start - 5_000).toISOString();
+    const card = (id: string, text: string) => ({ id, conversationId: null, inReplyToId: null, surface: "reply", author: "@eve", url: null, text });
+    const onCard = { view: "scout", detected: false };
+    loadPanelData.mockResolvedValue({ lock: null, lockSupported: true, replyAt: [firstReply], repliesToday: 1, scout: null });
+    askDeskForNext.mockResolvedValue("server");
+    waitForLockChange.mockResolvedValue({ card: card("77", "Second post"), next: null, state: onCard, supported: true, valid: true });
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    const timerText = () => shownCard(container)?.querySelector("[role=timer]")?.textContent ?? null;
+    const refreshPanel = async () => {
+      await act(async () => {
+        window.dispatchEvent(new Event("focus"));
+        await vi.advanceTimersByTimeAsync(0);
+      });
+    };
+
+    await act(async () => {
+      root.render(<App />);
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    await act(async () => {
+      buttonLabelled(container, "Next")?.click();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(shownCard(container)?.textContent).toContain("Second post");
+    expect(timerText()).toBe("Next reply in0:55");
+
+    loadPanelData.mockResolvedValue({ lock: card("77", "Second post"), lockSupported: true, deskState: onCard, replyAt: [firstReply], repliesToday: 1, scout: null });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20_000);
+    });
+    expect(timerText()).toBe("Next reply in0:35");
+
+    const secondReply = new Date(Date.now() - 1_000).toISOString();
+    loadPanelData.mockResolvedValue({ lock: card("77", "Second post"), lockSupported: true, deskState: onCard, replyAt: [secondReply, firstReply], repliesToday: 2, scout: null });
+    await refreshPanel();
+    expect(shownCard(container)?.textContent).toContain("Waiting for your reply");
+    expect(timerText()).toBe("Next reply in0:35");
+
+    storageData.lastRepliedCardId = "77";
+    await refreshPanel();
+    expect(shownCard(container)?.textContent).toContain("Reply detected");
+    expect(timerText()).toBeNull();
+
+    waitForLockChange.mockResolvedValue({ card: card("78", "Third post"), next: null, state: onCard, supported: true, valid: true });
+    await act(async () => {
+      buttonLabelled(container, "Next")?.click();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(shownCard(container)?.textContent).toContain("Third post");
+    expect(timerText()).toBe("Next reply in0:59");
+
+    await act(async () => root.unmount());
+  });
+
+  it("restarts the timer for the latest reply when the desk moves the panel to another card", async () => {
+    vi.useFakeTimers();
+    readPairing.mockResolvedValue(paired);
+    const start = Date.now();
+    storageData.lastReplySeenAt = start - 1_000;
+    storageData.panelCardSince = { key: "for_you", sinceMs: start - 5_000 };
+    const firstReply = new Date(start - 5_000).toISOString();
+    const card = (id: string, text: string) => ({ id, conversationId: null, inReplyToId: null, surface: "reply", author: "@eve", url: null, text });
+    const onCard = { view: "scout", detected: false };
+    loadPanelData.mockResolvedValue({ lock: null, lockSupported: true, replyAt: [firstReply], repliesToday: 1, scout: null });
+    askDeskForNext.mockResolvedValue("server");
+    waitForLockChange.mockResolvedValue({ card: card("77", "Second post"), next: null, state: onCard, supported: true, valid: true });
+    const container = document.createElement("div");
+    document.body.append(container);
+    const root = createRoot(container);
+    const timerText = () => shownCard(container)?.querySelector("[role=timer]")?.textContent ?? null;
+
+    await act(async () => {
+      root.render(<App />);
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    await act(async () => {
+      buttonLabelled(container, "Next")?.click();
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    loadPanelData.mockResolvedValue({ lock: card("77", "Second post"), lockSupported: true, deskState: onCard, replyAt: [firstReply], repliesToday: 1, scout: null });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(20_000);
+    });
+    expect(timerText()).toBe("Next reply in0:35");
+
+    const secondReply = new Date(Date.now() - 1_000).toISOString();
+    loadPanelData.mockResolvedValue({ lock: card("78", "Third post"), lockSupported: true, deskState: onCard, replyAt: [secondReply, firstReply], repliesToday: 2, scout: null });
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    expect(shownCard(container)?.textContent).toContain("Third post");
+    expect(timerText()).toBe("Next reply in0:59");
+
+    await act(async () => root.unmount());
+  });
+
   it("does not arm the reply timer when Next completes after the reply minute ends", async () => {
     vi.useFakeTimers();
     readPairing.mockResolvedValue(paired);
