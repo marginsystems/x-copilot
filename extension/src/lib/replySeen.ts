@@ -3,6 +3,11 @@ import { statusIdFromPath } from "./attention";
 
 export const REPLY_SEEN_KEY = "lastReplySeenAt";
 export const REPLIED_CARD_KEY = "lastRepliedCardId";
+export const REPLY_PACE_AT_KEY = "lastReplyPaceAt";
+
+export function parseReplyPaceAt(raw: unknown): number | null {
+  return typeof raw === "number" && Number.isFinite(raw) && raw > 0 ? raw : null;
+}
 
 export type InteractedBody = {
   threadId: string;

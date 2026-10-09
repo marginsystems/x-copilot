@@ -74,7 +74,7 @@ describe("reportReply", () => {
         replyUrl: "https://x.com/me/status/555",
       }),
     });
-    expect(state.set).toHaveBeenCalledTimes(1);
+    expect(state.set).toHaveBeenCalledTimes(2);
     expect(state.set).toHaveBeenCalledWith(expect.objectContaining({ lastRepliedCardId: "123" }));
   });
 
@@ -90,6 +90,7 @@ describe("reportReply", () => {
 
     expect(state.apiRequest).toHaveBeenNthCalledWith(3, expect.anything(), "/api/desk/own-posts/catch-up", { method: "POST" });
     expect(state.set).toHaveBeenCalledWith(expect.not.objectContaining({ lastRepliedCardId: expect.anything() }));
+    expect(state.set).toHaveBeenCalledWith(expect.objectContaining({ lastReplyPaceAt: expect.any(Number) }));
   });
 
   it("falls back to own-post catch-up when the lock response is malformed", async () => {
@@ -126,6 +127,7 @@ describe("reportReply", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ postId: "555", url: "https://x.com/me/status/555" }),
     });
+    expect(state.set).toHaveBeenCalledWith(expect.not.objectContaining({ lastReplyPaceAt: expect.anything() }));
   });
 
   it("still asks for catch-up when an older server has no seen-post endpoint", async () => {

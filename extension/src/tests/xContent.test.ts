@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import contentScript from "../entrypoints/x.content";
+import { REPLY_PACE_AT_KEY } from "../lib/replySeen";
 import { ATTENTION_GATE_KEY } from "../lib/settings";
 
 const state = vi.hoisted(() => ({
@@ -29,6 +30,10 @@ vi.mock("wxt/utils/define-content-script", () => ({
 
 vi.mock("../lib/settingsStore", () => ({
   readAttentionGate: () => new Promise<boolean>(() => undefined),
+}));
+
+vi.mock("../lib/detectionStore", () => ({
+  readReplyPaceAt: () => new Promise<number | null>(() => undefined),
 }));
 
 describe("x content attention polling", () => {
@@ -135,6 +140,76 @@ describe("x content attention polling", () => {
     state.intervalCallback?.();
     expect(chip?.textContent).toBe("Ready");
     expect(chip?.classList.contains("gone")).toBe(false);
+
+    vi.restoreAllMocks();
+  });
+
+  it("counts down the minute between replies on the chip, then goes back to the reading timer", () => {
+    let nowMs = 100_000;
+    vi.spyOn(Date, "now").mockImplementation(() => nowMs);
+    vi.spyOn(document, "hasFocus").mockReturnValue(true);
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+
+    const box = (top: number, height: number) => ({
+      top,
+      bottom: top + height,
+      left: 10,
+      right: 300,
+      width: 290,
+      height,
+      x: 10,
+      y: top,
+      toJSON: () => ({}),
+    });
+    const post = document.createElement("article");
+    post.setAttribute("data-testid", "tweet");
+    vi.spyOn(post, "getBoundingClientRect").mockReturnValue(box(10, 90));
+    const composer = document.createElement("div");
+    composer.setAttribute("data-testid", "tweetTextarea_0");
+    vi.spyOn(composer, "getBoundingClientRect").mockReturnValue(box(200, 40));
+    document.body.append(post, composer);
+
+    const context = {
+      setInterval: (callback: () => void) => {
+        state.intervalCallback = callback;
+      },
+      onInvalidated: () => undefined,
+    } as unknown as NonNullable<Parameters<typeof contentScript.main>[0]>;
+    const attachShadow = vi.spyOn(Element.prototype, "attachShadow");
+
+    window.history.replaceState(null, "", "/user/status/321");
+    contentScript.main(context);
+    const chip = () => attachShadow.mock.results[0]?.value.querySelector(".chip") as HTMLElement;
+    state.intervalCallback?.();
+    nowMs += 1_000;
+    state.intervalCallback?.();
+    expect(chip().textContent).toBe("Reading9s");
+
+    state.changeListener?.({ [REPLY_PACE_AT_KEY]: { newValue: nowMs - 18_000 } }, "local");
+    state.intervalCallback?.();
+    expect(chip().textContent).toBe("Next reply in0:42");
+    expect(chip().classList.contains("ready")).toBe(false);
+
+    for (let second = 0; second < 41; second += 1) {
+      nowMs += 1_000;
+      state.intervalCallback?.();
+    }
+    expect(chip().textContent).toBe("Next reply in0:01");
+    expect(chip().hidden).toBe(false);
+
+    nowMs += 1_000;
+    state.intervalCallback?.();
+    expect(chip().textContent).toBe("Ready");
+    expect(chip().classList.contains("gone")).toBe(false);
+
+    nowMs += 2_000;
+    state.intervalCallback?.();
+    expect(chip().classList.contains("gone")).toBe(true);
+
+    state.changeListener?.({ [REPLY_PACE_AT_KEY]: { newValue: nowMs } }, "local");
+    state.intervalCallback?.();
+    expect(chip().textContent).toBe("Next reply in1:00");
+    expect(chip().classList.contains("gone")).toBe(false);
 
     vi.restoreAllMocks();
   });

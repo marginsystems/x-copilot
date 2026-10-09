@@ -7,6 +7,7 @@ import {
   postedStatusUrl,
   replyReport,
   REPLIED_CARD_KEY,
+  REPLY_PACE_AT_KEY,
   REPLY_SEEN_KEY,
   seenPostBody,
 } from "./replySeen";
@@ -32,6 +33,7 @@ export async function reportReply(rawReplyUrl: string, pageStatusId: string | nu
   const pairing = await readPairing();
   if (!replyUrl) return;
   if (!pairing) throw new Error("The extension is not paired");
+  if (pageStatusId) await browser.storage.local.set({ [REPLY_PACE_AT_KEY]: Date.now() }).catch(() => undefined);
   await reportSeenPost(pairing, replyUrl, pageStatusId);
   const lock = await readScoutLock(pairing);
   const report = replyReport(lock.card, pageStatusId, replyUrl);
@@ -44,8 +46,10 @@ export async function reportReply(rawReplyUrl: string, pageStatusId: string | nu
   } else {
     await apiRequest(pairing, OWN_POST_CATCH_UP_PATH, { method: "POST" });
   }
-  const seen = report.kind === "scout"
-    ? { [REPLY_SEEN_KEY]: Date.now(), [REPLIED_CARD_KEY]: report.body.threadId }
-    : { [REPLY_SEEN_KEY]: Date.now() };
+  const seenAt = Date.now();
+  const seen = {
+    [REPLY_SEEN_KEY]: seenAt,
+    ...(report.kind === "scout" ? { [REPLIED_CARD_KEY]: report.body.threadId } : {}),
+  };
   await browser.storage.local.set(seen).catch(() => undefined);
 }

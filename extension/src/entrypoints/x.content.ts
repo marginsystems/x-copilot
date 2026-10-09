@@ -3,8 +3,7 @@ import { defineContentScript } from "wxt/utils/define-content-script";
 import {
   IDLE_CLOCK,
   attentionReady,
-  attentionSecondsLeft,
-  chipPhase,
+  chipView,
   parseAttentionMemory,
   rememberAttention,
   readySince,
@@ -12,7 +11,9 @@ import {
   tickAttention,
 } from "../lib/attention";
 import { REPLY_SEEN, WINDOW_FOCUSED } from "../lib/messages";
-import { postedStatusUrl } from "../lib/replySeen";
+import { REPLY_PACE_MS, replyPaceRemainingMs } from "../../../shared/src/replyPace";
+import { readReplyPaceAt } from "../lib/detectionStore";
+import { parseReplyPaceAt, postedStatusUrl, REPLY_PACE_AT_KEY } from "../lib/replySeen";
 import { ATTENTION_GATE_KEY, parseAttentionGate } from "../lib/settings";
 import { readAttentionGate } from "../lib/settingsStore";
 import { X_SELECTORS, chipPagePosition, rectInViewport } from "../lib/xSelectors";
@@ -124,10 +125,15 @@ export default defineContentScript({
     const chip = createChip();
     ctx.onInvalidated(() => chip.host.remove());
 
+    let replyPaceAt: number | null = null;
     readAttentionGate().then((on) => { enabled = on; }, () => undefined);
+    readReplyPaceAt().then((at) => { replyPaceAt = at; }, () => undefined);
     browser.storage.onChanged.addListener((changes, area) => {
+      if (area !== "local") return;
       const change = changes[ATTENTION_GATE_KEY];
-      if (area === "local" && change) enabled = parseAttentionGate(change.newValue);
+      if (change) enabled = parseAttentionGate(change.newValue);
+      const paced = changes[REPLY_PACE_AT_KEY];
+      if (paced) replyPaceAt = parseReplyPaceAt(paced.newValue);
     });
 
     let since: number | null = null;
@@ -151,15 +157,16 @@ export default defineContentScript({
         hideChip();
         return;
       }
-      if (renderedGone && attentionReady(clock)) return;
+      const paceRemainingMs = replyPaceAt === null ? 0 : replyPaceRemainingMs(replyPaceAt + REPLY_PACE_MS, nowMs);
+      if (paceRemainingMs <= 0 && renderedGone && attentionReady(clock)) return;
       const composer = document.querySelector(X_SELECTORS.replyComposer);
       const rect = composer?.getBoundingClientRect();
       if (!rect || rect.width <= 0 || rect.height <= 0) {
         hideChip();
         return;
       }
-      since = readySince(clock, since, nowMs);
-      const phase = chipPhase(clock, since, nowMs);
+      since = paceRemainingMs > 0 ? null : readySince(clock, since, nowMs);
+      const shown = chipView(clock, since, paceRemainingMs, nowMs);
       const replyButton = document.querySelector(X_SELECTORS.inlineReplyButton)?.getBoundingClientRect();
       const position = chipPagePosition(
         rect,
@@ -173,15 +180,13 @@ export default defineContentScript({
         chip.root.style.left = `${position.right}px`;
         placed = next;
       }
-      const label = phase === "counting" ? "Reading" : "Ready";
-      const count = phase === "counting" ? `${attentionSecondsLeft(clock)}s` : "";
-      if (chip.label.textContent !== label) chip.label.textContent = label;
-      if (chip.count.textContent !== count) chip.count.textContent = count;
-      chip.count.hidden = count === "";
-      chip.root.classList.toggle("ready", phase !== "counting");
-      chip.root.classList.toggle("gone", phase === "gone");
+      if (chip.label.textContent !== shown.label) chip.label.textContent = shown.label;
+      if (chip.count.textContent !== shown.count) chip.count.textContent = shown.count;
+      chip.count.hidden = shown.count === "";
+      chip.root.classList.toggle("ready", shown.ready);
+      chip.root.classList.toggle("gone", shown.gone);
       chip.root.hidden = false;
-      renderedGone = phase === "gone";
+      renderedGone = shown.gone;
     }
 
     const reported = new Set<string>();

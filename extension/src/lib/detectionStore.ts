@@ -1,6 +1,6 @@
 import { browser } from "wxt/browser";
 import { CARD_SINCE_KEY, nextCardSince, parseCardSince, type CardSince } from "./detection";
-import { REPLY_SEEN_KEY } from "./replySeen";
+import { parseReplyPaceAt, REPLY_PACE_AT_KEY, REPLY_SEEN_KEY } from "./replySeen";
 
 export async function trackCardSince(key: string, nowMs: number): Promise<CardSince> {
   const stored = await browser.storage.local.get(CARD_SINCE_KEY);
@@ -14,4 +14,9 @@ export async function readReplySeenAt(): Promise<number | null> {
   const stored = await browser.storage.local.get(REPLY_SEEN_KEY);
   const value: unknown = stored[REPLY_SEEN_KEY];
   return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+export async function readReplyPaceAt(): Promise<number | null> {
+  const stored = await browser.storage.local.get(REPLY_PACE_AT_KEY);
+  return parseReplyPaceAt(stored[REPLY_PACE_AT_KEY]);
 }

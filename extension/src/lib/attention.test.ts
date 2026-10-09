@@ -3,6 +3,7 @@ import {
   ATTENTION_MS,
   READY_LINGER_MS,
   chipPhase,
+  chipView,
   readySince,
   IDLE_CLOCK,
   ATTENTION_MEMORY_LIMIT,
@@ -10,6 +11,7 @@ import {
   rememberAttention,
   attentionLabel,
   attentionReady,
+  attentionSecondsLeft,
   statusIdFromPath,
   tickAttention,
   type AttentionClock,
@@ -100,6 +102,22 @@ describe("chip phase", () => {
 
   it("starts over when a new post resets the clock", () => {
     expect(readySince(counting, 10_000, 20_000)).toBeNull();
+  });
+});
+
+describe("chip view", () => {
+  const counting: AttentionClock = { statusId: "1", attendedMs: 4_000, lastTickAt: 0 };
+  const ready: AttentionClock = { statusId: "1", attendedMs: ATTENTION_MS, lastTickAt: 0 };
+
+  it("shows the wait between replies ahead of the reading timer while it runs", () => {
+    expect(chipView(counting, null, 42_000, 5_000)).toEqual({ label: "Next reply in", count: "0:42", ready: false, gone: false });
+    expect(chipView(ready, 1_000, 500, 60_000)).toEqual({ label: "Next reply in", count: "0:01", ready: false, gone: false });
+  });
+
+  it("shows the reading timer, then Ready, once no wait is running", () => {
+    expect(chipView(counting, null, 0, 5_000)).toEqual({ label: "Reading", count: `${attentionSecondsLeft(counting)}s`, ready: false, gone: false });
+    expect(chipView(ready, 10_000, 0, 10_800)).toEqual({ label: "Ready", count: "", ready: true, gone: false });
+    expect(chipView(ready, 10_000, 0, 10_000 + READY_LINGER_MS)).toEqual({ label: "Ready", count: "", ready: true, gone: true });
   });
 });
 

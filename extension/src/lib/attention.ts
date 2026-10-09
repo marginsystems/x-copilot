@@ -1,3 +1,5 @@
+import { formatReplyPaceClock } from "../../../shared/src/replyPace";
+
 export const ATTENTION_MS = 10_000;
 export const ATTENTION_MAX_STEP_MS = 1_000;
 
@@ -110,4 +112,24 @@ export function readySince(clock: AttentionClock, previous: number | null, nowMs
 export function chipPhase(clock: AttentionClock, since: number | null, nowMs: number): ChipPhase {
   if (!attentionReady(clock) || since === null) return "counting";
   return nowMs - since < READY_LINGER_MS ? "ready" : "gone";
+}
+
+export const CHIP_PACE_LABEL = "Next reply in";
+
+export type ChipView = { label: string; count: string; ready: boolean; gone: boolean };
+
+export function chipView(
+  clock: AttentionClock,
+  since: number | null,
+  paceRemainingMs: number,
+  nowMs: number,
+): ChipView {
+  if (paceRemainingMs > 0) {
+    return { label: CHIP_PACE_LABEL, count: formatReplyPaceClock(paceRemainingMs), ready: false, gone: false };
+  }
+  const phase = chipPhase(clock, since, nowMs);
+  if (phase === "counting") {
+    return { label: "Reading", count: `${attentionSecondsLeft(clock)}s`, ready: false, gone: false };
+  }
+  return { label: "Ready", count: "", ready: true, gone: phase === "gone" };
 }
