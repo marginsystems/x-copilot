@@ -14,7 +14,8 @@ function PrivacyBody() {
       <p>
         This Privacy Policy describes how {LEGAL_ENTITY} (“we,” “us,” or “our”)
         collects, uses, and shares information when you use {PRODUCT_NAME} at{" "}
-        {SITE_ORIGIN}. It is provided for transparency and is not legal advice.
+        {SITE_ORIGIN} and its companion browser extension. It is provided for
+        transparency and is not legal advice.
       </p>
 
       <h2>Who we are</h2>
@@ -66,6 +67,52 @@ function PrivacyBody() {
         If you explicitly opt in, we email your verified account address only
         when a new Approach digest is ready. The preference is off by default,
         and every digest includes a one-click unsubscribe link.
+      </p>
+
+      <h2>Browser extension</h2>
+      <p>
+        Before connecting the extension to your account, you must agree to the
+        data use shown on the Account page. The extension stores a sign-in token,
+        its expiry, the connected desk and API addresses, reading-timer preferences,
+        and recent card and reply-detection state in your browser’s extension
+        storage. The token expires after 30 days. Reading-timer state, including
+        X post IDs and reading progress, is kept in the X tab’s session storage
+        and is not sent to our servers.
+      </p>
+      <p>
+        While connected, the extension detects X’s confirmation that you published
+        a post and automatically sends the published post URL, its ID, and the ID
+        of the post open in the tab, when available, to https://api.xcopilot.dev.
+        This lets your desk notice replies and other posts and update your next
+        approach. It also sends approach-card IDs, author handles, URLs, and text
+        when recording your reply, Skip, or Not interested choice, together with
+        any reason you enter. Next and other card choices are synchronized with
+        your account. These requests use the extension’s sign-in token and HTTPS.
+        We store the resulting account activity under the retention policy below.
+      </p>
+      <p>
+        The extension reads matching X and XCoPilot tab URLs to reopen or focus
+        an existing tab. It does not send your general browsing history, private
+        messages, or unpublished drafts to us, and it never types or posts for you.
+        Turning off the reading timer does not turn off published-post reporting.
+        Sign out in the extension to remove its local sign-in token and request
+        server-side revocation; you can also revoke extension sessions from
+        Account. Other extension preferences and detection state remain locally
+        until you remove the extension or clear its storage. Disconnecting does
+        not delete activity already saved to your account.
+      </p>
+      <p>
+        Extension data is used only to provide or improve the extension’s
+        disclosed desk and approach-card features. Our use and transfer of
+        information received from the browser extension complies with the Chrome
+        Web Store User Data Policy, including its Limited Use requirements. We
+        do not sell this data or use it for personalized advertising. We transfer
+        it only as needed to provide these features, for security, to comply with
+        law, or as part of a merger, acquisition, or asset sale. Humans do not
+        read extension user data except with your consent for specific data,
+        for security or legal purposes, or in aggregated and anonymized form for
+        internal operations. The service providers and processing described in
+        this policy also apply to data used by the desk.
       </p>
 
       <h2>Cookies</h2>

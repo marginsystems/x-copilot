@@ -112,6 +112,21 @@
   min-width: 0;
 }
 
+.extension-consent {
+  display: flex;
+  align-items: start;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.extension-consent input {
+  flex-shrink: 0;
+  margin: 2px 0 0;
+  accent-color: var(--accent);
+}
+
 .account-row-action {
   display: flex;
   justify-content: flex-end;

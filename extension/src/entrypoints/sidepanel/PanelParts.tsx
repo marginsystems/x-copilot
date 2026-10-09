@@ -249,6 +249,9 @@ export function PanelShell({
     <main className="panel">
       <PanelHeader connected={connected}>{headSide}</PanelHeader>
       {children}
+      <p className="footnote">
+        <a href={`${DEFAULT_DESK_ORIGIN}/privacy`} target="_blank" rel="noreferrer">Privacy Policy</a>
+      </p>
     </main>
   );
 }

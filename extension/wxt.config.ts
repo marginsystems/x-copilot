@@ -1,4 +1,5 @@
 import { defineConfig } from "wxt";
+import { fileURLToPath } from "node:url";
 
 export default defineConfig({
   srcDir: "src",
@@ -18,17 +19,20 @@ export default defineConfig({
           browser_specific_settings: {
             gecko: {
               id: "x-copilot@xcopilot.dev",
-              strict_min_version: "115.0",
-              data_collection_permissions: { required: ["websiteActivity"] },
+              strict_min_version: "140.0",
+              data_collection_permissions: {
+                required: ["authenticationInfo", "browsingActivity", "websiteContent", "websiteActivity", "personalCommunications"],
+              },
             },
+            gecko_android: { strict_min_version: "142.0" },
           },
         }
-      : {}),
+      : { minimum_chrome_version: "114" }),
   }),
   zip: {
     artifactTemplate: "x-copilot-{{version}}-{{browser}}.zip",
     sourcesTemplate: "x-copilot-{{version}}-sources.zip",
-    sourcesRoot: "..",
+    sourcesRoot: fileURLToPath(new URL("..", import.meta.url)),
     includeSources: ["extension/**", "shared/src/**"],
     excludeSources: ["extension/node_modules/**", "extension/.output/**", "extension/.wxt/**", "**/*.test.ts", "**/*.test.tsx"],
   },

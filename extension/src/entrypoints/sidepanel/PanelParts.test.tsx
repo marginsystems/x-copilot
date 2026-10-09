@@ -53,6 +53,7 @@ describe("unpaired panel", () => {
     expect(container.textContent).toContain("Not connected");
     expect(container.querySelector(".panel-head")?.textContent).toBe("Not connected");
     expect(container.querySelector("section[aria-label=Scout]")?.textContent).toContain("Scout is napping");
+    expect(container.querySelector('a[href="https://xcopilot.dev/privacy"]')?.textContent).toBe("Privacy Policy");
     expect(buttons.map((button) => button.textContent)).toEqual(
       expect.arrayContaining(["Open Account", "Open desk", "Learn"]),
     );

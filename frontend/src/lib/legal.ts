@@ -1,6 +1,6 @@
 export const LEGAL_ENTITY = "Mergestorm, Inc.";
 export const LEGAL_CONTACT_EMAIL = "contact@mergestorm.ai";
-export const LEGAL_UPDATED = "September 30, 2026";
+export const LEGAL_UPDATED = "October 9, 2026";
 export const SITE_ORIGIN = "https://xcopilot.dev";
 export const PRODUCT_NAME = "x-copilot";
 

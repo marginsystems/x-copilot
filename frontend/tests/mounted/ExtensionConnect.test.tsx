@@ -26,6 +26,10 @@ function capturePosts() {
   return { posts, spy };
 }
 
+function agreeToExtensionData() {
+  fireEvent.click(screen.getByRole("checkbox", { name: "I agree to this extension data use." }));
+}
+
 afterEach(() => {
   vi.useRealTimers();
   vi.restoreAllMocks();
@@ -54,6 +58,27 @@ test("ignores hello messages from another window on this origin", () => {
   expect(screen.queryByRole("button")).toBeNull();
 });
 
+test("requires agreement before creating a token and stops offering connection when agreement is withdrawn", async () => {
+  const { posts } = capturePosts();
+  const fetchMock = vi.fn();
+  vi.stubGlobal("fetch", fetchMock);
+  render(<ExtensionConnect />);
+  fromPage({ type: EXTENSION_HELLO, version: "0.1.0", paired: false });
+  const connect = screen.getByRole("button", { name: "Connect extension" }) as HTMLButtonElement;
+  expect(screen.getByRole("link", { name: "Privacy Policy" }).getAttribute("href")).toBe("/privacy");
+  expect(screen.getByText(/automatically sends published X post URLs/)).toBeTruthy();
+  expect(connect.disabled).toBe(true);
+  fireEvent.click(connect);
+  expect(fetchMock).not.toHaveBeenCalled();
+  expect(posts.some((message) => parseExtensionPair(message))).toBe(false);
+  agreeToExtensionData();
+  expect(connect.disabled).toBe(false);
+  agreeToExtensionData();
+  expect(connect.disabled).toBe(true);
+  fireEvent.click(connect);
+  expect(fetchMock).not.toHaveBeenCalled();
+});
+
 test("mints a token, hands it to the extension on this origin, and shows the ack", async () => {
   const { posts, spy } = capturePosts();
   const fetchMock = vi.fn().mockResolvedValue(Response.json({ ok: true, token: "ext-token", expiresAt: EXPIRES }, { status: 201 }));
@@ -62,6 +87,7 @@ test("mints a token, hands it to the extension on this origin, and shows the ack
   fromPage({ type: EXTENSION_HELLO, version: "0.1.0", paired: false });
   expect(screen.getByText("Extension found (v0.1.0). Connect it to this account.")).toBeTruthy();
 
+  agreeToExtensionData();
   fireEvent.click(screen.getByRole("button", { name: "Connect extension" }));
   await vi.waitFor(() => expect(posts.some((m) => parseExtensionPair(m))).toBe(true));
   expect(fetchMock.mock.calls[0]?.[0]).toMatch(/\/api\/auth\/extension-session$/);
@@ -82,6 +108,7 @@ test("reports a missing ack after the timeout", async () => {
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ ok: true, token: "t", expiresAt: EXPIRES }, { status: 201 })));
   render(<ExtensionConnect />);
   fromPage({ type: EXTENSION_HELLO, version: "0.1.0", paired: false });
+  agreeToExtensionData();
   fireEvent.click(screen.getByRole("button", { name: "Connect extension" }));
   await act(async () => { await vi.advanceTimersByTimeAsync(EXTENSION_PAIR_ACK_MS + 1); });
   expect(await screen.findByText("The extension did not answer. Reload this page and try again.")).toBeTruthy();
@@ -92,6 +119,7 @@ test("reports an extension-rejected pairing separately from a missing ack", asyn
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ ok: true, token: "t", expiresAt: EXPIRES }, { status: 201 })));
   render(<ExtensionConnect />);
   fromPage({ type: EXTENSION_HELLO, version: "0.1.0", paired: false });
+  agreeToExtensionData();
   fireEvent.click(screen.getByRole("button", { name: "Connect extension" }));
   await vi.waitFor(() => expect(posts.some((message) => parseExtensionPair(message))).toBe(true));
   fromPage({ type: EXTENSION_PAIRED, ok: false });
@@ -103,6 +131,7 @@ test("ignores pairing acknowledgements from another window on this origin", asyn
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ ok: true, token: "t", expiresAt: EXPIRES }, { status: 201 })));
   render(<ExtensionConnect />);
   fromPage({ type: EXTENSION_HELLO, version: "0.1.0", paired: false });
+  agreeToExtensionData();
   fireEvent.click(screen.getByRole("button", { name: "Connect extension" }));
   await vi.waitFor(() => expect(posts.some((message) => parseExtensionPair(message))).toBe(true));
 
@@ -116,6 +145,7 @@ test("shows the rejection message when creating an extension sign-in fails", asy
   vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("Network unavailable")));
   render(<ExtensionConnect />);
   fromPage({ type: EXTENSION_HELLO, version: "0.1.0", paired: false });
+  agreeToExtensionData();
   fireEvent.click(screen.getByRole("button", { name: "Connect extension" }));
   expect(await screen.findByText("Network unavailable")).toBeTruthy();
 });
@@ -125,6 +155,7 @@ test("reports a refused pairing request without posting a token", async () => {
   vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ error: "rate_limited" }, { status: 429 })));
   render(<ExtensionConnect />);
   fromPage({ type: EXTENSION_HELLO, version: "0.1.0", paired: true });
+  agreeToExtensionData();
   fireEvent.click(screen.getByRole("button", { name: "Reconnect" }));
   expect(await screen.findByText("Could not create an extension sign-in (429).")).toBeTruthy();
   expect(posts.some((m) => parseExtensionPair(m))).toBe(false);
