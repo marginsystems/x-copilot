@@ -167,6 +167,35 @@ export function DismissConfirm({
   );
 }
 
+export const ON_PAGE_TIP = "You are on this page. Click to reload it.";
+
+export function OpenOnXButton({
+  label,
+  url,
+  here,
+  disabled = false,
+  onOpen,
+}: {
+  label: string;
+  url: string | null;
+  here: boolean;
+  disabled?: boolean;
+  onOpen: (url: string) => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={here ? "ghost is-here" : "ghost"}
+      aria-current={here ? "page" : undefined}
+      title={here ? ON_PAGE_TIP : undefined}
+      disabled={disabled}
+      onClick={() => { if (url) onOpen(url); }}
+    >
+      {label}
+    </button>
+  );
+}
+
 export function GearIcon() {
   return (
     <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

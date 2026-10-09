@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { DeskApproachState, ScoutApproachLockCard } from "../../../../shared/src/scoutApproachLock";
 import { browser } from "wxt/browser";
 import { UnpairedError } from "../../lib/api";
-import { planOpenOnX } from "../../lib/openOnX";
+import { onXPage, planOpenOnX } from "../../lib/openOnX";
 import type { Pairing } from "../../lib/pairing";
 import { clearPairing, readPairing } from "../../lib/pairingStore";
 import { askDeskForNext, loadPanelData, recordCardAction, signOutExtension, type PanelData } from "../../lib/panelData";
@@ -45,6 +45,7 @@ import {
   GearIcon,
   NextConfirm,
   openDeskPage,
+  OpenOnXButton,
   PanelLinks,
   PanelShell,
 } from "./PanelParts";
@@ -71,6 +72,31 @@ async function openOnX(url: string): Promise<void> {
     return;
   }
   await browser.tabs.update(plan.tabId, plan.activate ? { url, active: true } : { url });
+}
+
+function useActiveTabUrl(): string | null {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let stopped = false;
+    const read = () => {
+      browser.tabs.query({ active: true, currentWindow: true }).then(
+        (tabs) => { if (!stopped) setUrl(tabs[0]?.url ?? null); },
+        () => undefined,
+      );
+    };
+    const onUpdated = (_tabId: number, change: { url?: string }, tab: { active?: boolean }) => {
+      if (change.url !== undefined && tab.active) read();
+    };
+    read();
+    browser.tabs.onActivated.addListener(read);
+    browser.tabs.onUpdated.addListener(onUpdated);
+    return () => {
+      stopped = true;
+      browser.tabs.onActivated.removeListener(read);
+      browser.tabs.onUpdated.removeListener(onUpdated);
+    };
+  }, []);
+  return url;
 }
 
 function useNow(): number {
@@ -100,6 +126,7 @@ export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [paceArmed, setPaceArmed] = useState(false);
   const now = useNow();
+  const activeTabUrl = useActiveTabUrl();
 
   useEffect(() => {
     if (!restoreNextFocusRef.current || !nextButtonRef.current) return;
@@ -264,6 +291,8 @@ export function App() {
       ? { label: forYouKindLabel(suggestion.kind), detected: false }
       : detectionTag(lock, detected);
   const suggestionShows = suggestion ? suggestionButtons(suggestion, detected) : null;
+
+  const openCard = (url: string) => { openOnX(url).catch(() => undefined); };
 
   async function show(next: ScoutApproachLockCard | null, nextState: DeskApproachState | null) {
     const nextView = panelView(next, nextState);
@@ -491,14 +520,13 @@ export function App() {
           ) : suggestionShows && cardTarget ? (
             <>
               {suggestionShows.open ? (
-                <button
-                  type="button"
-                  className="ghost"
+                <OpenOnXButton
+                  label={card.openLabel}
+                  url={card.openUrl}
+                  here={onXPage(activeTabUrl, card.openUrl)}
                   disabled={!card.openUrl}
-                  onClick={() => { if (card.openUrl) openOnX(card.openUrl).catch(() => undefined); }}
-                >
-                  {card.openLabel}
-                </button>
+                  onOpen={openCard}
+                />
               ) : null}
               {suggestionShows.posted && !nextBusy ? (
                 <button type="button" className="primary" onClick={() => postedThisCard(cardTarget, false)}>
@@ -539,25 +567,20 @@ export function App() {
           ) : (
             <>
               {detected ? null : (
-                <button
-                  type="button"
-                  className="ghost"
-                  onClick={() => { if (card.openUrl) openOnX(card.openUrl).catch(() => undefined); }}
-                >
-                  {card.openLabel}
-                </button>
+                <OpenOnXButton
+                  label={card.openLabel}
+                  url={card.openUrl}
+                  here={onXPage(activeTabUrl, card.openUrl)}
+                  onOpen={openCard}
+                />
               )}
               {!detected && card.secondary ? (
-                <button
-                  type="button"
-                  className="ghost"
-                  onClick={() => {
-                    const url = card.secondary?.url;
-                    if (url) openOnX(url).catch(() => undefined);
-                  }}
-                >
-                  {card.secondary.label}
-                </button>
+                <OpenOnXButton
+                  label={card.secondary.label}
+                  url={card.secondary.url}
+                  here={onXPage(activeTabUrl, card.secondary.url)}
+                  onOpen={openCard}
+                />
               ) : null}
               {canAskNext ? (
                 <button

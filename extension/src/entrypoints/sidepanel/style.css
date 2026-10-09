@@ -307,6 +307,12 @@ button.ghost:hover {
   color: var(--accent);
 }
 
+button.ghost.is-here {
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-dim), 0 0 10px rgba(126, 184, 220, 0.45);
+}
+
 button.primary:hover {
   filter: brightness(1.08);
 }

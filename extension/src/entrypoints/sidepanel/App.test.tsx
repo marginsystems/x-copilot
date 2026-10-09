@@ -5,7 +5,7 @@ import { App } from "./App";
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
-const { readPairing, loadPanelData, askDeskForNext, recordCardAction, waitForLockChange, tabsQuery, tabsCreate, storageData } = vi.hoisted(() => ({
+const { readPairing, loadPanelData, askDeskForNext, recordCardAction, waitForLockChange, tabsQuery, tabsCreate, tabsOnActivated, tabsOnUpdated, storageData } = vi.hoisted(() => ({
   readPairing: vi.fn(),
   loadPanelData: vi.fn(),
   askDeskForNext: vi.fn(),
@@ -13,6 +13,8 @@ const { readPairing, loadPanelData, askDeskForNext, recordCardAction, waitForLoc
   waitForLockChange: vi.fn(),
   tabsQuery: vi.fn().mockResolvedValue([]),
   tabsCreate: vi.fn(),
+  tabsOnActivated: vi.fn(),
+  tabsOnUpdated: vi.fn(),
   storageData: {} as Record<string, unknown>,
 }));
 
@@ -45,7 +47,13 @@ vi.mock("wxt/browser", () => ({
       },
       onChanged: { addListener: vi.fn(), removeListener: vi.fn() },
     },
-    tabs: { create: tabsCreate, query: tabsQuery, update: vi.fn() },
+    tabs: {
+      create: tabsCreate,
+      query: tabsQuery,
+      update: vi.fn(),
+      onActivated: { addListener: tabsOnActivated, removeListener: vi.fn() },
+      onUpdated: { addListener: tabsOnUpdated, removeListener: vi.fn() },
+    },
   },
 }));
 
@@ -76,6 +84,8 @@ describe("App", () => {
     waitForLockChange.mockReset();
     tabsQuery.mockReset().mockResolvedValue([]);
     tabsCreate.mockReset();
+    tabsOnActivated.mockReset();
+    tabsOnUpdated.mockReset();
     for (const key of Object.keys(storageData)) delete storageData[key];
     document.body.replaceChildren();
   });
@@ -106,6 +116,40 @@ describe("App", () => {
     expect(buttonLabelled(container, "Open For You")?.className).toBe("ghost");
     expect(buttonLabelled(container, "Open Inspiration")?.className).toBe("ghost");
     expect(buttonLabelled(container, "Next")?.className).toBe("primary");
+    await act(async () => root.unmount());
+  });
+
+  it("glows the Open button for the page the active tab is on, and keeps it clickable", async () => {
+    readPairing.mockResolvedValue(paired);
+    loadPanelData.mockResolvedValue({ lock: null, lockSupported: true, replyAt: [], repliesToday: null, scout: null });
+    tabsQuery.mockResolvedValue([{ id: 7, url: "https://x.com/home", active: true }]);
+    const { container, root } = await mountPanel();
+
+    const open = buttonLabelled(container, "Open For You");
+    expect(open?.className).toBe("ghost is-here");
+    expect(open?.getAttribute("aria-current")).toBe("page");
+    expect(open?.title).toBe("You are on this page. Click to reload it.");
+    expect(open?.disabled).toBe(false);
+    expect(buttonLabelled(container, "Open Inspiration")?.className).toBe("ghost");
+    await act(async () => root.unmount());
+  });
+
+  it("moves the glow when the active tab goes to another page", async () => {
+    readPairing.mockResolvedValue(paired);
+    const card = { id: "42", conversationId: null, inReplyToId: null, surface: "reply", author: "@dana", url: "https://x.com/dana/status/42", text: "A post" };
+    loadPanelData.mockResolvedValue({ lock: card, lockSupported: true, deskState: { view: "scout", detected: false }, replyAt: [], repliesToday: null, scout: null });
+    tabsQuery.mockResolvedValue([{ id: 7, url: "https://x.com/home", active: true }]);
+    const { container, root } = await mountPanel();
+    expect(buttonLabelled(container, "Open post on X")?.className).toBe("ghost");
+
+    tabsQuery.mockResolvedValue([{ id: 7, url: "https://x.com/dana/status/42", active: true }]);
+    const onUpdated = tabsOnUpdated.mock.calls[0]?.[0] as (tabId: number, change: { url?: string }, tab: { active?: boolean }) => void;
+    await act(async () => {
+      onUpdated(7, { url: "https://x.com/dana/status/42" }, { active: true });
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+    });
+
+    expect(buttonLabelled(container, "Open post on X")?.className).toBe("ghost is-here");
     await act(async () => root.unmount());
   });
 
@@ -999,7 +1043,12 @@ describe("App", () => {
     askDeskForNext.mockResolvedValue(true);
     waitForLockChange.mockResolvedValue({ card: confirmed, supported: true, valid: true });
     let resolveTabs!: (tabs: never[]) => void;
-    tabsQuery.mockReturnValueOnce(new Promise<never[]>((resolve) => { resolveTabs = resolve; }));
+    let held = false;
+    tabsQuery.mockImplementation((query: { active?: boolean }) => {
+      if (query.active || held) return Promise.resolve([]);
+      held = true;
+      return new Promise<never[]>((resolve) => { resolveTabs = resolve; });
+    });
     const container = document.createElement("div");
     document.body.append(container);
     const root = createRoot(container);

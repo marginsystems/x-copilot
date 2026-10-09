@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isXUrl, planOpenOnX } from "./openOnX";
+import { isXUrl, onXPage, planOpenOnX } from "./openOnX";
 
 describe("planOpenOnX", () => {
   it("reuses the active x.com tab without switching", () => {
@@ -21,5 +21,27 @@ describe("planOpenOnX", () => {
     expect(isXUrl("https://x.com.evil.example/")).toBe(false);
     expect(isXUrl("not a url")).toBe(false);
     expect(isXUrl(undefined)).toBe(false);
+  });
+});
+
+describe("onXPage", () => {
+  it("matches a post by its status id whatever the author segment", () => {
+    expect(onXPage("https://x.com/someone/status/123", "https://x.com/i/status/123")).toBe(true);
+    expect(onXPage("https://x.com/someone/status/123/photo/1", "https://x.com/someone/status/123")).toBe(true);
+    expect(onXPage("https://x.com/someone/status/124", "https://x.com/someone/status/123")).toBe(false);
+    expect(onXPage("https://x.com/someone", "https://x.com/someone/status/123")).toBe(false);
+  });
+
+  it("matches a feed page by its path, ignoring query, hash and trailing slash", () => {
+    expect(onXPage("https://x.com/home", "https://x.com/home")).toBe(true);
+    expect(onXPage("https://x.com/home/?ref=a#top", "https://x.com/home")).toBe(true);
+    expect(onXPage("https://x.com/explore", "https://x.com/home")).toBe(false);
+    expect(onXPage("https://x.com/someone/status/123", "https://x.com/home")).toBe(false);
+  });
+
+  it("is false off x.com or without a tab or target", () => {
+    expect(onXPage("https://example.com/home", "https://x.com/home")).toBe(false);
+    expect(onXPage(undefined, "https://x.com/home")).toBe(false);
+    expect(onXPage("https://x.com/home", null)).toBe(false);
   });
 });
