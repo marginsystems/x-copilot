@@ -36,6 +36,10 @@ vi.mock("../lib/detectionStore", () => ({
   readReplyPaceAt: () => new Promise<number | null>(() => undefined),
 }));
 
+function sent(type: string): unknown[] {
+  return state.sendMessage.mock.calls.map(([message]) => message).filter((message) => message?.type === type);
+}
+
 describe("x content attention polling", () => {
   beforeEach(() => {
     state.intervalCallback = undefined;
@@ -436,7 +440,7 @@ describe("x content attention polling", () => {
 
     visibility.mockReturnValue("visible");
     state.intervalCallback?.();
-    expect(state.sendMessage).not.toHaveBeenCalled();
+    expect(sent("x-copilot:window-focused")).toHaveLength(0);
 
     postTop = 10;
     state.intervalCallback?.();
@@ -467,20 +471,62 @@ describe("x content attention polling", () => {
     toast.append(link);
     layers.append(toast);
     document.body.append(layers);
-    expect(state.sendMessage).not.toHaveBeenCalled();
+    expect(sent("x-copilot:reply-seen")).toHaveLength(0);
 
     state.intervalCallback?.();
     await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(state.sendMessage).toHaveBeenCalledTimes(1);
-    expect(state.sendMessage).toHaveBeenCalledWith({
+    expect(sent("x-copilot:reply-seen")).toEqual([{
       type: "x-copilot:reply-seen",
       replyUrl: "https://x.com/me/status/555",
       pageStatusId: "123",
-    });
+    }]);
 
     state.intervalCallback?.();
     await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(state.sendMessage).toHaveBeenCalledTimes(1);
+    expect(sent("x-copilot:reply-seen")).toHaveLength(1);
+  });
+
+  it("asks for the server's latest reply time when a post opens, then every 15 seconds while it shows", () => {
+    let nowMs = 100_000;
+    vi.spyOn(Date, "now").mockImplementation(() => nowMs);
+    const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible");
+    const context = {
+      setInterval: (callback: () => void) => {
+        state.intervalCallback = callback;
+      },
+      onInvalidated: () => undefined,
+    } as unknown as NonNullable<Parameters<typeof contentScript.main>[0]>;
+
+    contentScript.main(context);
+    state.intervalCallback?.();
+    expect(sent("x-copilot:reply-pace-sync")).toHaveLength(0);
+
+    window.history.replaceState(null, "", "/user/status/123");
+    state.intervalCallback?.();
+    expect(sent("x-copilot:reply-pace-sync")).toHaveLength(1);
+
+    nowMs += 14_000;
+    state.intervalCallback?.();
+    expect(sent("x-copilot:reply-pace-sync")).toHaveLength(1);
+
+    nowMs += 1_000;
+    state.intervalCallback?.();
+    expect(sent("x-copilot:reply-pace-sync")).toHaveLength(2);
+
+    window.history.replaceState(null, "", "/user/status/456");
+    nowMs += 250;
+    state.intervalCallback?.();
+    expect(sent("x-copilot:reply-pace-sync")).toHaveLength(3);
+
+    visibility.mockReturnValue("hidden");
+    nowMs += 60_000;
+    state.intervalCallback?.();
+    expect(sent("x-copilot:reply-pace-sync")).toHaveLength(3);
+
+    visibility.mockReturnValue("visible");
+    state.changeListener?.({ [ATTENTION_GATE_KEY]: { newValue: false } }, "local");
+    state.intervalCallback?.();
+    expect(sent("x-copilot:reply-pace-sync")).toHaveLength(3);
   });
 
   it("retries a failed toast report once on a later tick, then stops", async () => {

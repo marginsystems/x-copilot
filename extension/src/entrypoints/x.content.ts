@@ -10,7 +10,7 @@ import {
   statusIdFromPath,
   tickAttention,
 } from "../lib/attention";
-import { REPLY_SEEN, WINDOW_FOCUSED } from "../lib/messages";
+import { REPLY_PACE_SYNC, REPLY_SEEN, WINDOW_FOCUSED } from "../lib/messages";
 import { REPLY_PACE_MS, replyPaceRemainingMs } from "../../../shared/src/replyPace";
 import { readReplyPaceAt } from "../lib/detectionStore";
 import { parseReplyPaceAt, postedStatusUrl, REPLY_PACE_AT_KEY } from "../lib/replySeen";
@@ -21,6 +21,7 @@ import { X_SELECTORS, chipPagePosition, rectInViewport } from "../lib/xSelectors
 const TICK_MS = 250;
 const WINDOW_FOCUS_ASK_MS = 1_000;
 const MEMORY_WRITE_MS = 1_000;
+const REPLY_PACE_SYNC_MS = 15_000;
 const CHIP_HEIGHT = 22;
 const CHIP_HOST_SELECTOR = '[data-x-copilot="attention"]';
 const MEMORY_KEY = "x-copilot:attention";
@@ -227,12 +228,22 @@ export default defineContentScript({
     let memoryDirty = false;
     let memoryWrittenAt = -Infinity;
 
+    let replyPaceSyncedAt = -Infinity;
+    function syncReplyPace(nowMs: number) {
+      replyPaceSyncedAt = nowMs;
+      browser.runtime.sendMessage({ type: REPLY_PACE_SYNC }).catch(() => undefined);
+    }
+
     ctx.setInterval(() => {
       const statusId = statusIdFromPath(window.location.pathname);
       const nowMs = Date.now();
       const visible = document.visibilityState === "visible";
       const pageFocused = visible && document.hasFocus();
       const counting = statusId !== clock.statusId || !attentionReady(clock);
+      if (visible && enabled && statusId !== null &&
+        (statusId !== clock.statusId || nowMs - replyPaceSyncedAt >= REPLY_PACE_SYNC_MS)) {
+        syncReplyPace(nowMs);
+      }
       const postIsInView = visible && enabled && statusId !== null && counting &&
         (statusId === clock.statusId || !pageFocused)
         ? postInView()

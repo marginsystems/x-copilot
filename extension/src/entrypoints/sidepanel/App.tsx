@@ -54,6 +54,7 @@ import {
 } from "./PanelParts";
 import { Scout } from "./Scout";
 import { watchLock } from "../../lib/lockStream";
+import { onlyReplyPaceChanged, paceReplies, storeServerReplyPace } from "../../lib/replyPaceSync";
 
 const REFRESH_MS = 15_000;
 
@@ -153,6 +154,7 @@ export function App() {
     try {
       const lockVersion = lockVersionRef.current;
       const data = await loadPanelData(pairing);
+      storeServerReplyPace(paceReplies(data)).catch(() => undefined);
       if (lockVersionRef.current !== lockVersion) return;
       const shown = shownAfterRefresh(pendingNextRef.current, pairing.token, data.lock, data.deskState);
       const viewKey = panelView(shown, data.deskState).key;
@@ -183,7 +185,9 @@ export function App() {
     const timer = window.setInterval(() => { refresh().catch(() => undefined); }, REFRESH_MS);
     const onFocus = () => { refresh().catch(() => undefined); };
     window.addEventListener("focus", onFocus);
-    const onStorage = () => { refresh().catch(() => undefined); };
+    const onStorage = (changes: Record<string, unknown>) => {
+      if (!onlyReplyPaceChanged(changes)) refresh().catch(() => undefined);
+    };
     browser.storage.onChanged.addListener(onStorage);
     return () => {
       window.clearInterval(timer);
@@ -199,8 +203,8 @@ export function App() {
     return watchLock({ apiBase: liveApiBase, token: liveToken }, () => { refresh().catch(() => undefined); });
   }, [liveApiBase, liveToken, refresh]);
 
-  if (state.kind === "ready") replyAtRef.current = state.data.replyAt;
-  const paceRunning = state.kind === "ready" && panelPace(state.data.replyAt, now) !== null;
+  if (state.kind === "ready") replyAtRef.current = paceReplies(state.data);
+  const paceRunning = state.kind === "ready" && panelPace(paceReplies(state.data), now) !== null;
   useEffect(() => {
     if (!paceRunning) setPaceArm(null);
   }, [paceRunning]);
@@ -270,7 +274,7 @@ export function App() {
     seenHere: cardDetected({ lock, repliedCardId, replySeenAtMs, since }),
   });
   if (paceArm !== null && paceArm.cardKey !== view.key) {
-    setPaceArm(armPanelPace(view.key, state.data.replyAt, Date.now()));
+    setPaceArm(armPanelPace(view.key, paceReplies(state.data), Date.now()));
   }
   const pace = armedPanelPace(paceArm, { cardKey: view.key, detected }, now);
   const detectedTweetId = detectedPostId(view, deskState);

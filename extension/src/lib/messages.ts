@@ -18,6 +18,12 @@ export function parseReplySeenMessage(raw: unknown): ReplySeenMessage | null {
   return { type: REPLY_SEEN, replyUrl: raw.replyUrl, pageStatusId };
 }
 
+export const REPLY_PACE_SYNC = "x-copilot:reply-pace-sync";
+
+export function isReplyPaceSyncMessage(raw: unknown): boolean {
+  return isRecord(raw) && raw.type === REPLY_PACE_SYNC;
+}
+
 export const WINDOW_FOCUSED = "x-copilot:window-focused";
 
 export function isWindowFocusedMessage(raw: unknown): boolean {

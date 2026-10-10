@@ -11,6 +11,7 @@ import { apiRequest, UnpairedError } from "./api";
 import type { Pairing } from "./pairing";
 import type { PanelCardTarget } from "./panelModel";
 import { parseScoutStats, type ScoutStats } from "../../../shared/src/scoutCompanion";
+import { newestReplyIso } from "./replyPaceSync";
 import { readScoutLock } from "./scoutLock";
 
 export type PanelData = {
@@ -20,6 +21,7 @@ export type PanelData = {
   deskState: DeskApproachState | null;
   suggestionId: string | null;
   replyAt: string[];
+  paceReplyAt?: string | null;
   repliesToday: number | null;
   scout: ScoutStats | null;
 };
@@ -49,14 +51,16 @@ export async function loadPanelData(pairing: Pairing): Promise<PanelData> {
     apiRequest(pairing, coachingPath({ lite: true })),
     readScoutStats(pairing),
   ]);
+  const coaching = parseCoachingPayload(coachingRaw);
   return {
     lock: lock.card,
     lockSupported: lock.supported,
     nextUp: lock.next,
     deskState: lock.state,
     suggestionId: lock.suggestionId,
-    replyAt: parseCoachingPayload(coachingRaw)?.replyAt ?? [],
-    repliesToday: parseCoachingPayload(coachingRaw)?.repliesToday ?? null,
+    replyAt: coaching?.replyAt ?? [],
+    paceReplyAt: newestReplyIso(coaching),
+    repliesToday: coaching?.repliesToday ?? null,
     scout,
   };
 }

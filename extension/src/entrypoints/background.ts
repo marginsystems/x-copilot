@@ -1,8 +1,14 @@
 import { browser } from "wxt/browser";
 import { defineBackground } from "wxt/utils/define-background";
-import { isWindowFocusedMessage, parseReplySeenMessage, parseStorePairingMessage } from "../lib/messages";
+import {
+  isReplyPaceSyncMessage,
+  isWindowFocusedMessage,
+  parseReplySeenMessage,
+  parseStorePairingMessage,
+} from "../lib/messages";
 import { pairingFromDesk } from "../lib/pairing";
-import { writePairing } from "../lib/pairingStore";
+import { readPairing, writePairing } from "../lib/pairingStore";
+import { syncReplyPace } from "../lib/replyPaceSync";
 import { reportReply } from "../lib/reportReply";
 import { toggleSidebarOnToolbarClick } from "../lib/toolbar";
 import { senderWindowFocused } from "../lib/windowFocus";
@@ -29,6 +35,13 @@ export default defineBackground(() => {
       if (senderOrigin(sender.url) !== "https://x.com") return undefined;
       return reportReply(seen.replyUrl, seen.pageStatusId).then(
         () => ({ ok: true }),
+        () => ({ ok: false }),
+      );
+    }
+    if (isReplyPaceSyncMessage(raw)) {
+      if (senderOrigin(sender.url) !== "https://x.com") return undefined;
+      return readPairing().then((pairing) => syncReplyPace(pairing)).then(
+        (ok) => ({ ok }),
         () => ({ ok: false }),
       );
     }
