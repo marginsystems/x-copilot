@@ -4,6 +4,7 @@ import { objectValue } from "../platform/unknownValue.js";
  */
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { bucketInteractionsWithLive } from "./activityLive.js";
+import { detectReplyForApproach } from "./approachOriginalDetect.js";
 import { parseActivityBucket } from "./activityStats.js";
 import { trackAnalytics } from "./analyticsClient.js";
 import { recordDeskReplyMarked } from "./deskBeats.js";
@@ -318,7 +319,14 @@ export async function tryHandleInteracted(
         evidence,
       });
       const deskEvent = deskInteractedPayload(interaction);
-      if (deskEvent) publishDeskEvent(sessionUser.id, "interacted", deskEvent);
+      if (deskEvent) {
+        try {
+          detectReplyForApproach(sessionUser.id, deskEvent);
+        } catch (err) {
+          console.warn("Interacted reply detect soft-fail:", err);
+        }
+        publishDeskEvent(sessionUser.id, "interacted", deskEvent);
+      }
       await pruneThreadsFromScoutCache(
         [
           interaction.threadId,

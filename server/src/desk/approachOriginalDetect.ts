@@ -1,6 +1,8 @@
 import { getSuggestion } from "../for-you/forYouStore.js";
+import { replyMatchesLockedScout } from "../scout/replyMatchScout.js";
 import {
   getDeskApproachState,
+  getScoutApproachLock,
   setDeskApproachState,
   type ApproachSuggestionCard,
 } from "../scout/scoutApproachLock.js";
@@ -60,4 +62,25 @@ export function detectForYouForApproach(userId: string, post: ConfirmedOwnPost):
 
 export function detectOwnPostForApproach(userId: string, post: ConfirmedOwnPost): boolean {
   return detectForYouForApproach(userId, post) || detectOriginalForApproach(userId, post);
+}
+
+export type RecordedReply = { threadId: string; conversationId?: string | null; inReplyToId?: string | null };
+
+export function detectReplyForApproach(userId: string, reply: RecordedReply): boolean {
+  const state = getDeskApproachState(userId);
+  if (!state || state.detected) return false;
+  if (state.view !== "scout" && state.view !== "suggestion") return false;
+  if (state.suggestion?.kind === "post") return false;
+  const card = getScoutApproachLock(userId);
+  if (!card) return false;
+  const onCard =
+    reply.threadId === card.id ||
+    replyMatchesLockedScout(
+      { conversationId: reply.conversationId, inReplyToId: reply.inReplyToId ?? reply.threadId },
+      card,
+    );
+  if (!onCard) return false;
+  setDeskApproachState(userId, { ...state, detected: true });
+  publishScoutApproachLockChanged(userId);
+  return true;
 }

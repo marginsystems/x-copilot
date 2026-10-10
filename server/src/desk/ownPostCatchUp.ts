@@ -19,7 +19,7 @@ import {
   activitySubscriptionPaused,
   resolveStoredXUserId,
 } from "../x-api/xActivitySubscribe.js";
-import { detectOwnPostForApproach } from "./approachOriginalDetect.js";
+import { detectOwnPostForApproach, detectReplyForApproach } from "./approachOriginalDetect.js";
 import { publishDeskEvent } from "./deskEvents.js";
 import { rememberActivityEvent, upsertOwnPost } from "./ownPostStore.js";
 import { markOwnReplyInteracted, type OwnReplyMemoryOpts } from "./ownReplyMark.js";
@@ -119,6 +119,11 @@ export async function catchUpOwnPosts(
       await markOwnReplyInteracted(parsed, userId, {
         ...opts?.memory,
         publishInteracted: (interaction) => {
+          try {
+            detectReplyForApproach(userId, interaction);
+          } catch (err) {
+            console.warn("[desk] catch-up reply detect soft-fail", err);
+          }
           publishDeskEvent(userId, "interacted", interaction);
         },
       });

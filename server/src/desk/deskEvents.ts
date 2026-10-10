@@ -5,7 +5,7 @@ import { BODY_CAP_256K, readJsonBody, send } from "../http/httpJson.js";
 import { getSessionUser } from "../auth/sessionCookie.js";
 import { isRecord } from "../platform/unknownValue.js";
 import { postUrl } from "../x-api/xActivity.js";
-import { detectOwnPostForApproach } from "./approachOriginalDetect.js";
+import { detectOwnPostForApproach, detectReplyForApproach } from "./approachOriginalDetect.js";
 
 type BufferedDeskEvent = { seq: number; type: DeskEventType; data: string; atMs: number };
 type DeskEventType =
@@ -153,6 +153,11 @@ export async function tryHandleDeskEventsWake(
     if (typeof body.userId !== "string" || !body.userId || !interaction) {
       send(req, res, 400, { error: "bad_request" });
       return true;
+    }
+    try {
+      detectReplyForApproach(body.userId, interaction);
+    } catch (err) {
+      console.warn("[desk] reply detect soft-fail", err);
     }
     publishDeskEvent(body.userId, "interacted", interaction);
     send(req, res, 200, { ok: true });

@@ -15,6 +15,7 @@ import {
   getDeskApproachState,
   keepDetectedOriginal,
   setDeskApproachState,
+  setScoutApproachLock,
   type DeskApproachState,
 } from "../scout/scoutApproachLock.ts";
 import {
@@ -26,6 +27,7 @@ import {
   detectForYouForApproach,
   detectOriginalForApproach,
   detectOwnPostForApproach,
+  detectReplyForApproach,
   waitingForYouSince,
   waitingOriginalCard,
 } from "./approachOriginalDetect.ts";
@@ -161,6 +163,38 @@ await describe("original post detection for the Approach card", async () => {
     );
     assert.deepEqual(getDeskApproachState(userId), { view: "for_you", detected: true });
     assert.equal(changes(), 1);
+  });
+
+  await it("marks the Scout card detected when the X webhook reports a reply to it, such as one sent from a phone, with no desk open", async () => {
+    const card = { id: "1800000001", conversationId: "1800000001", inReplyToId: null, surface: "reply" as const, author: "@dana", url: null, text: null };
+    setApproachTask(userId, { phase: "scout_reply", cardId: card.id, surface: null }, "server", CARD_AT_MS);
+    setScoutApproachLock(userId, card);
+    setDeskApproachState(userId, { view: "scout", detected: false });
+    const changes = watchLock(token);
+
+    await wake({ type: "interacted", userId, interaction: { threadId: "1800000099", author: "@lee", at: AFTER, inReplyToId: "1800000099", conversationId: "1800000099" } });
+    assert.deepEqual(getDeskApproachState(userId), { view: "scout", detected: false });
+    assert.equal(changes(), 0);
+
+    await wake({ type: "interacted", userId, interaction: { threadId: card.id, author: "@dana", at: AFTER, replyId: "1900000020", inReplyToId: card.id, conversationId: card.id } });
+    assert.deepEqual(getDeskApproachState(userId), { view: "scout", detected: true });
+    assert.equal(changes(), 1);
+
+    await wake({ type: "interacted", userId, interaction: { threadId: card.id, author: "@dana", at: AFTER, replyId: "1900000021", inReplyToId: card.id } });
+    assert.equal(changes(), 1);
+  });
+
+  await it("marks a suggested reply card detected by a reply to its post, and leaves a suggested original post to its own rule", () => {
+    const card = { id: "1800000002", conversationId: null, inReplyToId: null, surface: "reply" as const, author: "@eve", url: null, text: null };
+    setScoutApproachLock(userId, card);
+    setDeskApproachState(userId, { view: "suggestion", detected: false });
+    assert.equal(detectReplyForApproach(userId, { threadId: "1800000002" }), true);
+    assert.equal(getDeskApproachState(userId)?.detected, true);
+
+    const original = serverSuggestionCard({ id: ogId, kind: "post", why: "Take a side", targetId: null, targetUrl: null, targetAuthor: null });
+    setDeskApproachState(userId, { view: "suggestion", detected: false, suggestion: original });
+    assert.equal(detectReplyForApproach(userId, { threadId: "1800000002" }), false);
+    assert.equal(getDeskApproachState(userId)?.detected, false);
   });
 
   await it("leaves For You alone while the task is on another card", () => {
